@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM System</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>CRM System</h1>
+            <nav>
+                <button onclick="showSection('dashboard')" class="nav-btn active">Dashboard</button>
+                <button onclick="showSection('customers')" class="nav-btn">Customers</button>
+                <button onclick="showSection('contacts')" class="nav-btn">Contacts</button>
+                <button onclick="showSection('leads')" class="nav-btn">Leads</button>
+                <button onclick="showSection('opportunities')" class="nav-btn">Opportunities</button>
+            </nav>
+        </header>
+
+        <!-- Dashboard Section -->
+        <section id="dashboard" class="section active">
+            <h2>Dashboard</h2>
+            <div class="stats-container">
+                <div class="stat-card">
+                    <h3>Total Customers</h3>
+                    <p class="stat-value" id="stat-customers">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Total Contacts</h3>
+                    <p class="stat-value" id="stat-contacts">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Active Leads</h3>
+                    <p class="stat-value" id="stat-leads">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Open Opportunities</h3>
+                    <p class="stat-value" id="stat-opportunities">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Total Value</h3>
+                    <p class="stat-value" id="stat-value">$0</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Customers Section -->
+        <section id="customers" class="section">
+            <div class="section-header">
+                <h2>Customers</h2>
+                <button onclick="showCustomerForm()" class="btn-primary">Add Customer</button>
+            </div>
+            <div class="search-bar">
+                <input type="text" id="customer-search" placeholder="Search customers..." onkeyup="searchCustomers()">
+            </div>
+            <div id="customers-list" class="list-container"></div>
+            
+            <!-- Customer Form Modal -->
+            <div id="customer-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeCustomerForm()">&times;</span>
+                    <h3 id="customer-form-title">Add Customer</h3>
+                    <form id="customer-form" onsubmit="saveCustomer(event)">
+                        <input type="hidden" id="customer-id">
+                        <div class="form-group">
+                            <label>Name *</label>
+                            <input type="text" id="customer-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Email *</label>
+                            <input type="email" id="customer-email" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Phone</label>
+                            <input type="tel" id="customer-phone">
+                        </div>
+                        <div class="form-group">
+                            <label>Company</label>
+                            <input type="text" id="customer-company">
+                        </div>
+                        <div class="form-group">
+                            <label>Address</label>
+                            <textarea id="customer-address" rows="3"></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Save</button>
+                            <button type="button" onclick="closeCustomerForm()" class="btn-secondary">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- Contacts Section -->
+        <section id="contacts" class="section">
+            <div class="section-header">
+                <h2>Contacts</h2>
+                <button onclick="showContactForm()" class="btn-primary">Add Contact</button>
+            </div>
+            <div id="contacts-list" class="list-container"></div>
+            
+            <!-- Contact Form Modal -->
+            <div id="contact-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeContactForm()">&times;</span>
+                    <h3 id="contact-form-title">Add Contact</h3>
+                    <form id="contact-form" onsubmit="saveContact(event)">
+                        <input type="hidden" id="contact-id">
+                        <div class="form-group">
+                            <label>Customer *</label>
+                            <select id="contact-customer-id" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label>First Name *</label>
+                            <input type="text" id="contact-first-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Last Name *</label>
+                            <input type="text" id="contact-last-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" id="contact-email">
+                        </div>
+                        <div class="form-group">
+                            <label>Phone</label>
+                            <input type="tel" id="contact-phone">
+                        </div>
+                        <div class="form-group">
+                            <label>Position</label>
+                            <input type="text" id="contact-position">
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Save</button>
+                            <button type="button" onclick="closeContactForm()" class="btn-secondary">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- Leads Section -->
+        <section id="leads" class="section">
+            <div class="section-header">
+                <h2>Leads</h2>
+                <button onclick="showLeadForm()" class="btn-primary">Add Lead</button>
+            </div>
+            <div class="filter-bar">
+                <select id="lead-status-filter" onchange="filterLeads()">
+                    <option value="">All Statuses</option>
+                    <option value="new">New</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="qualified">Qualified</option>
+                    <option value="lost">Lost</option>
+                </select>
+            </div>
+            <div id="leads-list" class="list-container"></div>
+            
+            <!-- Lead Form Modal -->
+            <div id="lead-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeLeadForm()">&times;</span>
+                    <h3 id="lead-form-title">Add Lead</h3>
+                    <form id="lead-form" onsubmit="saveLead(event)">
+                        <input type="hidden" id="lead-id">
+                        <div class="form-group">
+                            <label>Name *</label>
+                            <input type="text" id="lead-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" id="lead-email">
+                        </div>
+                        <div class="form-group">
+                            <label>Phone</label>
+                            <input type="tel" id="lead-phone">
+                        </div>
+                        <div class="form-group">
+                            <label>Source</label>
+                            <input type="text" id="lead-source" placeholder="e.g., website, referral, cold call">
+                        </div>
+                        <div class="form-group">
+                            <label>Status</label>
+                            <select id="lead-status">
+                                <option value="new">New</option>
+                                <option value="contacted">Contacted</option>
+                                <option value="qualified">Qualified</option>
+                                <option value="lost">Lost</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Notes</label>
+                            <textarea id="lead-notes" rows="3"></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Save</button>
+                            <button type="button" onclick="closeLeadForm()" class="btn-secondary">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- Opportunities Section -->
+        <section id="opportunities" class="section">
+            <div class="section-header">
+                <h2>Opportunities</h2>
+                <button onclick="showOpportunityForm()" class="btn-primary">Add Opportunity</button>
+            </div>
+            <div id="opportunities-list" class="list-container"></div>
+            
+            <!-- Opportunity Form Modal -->
+            <div id="opportunity-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeOpportunityForm()">&times;</span>
+                    <h3 id="opportunity-form-title">Add Opportunity</h3>
+                    <form id="opportunity-form" onsubmit="saveOpportunity(event)">
+                        <input type="hidden" id="opportunity-id">
+                        <div class="form-group">
+                            <label>Customer *</label>
+                            <select id="opportunity-customer-id" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Title *</label>
+                            <input type="text" id="opportunity-title" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea id="opportunity-description" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Value ($)</label>
+                            <input type="number" id="opportunity-value" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label>Stage</label>
+                            <select id="opportunity-stage">
+                                <option value="prospecting">Prospecting</option>
+                                <option value="qualification">Qualification</option>
+                                <option value="proposal">Proposal</option>
+                                <option value="negotiation">Negotiation</option>
+                                <option value="closed_won">Closed Won</option>
+                                <option value="closed_lost">Closed Lost</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Probability (%)</label>
+                            <input type="number" id="opportunity-probability" min="0" max="100" value="10">
+                        </div>
+                        <div class="form-group">
+                            <label>Expected Close Date</label>
+                            <input type="date" id="opportunity-expected-close-date">
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Save</button>
+                            <button type="button" onclick="closeOpportunityForm()" class="btn-secondary">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
