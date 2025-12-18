@@ -45,6 +45,12 @@ pip install -r requirements.txt
 python run.py
 ```
 
+For development with debug mode enabled:
+```bash
+export FLASK_DEBUG=true  # On Windows: set FLASK_DEBUG=true
+python run.py
+```
+
 2. Open your browser and navigate to:
 ```
 http://localhost:5000
