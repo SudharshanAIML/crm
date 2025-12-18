@@ -186,14 +186,11 @@ async function loadContacts() {
         container.innerHTML = '';
         
         for (const contact of contacts) {
-            const customerResponse = await fetch(`${API_BASE}/customers/${contact.customer_id}`);
-            const customer = await customerResponse.json();
-            
             const item = document.createElement('div');
             item.className = 'list-item';
             item.innerHTML = `
                 <h4>${contact.first_name} ${contact.last_name}</h4>
-                <p><strong>Customer:</strong> ${customer.name}</p>
+                <p><strong>Customer:</strong> ${contact.customer_name || 'N/A'}</p>
                 <p><strong>Email:</strong> ${contact.email || 'N/A'}</p>
                 <p><strong>Phone:</strong> ${contact.phone || 'N/A'}</p>
                 <p><strong>Position:</strong> ${contact.position || 'N/A'}</p>
@@ -454,14 +451,11 @@ async function loadOpportunities() {
         container.innerHTML = '';
         
         for (const opportunity of opportunities) {
-            const customerResponse = await fetch(`${API_BASE}/customers/${opportunity.customer_id}`);
-            const customer = await customerResponse.json();
-            
             const item = document.createElement('div');
             item.className = 'list-item';
             item.innerHTML = `
                 <h4>${opportunity.title}</h4>
-                <p><strong>Customer:</strong> ${customer.name}</p>
+                <p><strong>Customer:</strong> ${opportunity.customer_name || 'N/A'}</p>
                 <p><strong>Description:</strong> ${opportunity.description || 'N/A'}</p>
                 <p><strong>Value:</strong> $${opportunity.value ? opportunity.value.toLocaleString() : 0}</p>
                 <p><strong>Stage:</strong> <span class="badge badge-${opportunity.stage.replace('_', '-')}">${opportunity.stage.replace('_', ' ')}</span></p>

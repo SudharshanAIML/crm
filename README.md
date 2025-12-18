@@ -47,7 +47,7 @@ python run.py
 
 2. Open your browser and navigate to:
 ```
-http://localhost:5000/api/
+http://localhost:5000
 ```
 
 3. Start managing your customer relationships!

@@ -16,7 +16,7 @@ class Customer(db.Model):
     
     # Relationships
     contacts = db.relationship('Contact', backref='customer', lazy=True, cascade='all, delete-orphan')
-    leads = db.relationship('Lead', backref='customer', lazy=True, cascade='all, delete-orphan')
+    leads = db.relationship('Lead', backref='customer', lazy=True)
     opportunities = db.relationship('Opportunity', backref='customer', lazy=True, cascade='all, delete-orphan')
     
     def to_dict(self):
@@ -53,7 +53,8 @@ class Contact(db.Model):
             'phone': self.phone,
             'position': self.position,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'customer_name': self.customer.name if self.customer else None
         }
 
 class Lead(db.Model):
@@ -107,5 +108,6 @@ class Opportunity(db.Model):
             'probability': self.probability,
             'expected_close_date': self.expected_close_date.isoformat() if self.expected_close_date else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'customer_name': self.customer.name if self.customer else None
         }
