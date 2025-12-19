@@ -234,7 +234,7 @@ const server = app.listen(PORT, HOST, () => {
   `);
 });
 
-// Handle shutdown signals
+// Handle shutdown signalsanagement.f.aivencloud.com:12247/defaultdb?ssl-mode=REQUIRED
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 

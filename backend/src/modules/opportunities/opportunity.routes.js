@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as opportunityController from "./opportunity.controller.js";
-// import { authenticateEmployee } from "../../middlewares/auth.middleware.js";
+import { authenticateEmployee } from "../../middlewares/auth.middleware.js";
 
 const router = Router();
 
@@ -14,7 +14,7 @@ const router = Router();
  */
 router.post(
   "/",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   opportunityController.createOpportunity
 );
 
@@ -28,7 +28,7 @@ router.post(
  */
 router.get(
   "/:id",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   opportunityController.getOpportunityById
 );
 
@@ -42,7 +42,7 @@ router.get(
  */
 router.post(
   "/:id/won",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   opportunityController.markAsWon
 );
 
@@ -56,7 +56,7 @@ router.post(
  */
 router.post(
   "/:id/lost",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   opportunityController.markAsLost
 );
 

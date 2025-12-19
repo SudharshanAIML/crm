@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as sessionController from "./session.controller.js";
-// import { authenticateEmployee } from "../../middlewares/auth.middleware.js";
+import { authenticateEmployee } from "../../middlewares/auth.middleware.js";
 
 const router = Router();
 
@@ -24,7 +24,7 @@ const router = Router();
  */
 router.post(
   "/",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   sessionController.createSession
 );
 
@@ -38,7 +38,7 @@ router.post(
  */
 router.get(
   "/contact/:contactId",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   sessionController.getSessionsByContact
 );
 
@@ -52,7 +52,7 @@ router.get(
  */
 router.get(
   "/contact/:contactId/:stage",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   sessionController.getSessionsByStage
 );
 
@@ -66,7 +66,7 @@ router.get(
  */
 router.patch(
   "/:id",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   sessionController.updateSession
 );
 
@@ -80,7 +80,7 @@ router.patch(
  */
 router.delete(
   "/:id",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   sessionController.deleteSession
 );
 

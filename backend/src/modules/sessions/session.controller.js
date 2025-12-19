@@ -35,6 +35,7 @@ export const createSession = async (req, res, next) => {
 
     res.status(201).json({
       message: "Session created successfully",
+      sessionId: sessionNo.session_id,
     });
   } catch (error) {
     next(error);
