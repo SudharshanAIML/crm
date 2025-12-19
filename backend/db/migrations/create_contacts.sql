@@ -7,7 +7,7 @@ CREATE TABLE contacts (
     email VARCHAR(255),
     phone VARCHAR(50),
 
-    job_title VARCHAR(255),  -- NEW: lead's job / role
+    job_title VARCHAR(255),  -- lead's job / role
 
     status ENUM(
         'LEAD',
@@ -22,7 +22,9 @@ CREATE TABLE contacts (
 
     source VARCHAR(255),
     interest_score INT DEFAULT 0,
+    tracking_token VARCHAR(255),  -- for email click tracking
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
     FOREIGN KEY (company_id) REFERENCES companies(company_id),
     FOREIGN KEY (assigned_emp_id) REFERENCES employees(emp_id)

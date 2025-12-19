@@ -1,10 +1,11 @@
 CREATE TABLE employees (
     emp_id INT AUTO_INCREMENT PRIMARY KEY,
-    company_id INT NOT NULL,
-    name VARCHAR(255),
-    email VARCHAR(255) UNIQUE,
+    company_id INT,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
     phone VARCHAR(50),
-    role ENUM('marketing', 'sales', 'support', 'admin'),
+    role ENUM('ADMIN', 'EMPLOYEE') DEFAULT 'EMPLOYEE',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (company_id) REFERENCES companies(company_id)
 );

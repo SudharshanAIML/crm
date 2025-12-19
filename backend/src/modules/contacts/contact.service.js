@@ -38,6 +38,16 @@ export const getContactById = async (id) => {
 };
 
 /* ---------------------------------------------------
+   GET CONTACTS BY STATUS
+--------------------------------------------------- */
+export const getContactsByStatus = async (companyId, status, limit = 50, offset = 0) => {
+  if (status) {
+    return await contactRepo.getByStatus(status, companyId);
+  }
+  return await contactRepo.getAll(companyId, limit, offset);
+};
+
+/* ---------------------------------------------------
    SYSTEM: LEAD → MQL (Marketing Automation)
 --------------------------------------------------- */
 export const processLeadActivity = async ({ contactId, token }) => {

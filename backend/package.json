@@ -1,21 +1,32 @@
 {
-  "name": "backend",
+  "name": "crm-backend",
   "version": "1.0.0",
   "type": "module",
-  "main": "index.js",
+  "main": "src/app.js",
   "scripts": {
-    "start": "node src/app.js",
-    "dev": "nodemon src/app.js",
+    "start": "NODE_ENV=production node src/app.js",
+    "dev": "NODE_ENV=development nodemon src/app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": ["crm", "sales", "marketing", "leads"],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "CRM Platform Backend - Lead to Evangelist Pipeline",
   "dependencies": {
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "mysql2": "^3.16.0",
+    "express-rate-limit": "^7.5.0",
+    "google-auth-library": "^9.14.2",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.16.0"
+  },
+  "devDependencies": {
     "nodemon": "^3.1.11"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

@@ -78,6 +78,16 @@ export const updateStatus = async (
 };
 
 /* ---------------------------------------------------
+   MARK OPPORTUNITY AS WON
+--------------------------------------------------- */
+export const markWon = async (opportunityId) => {
+  await db.query(
+    `UPDATE opportunities SET status = 'WON' WHERE opportunity_id = ?`,
+    [opportunityId]
+  );
+};
+
+/* ---------------------------------------------------
    LIST OPPORTUNITIES BY STATUS
 --------------------------------------------------- */
 export const getByStatus = async (status, companyId) => {

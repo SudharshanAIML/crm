@@ -137,6 +137,24 @@ export const getByStatus = async (status, companyId) => {
 };
 
 /* ---------------------------------------------------
+   GET ALL CONTACTS FOR COMPANY
+--------------------------------------------------- */
+export const getAll = async (companyId, limit = 50, offset = 0) => {
+  const [rows] = await db.query(
+    `
+    SELECT *
+    FROM contacts
+    WHERE company_id = ?
+    ORDER BY created_at DESC
+    LIMIT ? OFFSET ?
+    `,
+    [companyId, limit, offset]
+  );
+
+  return rows;
+};
+
+/* ---------------------------------------------------
    DELETE CONTACT (OPTIONAL / ADMIN)
 --------------------------------------------------- */
 export const deleteContact = async (contactId) => {

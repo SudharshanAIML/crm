@@ -7,11 +7,45 @@ import * as contactService from "./contact.service.js";
  */
 export const createContact = async (req, res, next) => {
   try {
-    const contactId = await contactService.createLead(req.body);
+    // Add company_id from authenticated user if not provided
+    const data = {
+      ...req.body,
+      company_id: req.body.company_id || req.user?.companyId,
+      assigned_emp_id: req.body.assigned_emp_id || req.user?.empId,
+    };
+    
+    const contactId = await contactService.createLead(data);
     res.status(201).json({
       message: "Lead created and email sent successfully",
       contactId,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc   Get contacts by status (with optional filtering)
+ * @route  GET /contacts?status=MQL&limit=50&offset=0
+ * @access Employee
+ */
+export const getContactsByStatus = async (req, res, next) => {
+  try {
+    const { status, limit = 50, offset = 0 } = req.query;
+    const companyId = req.user?.companyId;
+
+    if (!companyId) {
+      return res.status(400).json({ message: "Company ID is required" });
+    }
+
+    const contacts = await contactService.getContactsByStatus(
+      companyId,
+      status,
+      parseInt(limit),
+      parseInt(offset)
+    );
+    
+    res.json(contacts);
   } catch (error) {
     next(error);
   }
@@ -80,7 +114,6 @@ export const promoteToSQL = async (req, res, next) => {
 export const convertToOpportunity = async (req, res, next) => {
   try {
     const { expectedValue } = req.body;
-const app = express();
 
     if (!expectedValue) {
       return res.status(400).json({

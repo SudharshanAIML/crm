@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as contactController from "./contact.controller.js";
-// import { authenticateEmployee } from "../../middlewares/auth.middleware.js";
+import { authenticateEmployee } from "../../middlewares/auth.middleware.js";
 
 const router = Router();
 
@@ -11,14 +11,21 @@ const router = Router();
 // Create new Lead (Employee)
 router.post(
   "/",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   contactController.createContact
+);
+
+// Get contacts by status (e.g., /contacts?status=MQL)
+router.get(
+  "/",
+  authenticateEmployee,
+  contactController.getContactsByStatus
 );
 
 // Get contact by ID
 router.get(
   "/:id",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   contactController.getContactById
 );
 
@@ -39,14 +46,14 @@ router.post(
 // MQL → SQL
 router.patch(
   "/:id/promote-sql",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   contactController.promoteToSQL
 );
 
 // SQL → OPPORTUNITY
 router.post(
   "/:id/opportunity",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   contactController.convertToOpportunity
 );
 
@@ -57,7 +64,7 @@ router.post(
 // OPPORTUNITY → CUSTOMER (Deal Close)
 router.post(
   "/opportunities/:id/close",
-  /* authenticateEmployee, */
+  authenticateEmployee,
   contactController.closeDeal
 );
 
@@ -68,6 +75,7 @@ router.post(
 // CUSTOMER → EVANGELIST
 router.post(
   "/:id/evangelist",
+  authenticateEmployee,
   contactController.convertToEvangelist
 );
 
