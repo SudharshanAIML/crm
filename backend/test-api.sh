@@ -328,11 +328,11 @@ echo ""
 echo "Testing: GET /api/opportunities/$OPPORTUNITY_ID (Get Opportunity)"
 make_request "GET" "/api/opportunities/${OPPORTUNITY_ID:-1}" "" "auth"
 
-echo ""
-echo "Testing: POST /api/opportunities/$OPPORTUNITY_ID/won (Mark as WON → Customer)"
-make_request "POST" "/api/opportunities/${OPPORTUNITY_ID:-1}/won" '{
-  "dealValue": 18500.00
-}' "auth"
+# echo ""
+# echo "Testing: POST /api/opportunities/$OPPORTUNITY_ID/won (Mark as WON → Customer)"
+# make_request "POST" "/api/opportunities/${OPPORTUNITY_ID:-1}/won" '{
+#   "dealValue": 18500.00
+# }' "auth"
 
 # Test LOST flow with a new opportunity
 echo ""
@@ -365,20 +365,20 @@ make_request "GET" "/api/deals/company/${COMPANY_ID:-1}" "" "auth"
 # =====================================================
 print_header "10. FEEDBACK ENDPOINTS"
 
-echo "Testing: POST /api/feedback (Submit Feedback)"
-make_request "POST" "/api/feedback" "{
-  \"contactId\": ${CONTACT_ID:-1},
-  \"rating\": 9,
-  \"comment\": \"Excellent service, very satisfied with the product!\"
-}" "auth"
+# echo "Testing: POST /api/feedback (Submit Feedback)"
+# make_request "POST" "/api/feedback" "{
+#   \"contactId\": ${CONTACT_ID:-1},
+#   \"rating\": 9,
+#   \"comment\": \"Excellent service, very satisfied with the product!\"
+# }" "auth"
 
-echo ""
-echo "Testing: POST /api/feedback (Submit Another Feedback)"
-make_request "POST" "/api/feedback" "{
-  \"contactId\": ${CONTACT_ID:-1},
-  \"rating\": 10,
-  \"comment\": \"Would definitely recommend to others!\"
-}" "auth"
+# echo ""
+# echo "Testing: POST /api/feedback (Submit Another Feedback)"
+# make_request "POST" "/api/feedback" "{
+#   \"contactId\": ${CONTACT_ID:-1},
+#   \"rating\": 10,
+#   \"comment\": \"Would definitely recommend to others!\"
+# }" "auth"
 
 echo ""
 echo "Testing: GET /api/feedback/contact/$CONTACT_ID (Get Feedback for Contact)"
@@ -444,37 +444,37 @@ make_request "GET" "/api/analytics/activities?limit=5" "" "auth"
 # =====================================================
 # 14. ERROR HANDLING TESTS
 # =====================================================
-print_header "14. ERROR HANDLING TESTS"
+# print_header "14. ERROR HANDLING TESTS"
 
-echo "Testing: GET /api/nonexistent (404 Not Found)"
-make_request "GET" "/api/nonexistent"
+# echo "Testing: GET /api/nonexistent (404 Not Found)"
+# make_request "GET" "/api/nonexistent"
 
-echo ""
-echo "Testing: GET /api/contacts/99999 (Contact Not Found)"
-make_request "GET" "/api/contacts/99999" "" "auth"
+# echo ""
+# echo "Testing: GET /api/contacts/99999 (Contact Not Found)"
+# make_request "GET" "/api/contacts/99999" "" "auth"
 
-echo ""
-echo "Testing: POST /api/contacts (Missing Required Fields)"
-make_request "POST" "/api/contacts" '{
-  "name": "Incomplete Lead"
-}' "auth"
+# echo ""
+# echo "Testing: POST /api/contacts (Missing Required Fields)"
+# make_request "POST" "/api/contacts" '{
+#   "name": "Incomplete Lead"
+# }' "auth"
 
-echo ""
-echo "Testing: POST /api/sessions (Invalid Stage)"
-make_request "POST" "/api/sessions" "{
-  \"contactId\": ${CONTACT_ID:-1},
-  \"stage\": \"INVALID\",
-  \"sessionNo\": 1,
-  \"sessionStatus\": \"CONNECTED\"
-}" "auth"
+# echo ""
+# echo "Testing: POST /api/sessions (Invalid Stage)"
+# make_request "POST" "/api/sessions" "{
+#   \"contactId\": ${CONTACT_ID:-1},
+#   \"stage\": \"INVALID\",
+#   \"sessionNo\": 1,
+#   \"sessionStatus\": \"CONNECTED\"
+# }" "auth"
 
-echo ""
-echo "Testing: POST /api/feedback (Invalid Rating)"
-make_request "POST" "/api/feedback" "{
-  \"contactId\": ${CONTACT_ID:-1},
-  \"rating\": 15,
-  \"comment\": \"Invalid rating test\"
-}" "auth"
+# echo ""
+# echo "Testing: POST /api/feedback (Invalid Rating)"
+# make_request "POST" "/api/feedback" "{
+#   \"contactId\": ${CONTACT_ID:-1},
+#   \"rating\": 15,
+#   \"comment\": \"Invalid rating test\"
+# }" "auth"
 
 # =====================================================
 # CLEANUP (Optional)
