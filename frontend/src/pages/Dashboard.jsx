@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ContactGrid, ContactDetail, AddContactModal } from '../components/contacts';
+import { FollowupsModal, AddSessionModal, TakeActionModal } from '../components/sessions';
 import Sidebar from '../components/layout/Sidebar';
-import { getContacts, createContact, updateContact } from '../services/contactService';
+import { getContacts, createContact, updateContact, promoteToSQL, convertToOpportunity } from '../services/contactService';
+import { createSession } from '../services/sessionService';
 import { Bell, Menu, X, Settings, LogOut, User, ChevronDown } from 'lucide-react';
 
 const Dashboard = () => {
@@ -19,6 +21,11 @@ const Dashboard = () => {
   const [contactCounts, setContactCounts] = useState({});
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
+
+  // Session/Followup modals
+  const [followupsContact, setFollowupsContact] = useState(null);
+  const [addSessionContact, setAddSessionContact] = useState(null);
+  const [takeActionData, setTakeActionData] = useState(null);
 
   // Close user menu when clicking outside
   useEffect(() => {
@@ -93,8 +100,57 @@ const Dashboard = () => {
   };
 
   const handleFollowupsClick = (contact) => {
-    console.log('Followups clicked for:', contact);
-    alert(`Followups functionality for ${contact.name} will be implemented next`);
+    setFollowupsContact(contact);
+  };
+
+  const handleAddSession = (contact) => {
+    setAddSessionContact(contact);
+  };
+
+  const handleSessionSubmit = async (sessionData) => {
+    try {
+      setSubmitting(true);
+      setError(null);
+      await createSession(sessionData);
+      await fetchContacts(); // Refresh to get updated temperature
+      setAddSessionContact(null);
+      // Refresh followups modal if open
+      if (followupsContact && followupsContact.contact_id === sessionData.contactId) {
+        // Force re-render by creating new object reference
+        setFollowupsContact({ ...followupsContact });
+      }
+    } catch (error) {
+      console.error('Error creating session:', error);
+      setError(error.response?.data?.message || 'Failed to create session. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleTakeAction = (contact, targetStatus) => {
+    setTakeActionData({ contact, targetStatus });
+  };
+
+  const handleConfirmPromotion = async (contact, targetStatus, expectedValue) => {
+    try {
+      setSubmitting(true);
+      setError(null);
+      
+      if (targetStatus === 'SQL') {
+        await promoteToSQL(contact.contact_id);
+      } else if (targetStatus === 'OPPORTUNITY') {
+        await convertToOpportunity(contact.contact_id, expectedValue);
+      }
+      
+      await fetchContacts();
+      setTakeActionData(null);
+      setFollowupsContact(null);
+    } catch (error) {
+      console.error('Error promoting contact:', error);
+      setError(error.response?.data?.message || 'Failed to promote contact. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Get initials for avatar
@@ -295,6 +351,34 @@ const Dashboard = () => {
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSubmit={handleAddContact}
+        loading={submitting}
+      />
+
+      {/* Followups Modal */}
+      <FollowupsModal
+        isOpen={!!followupsContact}
+        contact={followupsContact}
+        onClose={() => setFollowupsContact(null)}
+        onAddSession={handleAddSession}
+        onTakeAction={handleTakeAction}
+      />
+
+      {/* Add Session Modal */}
+      <AddSessionModal
+        isOpen={!!addSessionContact}
+        contact={addSessionContact}
+        onClose={() => setAddSessionContact(null)}
+        onSubmit={handleSessionSubmit}
+        loading={submitting}
+      />
+
+      {/* Take Action Modal */}
+      <TakeActionModal
+        isOpen={!!takeActionData}
+        contact={takeActionData?.contact}
+        targetStatus={takeActionData?.targetStatus}
+        onClose={() => setTakeActionData(null)}
+        onConfirm={handleConfirmPromotion}
         loading={submitting}
       />
     </div>

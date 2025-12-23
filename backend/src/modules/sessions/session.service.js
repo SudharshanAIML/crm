@@ -2,29 +2,55 @@ import * as sessionRepo from "./session.repo.js";
 import * as contactRepo from "../contacts/contact.repo.js";
 
 /* ---------------------------------------------------
-   CREATE SESSION (MQL / SQL)
+   HELPER: Calculate temperature based on average rating
+--------------------------------------------------- */
+const calculateTemperature = (avgRating) => {
+  if (avgRating >= 8) return "HOT";
+  if (avgRating >= 6) return "WARM";
+  return "COLD";
+};
+
+/* ---------------------------------------------------
+   HELPER: Update contact temperature based on sessions
+--------------------------------------------------- */
+const updateContactTemperature = async (contactId) => {
+  // Get overall average rating for all sessions
+  const avgRating = await sessionRepo.getOverallAverageRating(contactId);
+
+  if (avgRating > 0) {
+    const newTemperature = calculateTemperature(avgRating);
+    await contactRepo.updateTemperature(contactId, newTemperature);
+    return { avgRating, newTemperature };
+  }
+
+  return { avgRating: 0, newTemperature: null };
+};
+
+/* ---------------------------------------------------
+   CREATE SESSION (No limit, any stage)
 --------------------------------------------------- */
 export const createSession = async ({
   contactId,
   empId,
   stage,
-  sessionNo,
   rating,
   sessionStatus,
-  remarks,
+  modeOfContact,
+  feedback,
 }) => {
-  // Validate stage
-  if (!["MQL", "SQL"].includes(stage)) {
-    throw new Error("Invalid session stage");
-  }
-
   // Validate session status
   if (!["CONNECTED", "NOT_CONNECTED", "BAD_TIMING"].includes(sessionStatus)) {
     throw new Error("Invalid session status");
   }
 
+  // Validate mode of contact
+  const validModes = ["CALL", "EMAIL", "IN_PERSON", "MEETING"];
+  if (modeOfContact && !validModes.includes(modeOfContact)) {
+    throw new Error("Invalid mode of contact");
+  }
+
   // Validate rating if provided
-  if (rating !== undefined && (rating < 1 || rating > 10)) {
+  if (rating !== undefined && rating !== null && (rating < 1 || rating > 10)) {
     throw new Error("Rating must be between 1 and 10");
   }
 
@@ -34,31 +60,38 @@ export const createSession = async ({
     throw new Error("Contact not found");
   }
 
-  // Ensure correct stage vs contact status
-  if (stage === "MQL" && contact.status !== "MQL") {
-    throw new Error("Contact is not in MQL stage");
-  }
-
-  if (stage === "SQL" && contact.status !== "SQL") {
-    throw new Error("Contact is not in SQL stage");
-  }
-
-  // Enforce max 5 sessions per stage
-  const count = await sessionRepo.countByStage(contactId, stage);
-  if (count >= 5) {
-    throw new Error(`Maximum ${stage} sessions reached`);
+  // Determine the stage - default to MQL for LEAD contacts
+  // Sessions can only be MQL or SQL
+  let sessionStage = stage;
+  if (!sessionStage) {
+    if (contact.status === 'LEAD' || contact.status === 'MQL') {
+      sessionStage = 'MQL';
+    } else if (contact.status === 'SQL') {
+      sessionStage = 'SQL';
+    } else {
+      // For OPPORTUNITY, CUSTOMER, EVANGELIST, DORMANT - default to SQL
+      sessionStage = 'SQL';
+    }
   }
 
   // Insert session
-  await sessionRepo.createSession({
+  const sessionId = await sessionRepo.createSession({
     contact_id: contactId,
     emp_id: empId,
-    stage,
-    session_no: sessionNo,
+    stage: sessionStage,
     rating,
     session_status: sessionStatus,
-    remarks,
+    mode_of_contact: modeOfContact || "CALL",
+    remarks: feedback,
   });
+
+  // Auto-update contact temperature based on new average
+  const temperatureUpdate = await updateContactTemperature(contactId);
+
+  return {
+    sessionId,
+    ...temperatureUpdate,
+  };
 };
 
 /* ---------------------------------------------------
@@ -70,17 +103,20 @@ export const getSessionsByContact = async (contactId) => {
     throw new Error("Contact not found");
   }
 
-  return await sessionRepo.getByContact(contactId);
+  const sessions = await sessionRepo.getByContact(contactId);
+  const avgRating = await sessionRepo.getOverallAverageRating(contactId);
+
+  return {
+    sessions,
+    averageRating: avgRating,
+    sessionCount: sessions.length,
+  };
 };
 
 /* ---------------------------------------------------
    GET SESSIONS BY STAGE
 --------------------------------------------------- */
 export const getSessionsByStage = async (contactId, stage) => {
-  if (!["MQL", "SQL"].includes(stage)) {
-    throw new Error("Invalid stage");
-  }
-
   return await sessionRepo.getByStage(contactId, stage);
 };
 
@@ -95,6 +131,7 @@ export const updateSession = async (sessionId, updates) => {
 
   if (
     updates.rating !== undefined &&
+    updates.rating !== null &&
     (updates.rating < 1 || updates.rating > 10)
   ) {
     throw new Error("Rating must be between 1 and 10");
@@ -102,14 +139,24 @@ export const updateSession = async (sessionId, updates) => {
 
   if (
     updates.session_status &&
-    !["CONNECTED", "NOT_CONNECTED", "BAD_TIMING"].includes(
-      updates.session_status
-    )
+    !["CONNECTED", "NOT_CONNECTED", "BAD_TIMING"].includes(updates.session_status)
   ) {
     throw new Error("Invalid session status");
   }
 
+  if (
+    updates.mode_of_contact &&
+    !["CALL", "EMAIL", "IN_PERSON", "MEETING"].includes(updates.mode_of_contact)
+  ) {
+    throw new Error("Invalid mode of contact");
+  }
+
   await sessionRepo.updateSession(sessionId, updates);
+
+  // Update contact temperature after session update
+  const temperatureUpdate = await updateContactTemperature(session.contact_id);
+
+  return temperatureUpdate;
 };
 
 /* ---------------------------------------------------
@@ -121,7 +168,11 @@ export const deleteSession = async (sessionId) => {
     throw new Error("Session not found");
   }
 
+  const contactId = session.contact_id;
   await sessionRepo.deleteSession(sessionId);
+
+  // Update contact temperature after session deletion
+  await updateContactTemperature(contactId);
 };
 
 /* ---------------------------------------------------
@@ -129,4 +180,8 @@ export const deleteSession = async (sessionId) => {
 --------------------------------------------------- */
 export const getAverageRating = async (contactId, stage) => {
   return await sessionRepo.getAverageRating(contactId, stage);
+};
+
+export const getOverallAverageRating = async (contactId) => {
+  return await sessionRepo.getOverallAverageRating(contactId);
 };

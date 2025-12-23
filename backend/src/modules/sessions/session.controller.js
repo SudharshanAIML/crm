@@ -1,41 +1,34 @@
 import * as sessionService from "./session.service.js";
 
 /**
- * @desc   Create a new session (MQL or SQL)
+ * @desc   Create a new session
  * @route  POST /sessions
  * @access Employee
  */
 export const createSession = async (req, res, next) => {
   try {
-    const {
-      contactId,
-      stage,
-      sessionNo,
-      rating,
-      sessionStatus,
-      remarks,
-    } = req.body;
+    const { contact_id, stage, rating, session_status, mode_of_contact, remarks } =
+      req.body;
 
-    if (!contactId || !stage || !sessionNo || !sessionStatus) {
+    if (!contact_id || !session_status) {
       return res.status(400).json({
-        message:
-          "contactId, stage, sessionNo, and sessionStatus are required",
+        message: "contact_id and session_status are required",
       });
     }
 
-    await sessionService.createSession({
-      contactId,
-      empId: req.user.empId, // injected by auth middleware
+    const result = await sessionService.createSession({
+      contactId: contact_id,
+      empId: req.user.empId,
       stage,
-      sessionNo,
       rating,
-      sessionStatus,
-      remarks,
+      sessionStatus: session_status,
+      modeOfContact: mode_of_contact,
+      feedback: remarks,
     });
 
     res.status(201).json({
       message: "Session created successfully",
-      sessionId: sessionNo.session_id,
+      ...result,
     });
   } catch (error) {
     next(error);
@@ -49,11 +42,11 @@ export const createSession = async (req, res, next) => {
  */
 export const getSessionsByContact = async (req, res, next) => {
   try {
-    const sessions = await sessionService.getSessionsByContact(
+    const result = await sessionService.getSessionsByContact(
       req.params.contactId
     );
 
-    res.json(sessions);
+    res.json(result);
   } catch (error) {
     next(error);
   }
@@ -68,16 +61,7 @@ export const getSessionsByStage = async (req, res, next) => {
   try {
     const { contactId, stage } = req.params;
 
-    if (!["MQL", "SQL"].includes(stage)) {
-      return res.status(400).json({
-        message: "Stage must be MQL or SQL",
-      });
-    }
-
-    const sessions = await sessionService.getSessionsByStage(
-      contactId,
-      stage
-    );
+    const sessions = await sessionService.getSessionsByStage(contactId, stage);
 
     res.json(sessions);
   } catch (error) {
@@ -86,7 +70,7 @@ export const getSessionsByStage = async (req, res, next) => {
 };
 
 /**
- * @desc   Update a session (rating / status / remarks)
+ * @desc   Update a session (rating / status / feedback)
  * @route  PATCH /sessions/:id
  * @access Employee
  */
@@ -94,10 +78,11 @@ export const updateSession = async (req, res, next) => {
   try {
     const sessionId = req.params.id;
 
-    await sessionService.updateSession(sessionId, req.body);
+    const result = await sessionService.updateSession(sessionId, req.body);
 
     res.json({
       message: "Session updated successfully",
+      ...result,
     });
   } catch (error) {
     next(error);

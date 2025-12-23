@@ -4,29 +4,37 @@ import { db } from "../../config/db.js";
    CREATE SESSION
 --------------------------------------------------- */
 export const createSession = async (data) => {
-  await db.query(
+  // Get next session number for this contact
+  const sessionCount = await countByContact(data.contact_id);
+  const sessionNo = sessionCount + 1;
+
+  const [result] = await db.query(
     `
     INSERT INTO sessions (
       contact_id,
       emp_id,
       stage,
+      mode_of_contact,
       session_no,
       rating,
       session_status,
-      remarks
+      feedback
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       data.contact_id,
       data.emp_id,
       data.stage,
-      data.session_no,
+      data.mode_of_contact || "CALL",
+      sessionNo,
       data.rating || null,
       data.session_status,
-      data.remarks || null,
+      data.remarks || data.feedback || null,
     ]
   );
+
+  return result.insertId;
 };
 
 /* ---------------------------------------------------
@@ -41,7 +49,23 @@ export const getById = async (sessionId) => {
 };
 
 /* ---------------------------------------------------
-   COUNT SESSIONS BY STAGE (MAX 5 RULE)
+   COUNT SESSIONS BY CONTACT (for session_no)
+--------------------------------------------------- */
+export const countByContact = async (contactId) => {
+  const [rows] = await db.query(
+    `
+    SELECT COUNT(*) AS count
+    FROM sessions
+    WHERE contact_id = ?
+    `,
+    [contactId]
+  );
+
+  return rows[0].count;
+};
+
+/* ---------------------------------------------------
+   COUNT SESSIONS BY STAGE
 --------------------------------------------------- */
 export const countByStage = async (contactId, stage) => {
   const [rows] = await db.query(
@@ -63,10 +87,13 @@ export const countByStage = async (contactId, stage) => {
 export const getByContact = async (contactId) => {
   const [rows] = await db.query(
     `
-    SELECT *
-    FROM sessions
-    WHERE contact_id = ?
-    ORDER BY created_at ASC
+    SELECT 
+      s.*,
+      e.name as employee_name
+    FROM sessions s
+    LEFT JOIN employees e ON s.emp_id = e.emp_id
+    WHERE s.contact_id = ?
+    ORDER BY s.created_at DESC
     `,
     [contactId]
   );
@@ -80,11 +107,14 @@ export const getByContact = async (contactId) => {
 export const getByStage = async (contactId, stage) => {
   const [rows] = await db.query(
     `
-    SELECT *
-    FROM sessions
-    WHERE contact_id = ?
-      AND stage = ?
-    ORDER BY created_at ASC
+    SELECT 
+      s.*,
+      e.name as employee_name
+    FROM sessions s
+    LEFT JOIN employees e ON s.emp_id = e.emp_id
+    WHERE s.contact_id = ?
+      AND s.stage = ?
+    ORDER BY s.created_at DESC
     `,
     [contactId, stage]
   );
@@ -109,9 +139,14 @@ export const updateSession = async (sessionId, updates) => {
     values.push(updates.session_status);
   }
 
-  if (updates.remarks !== undefined) {
-    fields.push("remarks = ?");
-    values.push(updates.remarks);
+  if (updates.mode_of_contact) {
+    fields.push("mode_of_contact = ?");
+    values.push(updates.mode_of_contact);
+  }
+
+  if (updates.remarks !== undefined || updates.feedback !== undefined) {
+    fields.push("feedback = ?");
+    values.push(updates.remarks || updates.feedback);
   }
 
   if (fields.length === 0) return;
@@ -132,14 +167,11 @@ export const updateSession = async (sessionId, updates) => {
    DELETE SESSION
 --------------------------------------------------- */
 export const deleteSession = async (sessionId) => {
-  await db.query(
-    `DELETE FROM sessions WHERE session_id = ?`,
-    [sessionId]
-  );
+  await db.query(`DELETE FROM sessions WHERE session_id = ?`, [sessionId]);
 };
 
 /* ---------------------------------------------------
-   ANALYTICS: AVERAGE RATING
+   ANALYTICS: AVERAGE RATING BY STAGE
 --------------------------------------------------- */
 export const getAverageRating = async (contactId, stage) => {
   const [rows] = await db.query(
@@ -151,6 +183,23 @@ export const getAverageRating = async (contactId, stage) => {
       AND rating IS NOT NULL
     `,
     [contactId, stage]
+  );
+
+  return rows[0].avgRating || 0;
+};
+
+/* ---------------------------------------------------
+   ANALYTICS: OVERALL AVERAGE RATING (ALL SESSIONS)
+--------------------------------------------------- */
+export const getOverallAverageRating = async (contactId) => {
+  const [rows] = await db.query(
+    `
+    SELECT AVG(rating) AS avgRating
+    FROM sessions
+    WHERE contact_id = ?
+      AND rating IS NOT NULL
+    `,
+    [contactId]
   );
 
   return rows[0].avgRating || 0;

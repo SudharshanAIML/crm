@@ -7,6 +7,23 @@ import * as feedbackRepo from "../feedback/feedback.repo.js";
 import { sendLeadEmail } from "../emails/email.service.js";
 
 /* ---------------------------------------------------
+   HELPER: UPDATE CONTACT TEMPERATURE BASED ON RATING
+--------------------------------------------------- */
+const updateContactTemperature = async (contactId) => {
+  const avgRating = await sessionRepo.getOverallAverageRating(contactId);
+  
+  let temperature = 'COLD';
+  if (avgRating >= 8) {
+    temperature = 'HOT';
+  } else if (avgRating >= 6) {
+    temperature = 'WARM';
+  }
+  
+  await contactRepo.updateTemperature(contactId, temperature);
+  return temperature;
+};
+
+/* ---------------------------------------------------
    CREATE LEAD (Employee)
 --------------------------------------------------- */
 export const createLead = async (data) => {
@@ -42,6 +59,19 @@ export const getContactById = async (id) => {
 --------------------------------------------------- */
 export const updateContact = async (contactId, updates) => {
   return await contactRepo.updateContact(contactId, updates);
+};
+
+/* ---------------------------------------------------
+   CREATE SESSION AND UPDATE TEMPERATURE
+--------------------------------------------------- */
+export const createSessionAndUpdateTemperature = async (sessionData) => {
+  // Create the session
+  const sessionId = await sessionRepo.createSession(sessionData);
+  
+  // Update contact temperature based on new average rating
+  await updateContactTemperature(sessionData.contact_id);
+  
+  return sessionId;
 };
 
 /* ---------------------------------------------------

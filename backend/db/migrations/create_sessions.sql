@@ -4,6 +4,7 @@ CREATE TABLE sessions (
     emp_id INT,
 
     stage ENUM('MQL', 'SQL'),
+    mode_of_contact ENUM('CALL', 'EMAIL', 'IN_PERSON', 'MEETING') DEFAULT 'CALL' ,
     session_no INT,
 
     rating INT CHECK (rating BETWEEN 1 AND 10),  -- UPDATED RANGE
