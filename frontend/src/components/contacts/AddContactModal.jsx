@@ -1,6 +1,39 @@
 import { X, User, Mail, Phone, Briefcase, Thermometer } from 'lucide-react';
 import { useState } from 'react';
 
+const InputField = ({ icon: Icon, label, name, type = 'text', placeholder, required = false, value, error, focused, onFocus, onBlur, onChange}) => (
+  <div>
+    <label className="block text-sm font-semibold text-gray-700 mb-2">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    <div className="relative">
+      <div className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${focused ? 'text-sky-500' : 'text-gray-400'
+        }`}>
+        <Icon className="w-5 h-5" />
+      </div>
+      <input
+        type={type}
+        value={value}
+        onChange={onChange}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        className={`w-full pl-12 pr-4 py-3.5 bg-gray-50 border-2 rounded-xl focus:ring-0 focus:bg-white transition-all text-sm ${error
+            ? 'border-red-300 focus:border-red-500'
+            : 'border-gray-200 focus:border-sky-500'
+          }`}
+        placeholder={placeholder}
+      />
+    </div>
+    {error && (
+      <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+        </svg>
+        {error}
+      </p>
+    )}
+  </div>
+);
 const AddContactModal = ({ isOpen, onClose, onSubmit, loading = false }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -13,7 +46,6 @@ const AddContactModal = ({ isOpen, onClose, onSubmit, loading = false }) => {
   const [errors, setErrors] = useState({});
   const [focusedField, setFocusedField] = useState(null);
 
-  if (!isOpen) return null;
 
   const validate = () => {
     const newErrors = {};
@@ -51,12 +83,19 @@ const AddContactModal = ({ isOpen, onClose, onSubmit, loading = false }) => {
     }
   };
 
-  const handleChange = (field, value) => {
-    setFormData({ ...formData, [field]: value });
-    if (errors[field]) {
-      setErrors({ ...errors, [field]: undefined });
-    }
-  };
+const handleChange = (field, value) => {
+  setFormData(prev => ({
+    ...prev,
+    [field]: value,
+  }));
+
+  if (errors[field]) {
+    setErrors(prev => ({
+      ...prev,
+      [field]: undefined,
+    }));
+  }
+};
 
   const temperatureOptions = [
     { value: 'HOT', label: 'Hot', color: 'bg-red-500', hoverColor: 'hover:bg-red-100', textColor: 'text-red-600' },
@@ -64,42 +103,9 @@ const AddContactModal = ({ isOpen, onClose, onSubmit, loading = false }) => {
     { value: 'COLD', label: 'Cold', color: 'bg-blue-500', hoverColor: 'hover:bg-blue-100', textColor: 'text-blue-600' },
   ];
 
-  const InputField = ({ icon: Icon, label, name, type = 'text', placeholder, required = false }) => (
-    <div>
-      <label className="block text-sm font-semibold text-gray-700 mb-2">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      <div className="relative">
-        <div className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${focusedField === name ? 'text-sky-500' : 'text-gray-400'
-          }`}>
-          <Icon className="w-5 h-5" />
-        </div>
-        <input
-          type={type}
-          value={formData[name]}
-          onChange={(e) => handleChange(name, e.target.value)}
-          onFocus={() => setFocusedField(name)}
-          onBlur={() => setFocusedField(null)}
-          className={`w-full pl-12 pr-4 py-3.5 bg-gray-50 border-2 rounded-xl focus:ring-0 focus:bg-white transition-all text-sm ${errors[name]
-              ? 'border-red-300 focus:border-red-500'
-              : 'border-gray-200 focus:border-sky-500'
-            }`}
-          placeholder={placeholder}
-        />
-      </div>
-      {errors[name] && (
-        <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
-          {errors[name]}
-        </p>
-      )}
-    </div>
-  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -107,7 +113,7 @@ const AddContactModal = ({ isOpen, onClose, onSubmit, loading = false }) => {
       />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden">
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="relative bg-gradient-to-r from-sky-500 to-blue-600 px-8 py-6">
           <button
@@ -133,6 +139,12 @@ const AddContactModal = ({ isOpen, onClose, onSubmit, loading = false }) => {
             icon={User}
             label="Full Name"
             name="name"
+            value={formData.name}
+            error={errors.name}
+            focused={focusedField === 'name'}
+            onFocus={() => setFocusedField('name')}
+            onBlur={() => setFocusedField(null)}
+            onChange={(e) => handleChange('name', e.target.value)}
             placeholder="John Doe"
             required
           />
@@ -142,6 +154,12 @@ const AddContactModal = ({ isOpen, onClose, onSubmit, loading = false }) => {
             label="Email Address"
             name="email"
             type="email"
+            value={formData.email}
+            error={errors.email}
+            focused={focusedField === 'email'}
+            onFocus={() => setFocusedField('email')}
+            onBlur={() => setFocusedField(null)}
+            onChange={(e) => handleChange('email', e.target.value)}
             placeholder="john@example.com"
             required
           />
@@ -151,6 +169,12 @@ const AddContactModal = ({ isOpen, onClose, onSubmit, loading = false }) => {
             label="Phone Number"
             name="phone"
             type="tel"
+            value={formData.phone}
+            error={errors.phone}
+            focused={focusedField === 'phone'}
+            onFocus={() => setFocusedField('phone')}
+            onBlur={() => setFocusedField(null)}
+            onChange={(e) => handleChange('phone', e.target.value)}
             placeholder="+1 (555) 123-4567"
           />
 
@@ -158,6 +182,12 @@ const AddContactModal = ({ isOpen, onClose, onSubmit, loading = false }) => {
             icon={Briefcase}
             label="Job Title"
             name="job_title"
+            value={formData.job_title}
+            error={errors.job_title}
+            focused={focusedField === 'job_title'}
+            onFocus={() => setFocusedField('job_title')}
+            onBlur={() => setFocusedField(null)}
+            onChange={(e) => handleChange('job_title', e.target.value)}
             placeholder="Marketing Manager"
           />
 
