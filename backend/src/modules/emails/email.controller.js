@@ -45,7 +45,7 @@ export const getEmailsByContact = async (req, res, next) => {
  */
 export const sendEmail = async (req, res, next) => {
   try {
-    const { contactId, subject, body } = req.body;
+    const { contactId, subject, body, attachments } = req.body;
 
     if (!contactId || !subject || !body) {
       return res.status(400).json({
@@ -58,6 +58,7 @@ export const sendEmail = async (req, res, next) => {
       empId: req.user?.empId,
       subject,
       body,
+      attachments: attachments || [],
     });
 
     res.status(201).json({

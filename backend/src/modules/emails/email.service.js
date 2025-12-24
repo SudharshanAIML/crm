@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import * as emailRepo from "./email.repo.js";
 import * as contactRepo from "../contacts/contact.repo.js";
+import { sendMail } from "../../config/email.js";
 
 /* ---------------------------------------------------
    SEND LEAD EMAIL (Creates tracking link)
@@ -39,13 +40,18 @@ export const sendLeadEmail = async ({ contactId, name, email, token }) => {
     tracking_token: token,
   });
 
-  // TODO: Integrate with actual email provider (SendGrid, SES, Mailgun, etc.)
-  // For now, we just log the email
-  console.log(`📧 Email queued for ${email} (ID: ${emailId})`);
-  console.log(`   Tracking URL: ${trackingUrl}`);
-
-  // In production, you would call your email provider here:
-  // await sendWithProvider({ to: email, subject, html: body });
+  // Send actual email
+  try {
+    await sendMail({
+      to: email,
+      subject,
+      html: body,
+    });
+    console.log(`📧 Lead email sent to ${email} (ID: ${emailId})`);
+  } catch (error) {
+    console.error(`❌ Failed to send lead email to ${email}:`, error.message);
+    // Don't throw - email record is saved, can retry later
+  }
 
   return emailId;
 };
@@ -87,6 +93,7 @@ export const sendCustomEmail = async ({
   subject,
   body,
   recipientEmail,
+  attachments = [],
 }) => {
   // Verify contact exists
   const contact = await contactRepo.getById(contactId);
@@ -96,18 +103,42 @@ export const sendCustomEmail = async ({
 
   // Generate tracking token
   const token = crypto.randomUUID();
+  const trackingUrl = `${process.env.APP_URL || "http://localhost:3000"}/api/track/${token}`;
+
+  // Wrap body in HTML template with tracking pixel
+  const htmlBody = `
+    <html>
+      <body>
+        ${body.replace(/\n/g, "<br>")}
+        <br><br>
+        <img src="${trackingUrl}?type=pixel" width="1" height="1" style="display:none" />
+      </body>
+    </html>
+  `;
 
   // Save email record
   const emailId = await emailRepo.createEmail({
     contact_id: contactId,
     emp_id: empId,
     subject,
-    body,
+    body: htmlBody,
     tracking_token: token,
   });
 
-  // TODO: Send via email provider
-  console.log(`📧 Custom email sent to ${recipientEmail || contact.email}`);
+  // Send actual email
+  const toEmail = recipientEmail || contact.email;
+  try {
+    await sendMail({
+      to: toEmail,
+      subject,
+      html: htmlBody,
+      attachments,
+    });
+    console.log(`✅ Custom email sent to ${toEmail} (ID: ${emailId})`);
+  } catch (error) {
+    console.error(`❌ Failed to send custom email to ${toEmail}:`, error.message);
+    throw new Error(`Failed to send email: ${error.message}`);
+  }
 
   return emailId;
 };

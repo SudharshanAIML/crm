@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ContactGrid, ContactDetail, AddContactModal } from '../components/contacts';
 import { FollowupsModal, AddSessionModal, TakeActionModal } from '../components/sessions';
+import { EmailComposer } from '../components/email';
 import Sidebar from '../components/layout/Sidebar';
 import { getContacts, createContact, updateContact, promoteToSQL, convertToOpportunity } from '../services/contactService';
 import { createSession } from '../services/sessionService';
+import { sendEmail } from '../services/emailService';
 import { Bell, Menu, X, Settings, LogOut, User, ChevronDown } from 'lucide-react';
 
 const Dashboard = () => {
@@ -26,6 +28,10 @@ const Dashboard = () => {
   const [followupsContact, setFollowupsContact] = useState(null);
   const [addSessionContact, setAddSessionContact] = useState(null);
   const [takeActionData, setTakeActionData] = useState(null);
+
+  // Email composer
+  const [emailContact, setEmailContact] = useState(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   // Close user menu when clicking outside
   useEffect(() => {
@@ -95,8 +101,23 @@ const Dashboard = () => {
   };
 
   const handleEmailClick = (contact) => {
-    console.log('Email clicked for:', contact);
-    alert(`Email functionality for ${contact.name} will be implemented next`);
+    setEmailContact(contact);
+  };
+
+  const handleSendEmail = async (emailData) => {
+    try {
+      setSendingEmail(true);
+      setError(null);
+      await sendEmail(emailData);
+      setEmailContact(null);
+      // Show success message
+      alert('Email sent successfully!');
+    } catch (error) {
+      console.error('Error sending email:', error);
+      setError(error.response?.data?.message || 'Failed to send email. Please try again.');
+    } finally {
+      setSendingEmail(false);
+    }
   };
 
   const handleFollowupsClick = (contact) => {
@@ -377,6 +398,15 @@ const Dashboard = () => {
         onClose={() => setTakeActionData(null)}
         onConfirm={handleConfirmPromotion}
         loading={submitting}
+      />
+
+      {/* Email Composer */}
+      <EmailComposer
+        isOpen={!!emailContact}
+        contact={emailContact}
+        onClose={() => setEmailContact(null)}
+        onSend={handleSendEmail}
+        loading={sendingEmail}
       />
     </div>
   );
