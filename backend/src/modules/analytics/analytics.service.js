@@ -113,3 +113,10 @@ export const getEmployeeActivities = async (companyId, empId, limit) => {
 export const getEmployeeContacts = async (companyId, empId, filters) => {
   return await analyticsRepo.getEmployeeContacts(companyId, empId, filters);
 };
+
+/* ---------------------------------------------------
+   EMPLOYEE: GET COMPREHENSIVE ANALYTICS
+--------------------------------------------------- */
+export const getComprehensiveAnalytics = async (companyId, empId) => {
+  return await analyticsRepo.getComprehensiveAnalytics(companyId, empId);
+};

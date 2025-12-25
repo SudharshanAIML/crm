@@ -123,4 +123,18 @@ router.get(
   analyticsController.getEmployeeContacts
 );
 
+/* ---------------------------------------------------
+   EMPLOYEE: GET COMPREHENSIVE ANALYTICS
+--------------------------------------------------- */
+/**
+ * @route   GET /analytics/comprehensive
+ * @desc    Get comprehensive analytics for employee dashboard
+ * @access  Employee
+ */
+router.get(
+  "/comprehensive",
+  authenticateEmployee,
+  analyticsController.getComprehensiveAnalytics
+);
+
 export default router;

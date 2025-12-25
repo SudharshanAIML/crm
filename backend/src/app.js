@@ -25,6 +25,7 @@ import dealRoutes from "./modules/deals/deal.route.js";
 import feedbackRoutes from "./modules/feedback/feedback.routes.js";
 import emailRoutes from "./modules/emails/email.routes.js";
 import analyticsRoutes from "./modules/analytics/analytics.routes.js";
+import taskRoutes from "./modules/tasks/task.routes.js";
 
 // Initialize Express app
 const app = express();
@@ -141,6 +142,9 @@ app.use("/api", emailRoutes);
 
 // Analytics/Dashboard routes
 app.use("/api/analytics", analyticsRoutes);
+
+// Task/Calendar management routes
+app.use("/api/tasks", taskRoutes);
 
 /* =====================================================
    404 HANDLER

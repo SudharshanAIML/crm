@@ -9,10 +9,12 @@ import {
   BarChart3,
   Settings,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  LayoutGrid,
+  CalendarDays
 } from 'lucide-react';
 
-const Sidebar = ({ activeStage, onStageChange, contactCounts = {}, collapsed, onToggle }) => {
+const Sidebar = ({ activeStage, onStageChange, contactCounts = {}, collapsed, onToggle, onViewChange, activeView = 'contacts' }) => {
   const stages = [
     { 
       id: 'LEAD', 
@@ -145,14 +147,41 @@ const Sidebar = ({ activeStage, onStageChange, contactCounts = {}, collapsed, on
         <div className="p-4">
           {!collapsed && (
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-              Insights
+              Workspace
             </h3>
           )}
           <nav className="space-y-1">
             <button
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-600 hover:bg-gray-50 transition-all ${
-                collapsed ? 'justify-center px-2' : ''
-              }`}
+              onClick={() => onViewChange && onViewChange('contacts')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
+                activeView === 'contacts'
+                  ? 'bg-sky-100 text-sky-700'
+                  : 'text-gray-600 hover:bg-gray-50'
+              } ${collapsed ? 'justify-center px-2' : ''}`}
+              title="Contacts"
+            >
+              <LayoutGrid className="w-5 h-5 flex-shrink-0" />
+              {!collapsed && <span className="font-medium text-sm">Contacts</span>}
+            </button>
+            <button
+              onClick={() => onViewChange && onViewChange('calendar')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
+                activeView === 'calendar'
+                  ? 'bg-sky-100 text-sky-700'
+                  : 'text-gray-600 hover:bg-gray-50'
+              } ${collapsed ? 'justify-center px-2' : ''}`}
+              title="Calendar"
+            >
+              <CalendarDays className="w-5 h-5 flex-shrink-0" />
+              {!collapsed && <span className="font-medium text-sm">Calendar</span>}
+            </button>
+            <button
+              onClick={() => onViewChange && onViewChange('analytics')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
+                activeView === 'analytics'
+                  ? 'bg-sky-100 text-sky-700'
+                  : 'text-gray-600 hover:bg-gray-50'
+              } ${collapsed ? 'justify-center px-2' : ''}`}
               title="Analytics"
             >
               <BarChart3 className="w-5 h-5 flex-shrink-0" />

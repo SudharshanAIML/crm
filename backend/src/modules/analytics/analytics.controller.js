@@ -206,3 +206,27 @@ export const getEmployeeContacts = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @desc   Get comprehensive analytics for employee dashboard
+ * @route  GET /analytics/comprehensive
+ * @access Employee
+ */
+export const getComprehensiveAnalytics = async (req, res, next) => {
+  try {
+    const companyId = req.user.companyId;
+    const empId = req.user.empId;
+
+    if (!companyId) {
+      return res.status(400).json({
+        message: "Company ID is required",
+      });
+    }
+
+    const data = await analyticsService.getComprehensiveAnalytics(companyId, empId);
+
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+};

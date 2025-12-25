@@ -4,6 +4,8 @@ import { ContactGrid, ContactDetail, AddContactModal } from '../components/conta
 import { FollowupsModal, AddSessionModal, TakeActionModal } from '../components/sessions';
 import Sidebar from '../components/layout/Sidebar';
 import Profile from '../components/layout/Profile';
+import AnalyticsDashboard from '../components/analytics/AnalyticsDashboard';
+import CalendarView from '../components/calendar/CalendarView';
 import { getContacts, createContact, updateContact, promoteToMQL, promoteToSQL, convertToOpportunity } from '../services/contactService';
 import { createSession } from '../services/sessionService';
 import { Bell, Menu, X, Settings, LogOut, User, ChevronDown } from 'lucide-react';
@@ -21,6 +23,7 @@ const Dashboard = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [contactCounts, setContactCounts] = useState({});
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [activeView, setActiveView] = useState('contacts'); // 'contacts' or 'analytics'
   const userMenuRef = useRef(null);
 
   // Session/Followup modals
@@ -172,10 +175,15 @@ const Dashboard = () => {
       <div className={`hidden lg:block fixed left-0 top-0 h-screen z-30 transition-all duration-300 ${sidebarCollapsed ? 'w-16' : 'w-64'}`}>
         <Sidebar
           activeStage={activeStage}
-          onStageChange={setActiveStage}
+          onStageChange={(stage) => {
+            setActiveStage(stage);
+            setActiveView('contacts');
+          }}
           contactCounts={contactCounts}
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+          onViewChange={setActiveView}
+          activeView={activeView}
         />
       </div>
 
@@ -191,11 +199,17 @@ const Dashboard = () => {
               activeStage={activeStage}
               onStageChange={(stage) => {
                 setActiveStage(stage);
+                setActiveView('contacts');
                 setMobileMenuOpen(false);
               }}
               contactCounts={contactCounts}
               collapsed={false}
               onToggle={() => setMobileMenuOpen(false)}
+              onViewChange={(view) => {
+                setActiveView(view);
+                setMobileMenuOpen(false);
+              }}
+              activeView={activeView}
             />
           </div>
         </div>
@@ -218,7 +232,12 @@ const Dashboard = () => {
               {/* Page Title - Desktop */}
               <div className="hidden md:block">
                 <h1 className="text-lg font-semibold text-gray-900">
-                  {activeStage.charAt(0) + activeStage.slice(1).toLowerCase()} Pipeline
+                  {activeView === 'analytics' 
+                    ? 'Analytics Dashboard'
+                    : activeView === 'calendar'
+                    ? 'Calendar'
+                    : `${activeStage.charAt(0) + activeStage.slice(1).toLowerCase()} Pipeline`
+                  }
                 </h1>
               </div>
             </div>
@@ -282,15 +301,21 @@ const Dashboard = () => {
 
         {/* Page Content */}
         <main className="p-4 lg:p-6">
-          <ContactGrid
-            contacts={contacts}
-            onContactSelect={setSelectedContact}
-            onEmailClick={handleEmailClick}
-            onFollowupsClick={handleFollowupsClick}
-            onAddContact={() => setShowAddModal(true)}
-            loading={loading}
-            activeStage={activeStage}
-          />
+          {activeView === 'analytics' ? (
+            <AnalyticsDashboard />
+          ) : activeView === 'calendar' ? (
+            <CalendarView />
+          ) : (
+            <ContactGrid
+              contacts={contacts}
+              onContactSelect={setSelectedContact}
+              onEmailClick={handleEmailClick}
+              onFollowupsClick={handleFollowupsClick}
+              onAddContact={() => setShowAddModal(true)}
+              loading={loading}
+              activeStage={activeStage}
+            />
+          )}
         </main>
       </div>
 

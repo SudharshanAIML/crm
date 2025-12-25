@@ -1,31 +1,24 @@
-CREATE TABLE contacts (
-    contact_id INT AUTO_INCREMENT PRIMARY KEY,
-    company_id INT NOT NULL,
-    assigned_emp_id INT,
-
-    name VARCHAR(255),
-    email VARCHAR(255),
-    phone VARCHAR(50),
-
-    job_title VARCHAR(255),  -- lead's job / role
-
-    status ENUM(
-        'LEAD',
-        'MQL',
-        'SQL',
-        'OPPORTUNITY',
-        'CUSTOMER',
-        'EVANGELIST',
-        'DORMANT'
-
-    ) DEFAULT 'LEAD',
-
-    source VARCHAR(255),
-    interest_score INT DEFAULT 0,
-    tracking_token VARCHAR(255),  -- for email click tracking
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
-    FOREIGN KEY (company_id) REFERENCES companies(company_id),
-    FOREIGN KEY (assigned_emp_id) REFERENCES employees(emp_id)
-);
+CREATE TABLE "contacts" (
+  "contact_id" int NOT NULL AUTO_INCREMENT,
+  "company_id" int NOT NULL,
+  "assigned_emp_id" int DEFAULT NULL,
+  "name" varchar(255) NOT NULL,
+  "email" varchar(255) NOT NULL,
+  "phone" varchar(50) DEFAULT NULL,
+  "job_title" varchar(255) DEFAULT NULL,
+  "status" enum('LEAD','MQL','SQL','OPPORTUNITY','CUSTOMER','EVANGELIST','DORMANT') DEFAULT 'LEAD',
+  "temperature" enum('HOT','WARM','COLD') DEFAULT 'COLD',
+  "source" varchar(255) DEFAULT NULL,
+  "interest_score" int DEFAULT '0',
+  "tracking_token" varchar(255) DEFAULT NULL,
+  "created_at" timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY ("contact_id"),
+  KEY "idx_company_id" ("company_id"),
+  KEY "idx_status" ("status"),
+  KEY "idx_assigned_emp" ("assigned_emp_id"),
+  KEY "idx_tracking_token" ("tracking_token"),
+  KEY "idx_email" ("email"),
+  CONSTRAINT "contacts_ibfk_1" FOREIGN KEY ("company_id") REFERENCES "companies" ("company_id") ON DELETE CASCADE,
+  CONSTRAINT "contacts_ibfk_2" FOREIGN KEY ("assigned_emp_id") REFERENCES "employees" ("emp_id") ON DELETE SET NULL
+)

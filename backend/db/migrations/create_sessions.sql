@@ -1,23 +1,20 @@
-CREATE TABLE sessions (
-    session_id INT AUTO_INCREMENT PRIMARY KEY,
-    contact_id INT,
-    emp_id INT,
-
-    stage ENUM('MQL', 'SQL'),
-    mode_of_contact ENUM('CALL', 'EMAIL', 'IN_PERSON', 'MEETING') DEFAULT 'CALL' ,
-    session_no INT,
-
-    rating INT CHECK (rating BETWEEN 1 AND 10),  -- UPDATED RANGE
-
-    session_status ENUM(
-        'CONNECTED',
-        'NOT_CONNECTED',
-        'BAD_TIMING'
-    ) NOT NULL,  -- NEW COLUMN
-
-    remarks TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    FOREIGN KEY (contact_id) REFERENCES contacts(contact_id),
-    FOREIGN KEY (emp_id) REFERENCES employees(emp_id)
-);
+CREATE TABLE "sessions" (
+  "session_id" int NOT NULL AUTO_INCREMENT,
+  "contact_id" int NOT NULL,
+  "emp_id" int DEFAULT NULL,
+  "stage" enum('MQL','SQL') NOT NULL,
+  "session_no" int NOT NULL,
+  "rating" int DEFAULT NULL,
+  "session_status" enum('CONNECTED','NOT_CONNECTED','BAD_TIMING') NOT NULL,
+  "mode_of_contact" enum('CALL','EMAIL','MEETING','DEMO','NOTE') DEFAULT 'CALL',
+  "feedback" text,
+  "created_at" timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  "remarks" text,
+  PRIMARY KEY ("session_id"),
+  KEY "idx_contact_id" ("contact_id"),
+  KEY "idx_stage" ("stage"),
+  KEY "idx_emp_id" ("emp_id"),
+  CONSTRAINT "sessions_ibfk_1" FOREIGN KEY ("contact_id") REFERENCES "contacts" ("contact_id") ON DELETE CASCADE,
+  CONSTRAINT "sessions_ibfk_2" FOREIGN KEY ("emp_id") REFERENCES "employees" ("emp_id") ON DELETE SET NULL,
+  CONSTRAINT "sessions_chk_1" CHECK ((`rating` between 1 and 10))
+)
