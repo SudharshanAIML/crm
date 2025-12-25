@@ -31,18 +31,7 @@ import {
 } from "../../services/taskService";
 import { getContacts } from "../../services/contactService";
 import { StatCard, TaskCard, TaskModal } from '../calendar';
-import { TASK_TYPES, PRIORITY_COLORS, STATUS_COLORS } from "./constants";
-
-
-const toLocalDateOnly = (dateStr) => {
-    if (!dateStr) return "";
-    const d = new Date(dateStr); // parse UTC properly
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-
-    return `${year}-${month}-${day}`;
-};
+import { TASK_TYPES, PRIORITY_COLORS, STATUS_COLORS, toLocalDateOnly } from "./constants";
 
 
 const CalendarView = () => {

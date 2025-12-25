@@ -1,4 +1,26 @@
 import { useState, useEffect, useMemo } from "react";
+import { TASK_TYPES, PRIORITY_COLORS, STATUS_COLORS } from "./constants";
+import {
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Clock,
+  Phone,
+  Mail,
+  Users,
+  Target,
+  Bell,
+  CheckCircle,
+  AlertCircle,
+  X,
+  Filter,
+  Zap,
+  CalendarDays,
+  ListTodo,
+  RefreshCw,
+} from "lucide-react";
+import { toLocalDateOnly } from "./constants";
 
 // Task Modal Component
 const TaskModal= ({ isOpen, task, contacts, selectedDate, onClose, onSave }) => {
