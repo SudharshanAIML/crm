@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { 
   Users, 
   UserCheck, 
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 
 const Sidebar = ({ activeStage, onStageChange, contactCounts = {}, collapsed, onToggle, onViewChange, activeView = 'contacts' }) => {
+  const navigate = useNavigate();
   const stages = [
     { 
       id: 'LEAD', 
@@ -188,6 +190,7 @@ const Sidebar = ({ activeStage, onStageChange, contactCounts = {}, collapsed, on
               {!collapsed && <span className="font-medium text-sm">Analytics</span>}
             </button>
             <button
+              onClick={() => navigate('/settings')}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-600 hover:bg-gray-50 transition-all ${
                 collapsed ? 'justify-center px-2' : ''
               }`}
