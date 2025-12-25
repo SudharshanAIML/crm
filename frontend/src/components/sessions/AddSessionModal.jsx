@@ -32,8 +32,8 @@ const AddSessionModal = ({ isOpen, contact, onClose, onSubmit, loading = false }
   const modeOptions = [
     { value: 'CALL', label: 'Call', icon: Phone },
     { value: 'EMAIL', label: 'Email', icon: Mail },
-    { value: 'IN_PERSON', label: 'In Person', icon: Users },
     { value: 'MEETING', label: 'Meeting', icon: Video },
+    { value: 'DEMO', label: 'Demo', icon: Users },
   ];
 
   const statusOptions = [

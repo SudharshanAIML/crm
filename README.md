@@ -221,10 +221,10 @@ JWT_SECRET=your-secret
 GOOGLE_CLIENT_ID=your-google-client-id
 
 # Security
-CORS_ORIGIN=http://localhost:3001
+CORS_ORIGIN=http://localhost:3000
 RATE_LIMIT_MAX=100
 ```
 
 ## 📄 License
 
-ISC License
+MIT License

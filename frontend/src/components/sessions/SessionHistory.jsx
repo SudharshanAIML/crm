@@ -30,7 +30,7 @@ const SessionHistory = ({ isOpen, onClose, contact, onAddSession }) => {
     const icons = {
       CALL: '📞',
       EMAIL: '📧',
-      IN_PERSON: '👥',
+      DEMO: '👥',
       MEETING: '🤝',
     };
     return icons[mode] || '📞';

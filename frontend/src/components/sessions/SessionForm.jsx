@@ -16,7 +16,7 @@ const SessionForm = ({ isOpen, onClose, onSubmit, contact, loading = false }) =>
   const modeOfContactOptions = [
     { value: 'CALL', label: 'Phone Call', icon: '📞' },
     { value: 'EMAIL', label: 'Email', icon: '📧' },
-    { value: 'IN_PERSON', label: 'In Person', icon: '👥' },
+    { value: 'DEMO', label: 'In Person', icon: '👥' },
     { value: 'MEETING', label: 'Meeting', icon: '🤝' },
   ];
 

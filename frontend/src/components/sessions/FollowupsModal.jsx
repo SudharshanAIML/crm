@@ -2,32 +2,62 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Plus, Phone, Mail, Users, Video, Star, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { getSessionsByContact } from '../../services/sessionService';
 
-const FollowupsModal = ({ 
-  isOpen, 
-  contact, 
-  onClose, 
+const FollowupsModal = ({
+  isOpen,
+  contact,
+  onClose,
   onAddSession,
-  onTakeAction 
+  onTakeAction
 }) => {
   const [sessions, setSessions] = useState([]);
   const [averageRating, setAverageRating] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const scrollContainerRef = useRef(null);
 
   useEffect(() => {
-    if (isOpen && contact) {
+    if (isOpen && contact?.contact_id) {
       fetchSessions();
+    } else if (!isOpen) {
+      // Reset state when modal closes
+      setSessions([]);
+      setAverageRating(0);
+      setError(null);
     }
-  }, [isOpen, contact]);
+  }, [isOpen, contact?.contact_id]);
 
   const fetchSessions = async () => {
+    if (!contact?.contact_id) {
+      setError('Invalid contact');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
+      setError(null);
       const data = await getSessionsByContact(contact.contact_id);
-      setSessions(data.sessions || []);
-      setAverageRating(data.averageRating || 0);
-    } catch (error) {
-      console.error('Error fetching sessions:', error);
+      // Handle both array response and object response
+      if (Array.isArray(data)) {
+        setSessions(data);
+        // Calculate average from sessions
+        const ratings = data.filter(s => s.rating).map(s => s.rating);
+        const avg = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
+        setAverageRating(avg);
+      } else if (data && typeof data === 'object') {
+        setSessions(data.sessions || []);
+        // Ensure averageRating is a number
+        const avgRating = Number(data.averageRating) || 0;
+        setAverageRating(isNaN(avgRating) ? 0 : avgRating);
+      } else {
+        setSessions([]);
+        setAverageRating(0);
+      }
+    } catch (err) {
+      console.error('Error fetching sessions:', err);
+      setError(err.response?.data?.message || 'Failed to load follow-ups');
+      setSessions([]);
+      setAverageRating(0);
     } finally {
       setLoading(false);
     }
@@ -45,7 +75,19 @@ const FollowupsModal = ({
     }
   };
 
-  if (!isOpen || !contact) return null;
+  if (!isOpen) return null;
+
+  // Safety check for contact
+  if (!contact || !contact.contact_id) {
+    return null;
+  }
+
+  // Helper to safely format rating
+  const formatRating = (rating) => {
+    const num = Number(rating);
+    if (isNaN(num)) return '0.0';
+    return num.toFixed(1);
+  };
 
   const getModeIcon = (mode) => {
     switch (mode) {
@@ -53,7 +95,7 @@ const FollowupsModal = ({
         return <Phone className="w-4 h-4" />;
       case 'MAIL':
         return <Mail className="w-4 h-4" />;
-      case 'IN_PERSON':
+      case 'DEMO':
         return <Users className="w-4 h-4" />;
       case 'MEET':
         return <Video className="w-4 h-4" />;
@@ -93,11 +135,10 @@ const FollowupsModal = ({
         {[1, 2, 3, 4, 5].map((star) => (
           <Star
             key={star}
-            className={`w-3 h-3 ${
-              star <= stars
-                ? 'fill-yellow-400 text-yellow-400'
-                : 'fill-gray-200 text-gray-200'
-            }`}
+            className={`w-3 h-3 ${star <= stars
+              ? 'fill-yellow-400 text-yellow-400'
+              : 'fill-gray-200 text-gray-200'
+              }`}
           />
         ))}
       </div>
@@ -124,7 +165,7 @@ const FollowupsModal = ({
           <div>
             <h2 className="text-xl font-bold text-white">{contact.name}</h2>
             <p className="text-sky-100 text-sm">
-              {sessions.length} follow-ups • Avg Rating: {averageRating.toFixed(1)}/10
+              {sessions.length} follow-ups • Avg Rating: {formatRating(averageRating)}/10
             </p>
           </div>
           <button
@@ -144,17 +185,16 @@ const FollowupsModal = ({
               <div className="flex items-center gap-2">
                 {renderStars(averageRating)}
                 <span className="text-lg font-bold text-gray-900">
-                  {averageRating.toFixed(1)}/10
+                  {formatRating(averageRating)}/10
                 </span>
               </div>
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-600 mb-1">Temperature</p>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                contact.temperature === 'HOT' ? 'bg-red-100 text-red-700' :
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${contact.temperature === 'HOT' ? 'bg-red-100 text-red-700' :
                 contact.temperature === 'WARM' ? 'bg-orange-100 text-orange-700' :
-                'bg-blue-100 text-blue-700'
-              }`}>
+                  'bg-blue-100 text-blue-700'
+                }`}>
                 {contact.temperature}
               </span>
             </div>
@@ -184,6 +224,19 @@ const FollowupsModal = ({
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
               </div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-3">
+                  <X className="w-6 h-6 text-red-500" />
+                </div>
+                <p className="text-red-600 mb-3">{error}</p>
+                <button
+                  onClick={fetchSessions}
+                  className="px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
             ) : (
               <div
                 ref={scrollContainerRef}
@@ -195,7 +248,7 @@ const FollowupsModal = ({
                     No follow-ups yet. Add your first session!
                   </div>
                 ) : (
-                  sessions.map((session, index) => (
+                  sessions.map((session) => (
                     <div
                       key={session.session_id}
                       className="flex-shrink-0 w-64 bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow"
@@ -228,10 +281,10 @@ const FollowupsModal = ({
                       </p>
 
                       {/* Feedback */}
-                      {session.feedback && (
+                      {(session.feedback || session.remarks) && (
                         <div className="mt-2 p-2 bg-gray-50 rounded-lg">
-                          <p className="text-xs text-gray-600 line-clamp-2">
-                            {session.feedback}
+                          <p className="text-xs text-gray-600">
+                            {session.feedback || session.remarks}
                           </p>
                         </div>
                       )}

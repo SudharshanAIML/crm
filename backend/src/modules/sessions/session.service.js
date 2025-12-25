@@ -44,7 +44,7 @@ export const createSession = async ({
   }
 
   // Validate mode of contact
-  const validModes = ["CALL", "EMAIL", "IN_PERSON", "MEETING"];
+  const validModes = ["CALL", "EMAIL", "MEETING", "DEMO", "NOTE"];
   if (modeOfContact && !validModes.includes(modeOfContact)) {
     throw new Error("Invalid mode of contact");
   }
@@ -146,7 +146,7 @@ export const updateSession = async (sessionId, updates) => {
 
   if (
     updates.mode_of_contact &&
-    !["CALL", "EMAIL", "IN_PERSON", "MEETING"].includes(updates.mode_of_contact)
+    !["CALL", "EMAIL", "MEETING", "DEMO", "NOTE"].includes(updates.mode_of_contact)
   ) {
     throw new Error("Invalid mode of contact");
   }

@@ -99,6 +99,24 @@ export const handleLeadActivity = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc   Promote LEAD → MQL (Employee action)
+ * @route  PATCH /contacts/:id/promote-mql
+ * @access Employee
+ */
+export const promoteToMQL = async (req, res, next) => {
+  try {
+    await contactService.promoteToMQL(
+      req.params.id,
+      req.user.empId
+    );
+
+    res.json({ message: "Contact promoted to MQL successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 /**
  * @desc   Promote MQL → SQL (Employee action)

@@ -110,6 +110,29 @@ export const processLeadActivity = async ({ contactId, token }) => {
 };
 
 /* ---------------------------------------------------
+   EMPLOYEE: LEAD → MQL (Manual Promotion)
+--------------------------------------------------- */
+export const promoteToMQL = async (contactId, empId) => {
+  const contact = await contactRepo.getById(contactId);
+
+  if (!contact) {
+    throw new Error("Contact not found");
+  }
+
+  if (contact.status !== "LEAD") {
+    throw new Error("Only LEAD can be promoted to MQL");
+  }
+
+  await contactRepo.updateStatus(contactId, "MQL");
+  await contactRepo.insertStatusHistory(
+    contactId,
+    "LEAD",
+    "MQL",
+    empId
+  );
+};
+
+/* ---------------------------------------------------
    EMPLOYEE: MQL → SQL
 --------------------------------------------------- */
 export const promoteToSQL = async (contactId, empId) => {
@@ -125,7 +148,7 @@ export const promoteToSQL = async (contactId, empId) => {
   );
 
   if (avgRating < 7) {
-    throw new Error("MQL not qualified for SQL");
+    throw new Error("MQL not qualified for SQL -lead should have avgRating >=7 ");
   }
 
   await contactRepo.updateStatus(contactId, "SQL");

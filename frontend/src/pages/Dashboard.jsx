@@ -4,7 +4,7 @@ import { ContactGrid, ContactDetail, AddContactModal } from '../components/conta
 import { FollowupsModal, AddSessionModal, TakeActionModal } from '../components/sessions';
 import { EmailComposer } from '../components/email';
 import Sidebar from '../components/layout/Sidebar';
-import { getContacts, createContact, updateContact, promoteToSQL, convertToOpportunity } from '../services/contactService';
+import { getContacts, createContact, updateContact, promoteToMQL, promoteToSQL, convertToOpportunity } from '../services/contactService';
 import { createSession } from '../services/sessionService';
 import { sendEmail } from '../services/emailService';
 import { Bell, Menu, X, Settings, LogOut, User, ChevronDown } from 'lucide-react';
@@ -136,7 +136,7 @@ const Dashboard = () => {
       await fetchContacts(); // Refresh to get updated temperature
       setAddSessionContact(null);
       // Refresh followups modal if open
-      if (followupsContact && followupsContact.contact_id === sessionData.contactId) {
+      if (followupsContact && followupsContact.contact_id === sessionData.contact_id) {
         // Force re-render by creating new object reference
         setFollowupsContact({ ...followupsContact });
       }
@@ -157,7 +157,9 @@ const Dashboard = () => {
       setSubmitting(true);
       setError(null);
       
-      if (targetStatus === 'SQL') {
+      if (targetStatus === 'MQL') {
+        await promoteToMQL(contact.contact_id);
+      } else if (targetStatus === 'SQL') {
         await promoteToSQL(contact.contact_id);
       } else if (targetStatus === 'OPPORTUNITY') {
         await convertToOpportunity(contact.contact_id, expectedValue);

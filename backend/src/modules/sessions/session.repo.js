@@ -18,7 +18,7 @@ export const createSession = async (data) => {
       session_no,
       rating,
       session_status,
-      feedback
+      remarks
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `,
@@ -145,7 +145,7 @@ export const updateSession = async (sessionId, updates) => {
   }
 
   if (updates.remarks !== undefined || updates.feedback !== undefined) {
-    fields.push("feedback = ?");
+    fields.push("remarks = ?");
     values.push(updates.remarks || updates.feedback);
   }
 

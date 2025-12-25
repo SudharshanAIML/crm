@@ -46,6 +46,13 @@ router.post(
   contactController.handleLeadActivity
 );
 
+// Manual LEAD → MQL promotion
+router.patch(
+  "/:id/promote-mql",
+  authenticateEmployee,
+  contactController.promoteToMQL
+);
+
 /* ---------------------------------------------------
    EMPLOYEE-DRIVEN TRANSITIONS
 --------------------------------------------------- */

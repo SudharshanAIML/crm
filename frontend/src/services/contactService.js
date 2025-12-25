@@ -36,6 +36,12 @@ export const updateContact = async (contactId, updates) => {
   return response.data;
 };
 
+// Promote LEAD to MQL
+export const promoteToMQL = async (contactId) => {
+  const response = await api.patch(`/contacts/${contactId}/promote-mql`);
+  return response.data;
+};
+
 // Promote MQL to SQL
 export const promoteToSQL = async (contactId) => {
   const response = await api.patch(`/contacts/${contactId}/promote-sql`);

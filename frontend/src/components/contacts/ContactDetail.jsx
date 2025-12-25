@@ -170,7 +170,7 @@ const ContactDetail = ({
         return <Phone className={iconClass} />;
       case 'EMAIL':
         return <Mail className={iconClass} />;
-      case 'IN_PERSON':
+      case 'DEMO':
         return <Users className={iconClass} />;
       case 'MEETING':
         return <Video className={iconClass} />;
