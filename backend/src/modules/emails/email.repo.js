@@ -97,3 +97,13 @@ export const getByEmployee = async (empId) => {
 export const deleteEmail = async (emailId) => {
   await db.query(`DELETE FROM emails WHERE email_id = ?`, [emailId]);
 };
+
+/* ---------------------------------------------------
+   UPDATE GMAIL MESSAGE ID
+--------------------------------------------------- */
+export const updateGmailId = async (emailId, gmailMessageId) => {
+  await db.query(
+    `UPDATE emails SET gmail_message_id = ? WHERE email_id = ?`,
+    [gmailMessageId, emailId]
+  );
+};

@@ -1,17 +1,19 @@
 import crypto from "crypto";
 import * as emailRepo from "./email.repo.js";
 import * as contactRepo from "../contacts/contact.repo.js";
+import * as gmailService from "../../services/gmail.service.js";
+import * as googleOAuth from "../../services/googleOAuth.service.js";
 import { sendMail } from "../../config/email.js";
 
 /* ---------------------------------------------------
    SEND LEAD EMAIL (Creates tracking link)
-   This is called when a new lead is created
+   This uses system email for automated lead emails
 --------------------------------------------------- */
 export const sendLeadEmail = async ({ contactId, name, email, token }) => {
   // Generate tracking URL
   const trackingUrl = `${process.env.APP_URL || "http://localhost:3000"}/api/track/${token}`;
 
-  // Email subject and body (customize as needed)
+  // Email subject and body
   const subject = "Welcome! Learn more about our services";
   const body = `
     <html>
@@ -40,7 +42,7 @@ export const sendLeadEmail = async ({ contactId, name, email, token }) => {
     tracking_token: token,
   });
 
-  // Send actual email
+  // Send via system email (automated emails)
   try {
     await sendMail({
       to: email,
@@ -50,7 +52,6 @@ export const sendLeadEmail = async ({ contactId, name, email, token }) => {
     console.log(`📧 Lead email sent to ${email} (ID: ${emailId})`);
   } catch (error) {
     console.error(`❌ Failed to send lead email to ${email}:`, error.message);
-    // Don't throw - email record is saved, can retry later
   }
 
   return emailId;
@@ -84,8 +85,8 @@ export const getEmailsByContact = async (contactId) => {
 };
 
 /* ---------------------------------------------------
-   SEND CUSTOM EMAIL
-   For employees to send custom emails to contacts
+   SEND CUSTOM EMAIL VIA EMPLOYEE'S GMAIL
+   Uses OAuth to send from employee's own account
 --------------------------------------------------- */
 export const sendCustomEmail = async ({
   contactId,
@@ -93,7 +94,8 @@ export const sendCustomEmail = async ({
   subject,
   body,
   recipientEmail,
-  attachments = [],
+  cc,
+  bcc,
 }) => {
   // Verify contact exists
   const contact = await contactRepo.getById(contactId);
@@ -101,17 +103,23 @@ export const sendCustomEmail = async ({
     throw new Error("Contact not found");
   }
 
+  // Check if employee has connected email
+  const canSend = await gmailService.canSendEmail(empId);
+  if (!canSend) {
+    throw new Error("EMAIL_NOT_CONNECTED");
+  }
+
   // Generate tracking token
   const token = crypto.randomUUID();
   const trackingUrl = `${process.env.APP_URL || "http://localhost:3000"}/api/track/${token}`;
 
-  // Wrap body in HTML template with tracking pixel
+  // Build HTML body with tracking pixel
   const htmlBody = `
     <html>
       <body>
         ${body.replace(/\n/g, "<br>")}
         <br><br>
-        <img src="${trackingUrl}?type=pixel" width="1" height="1" style="display:none" />
+        <img src="${trackingUrl}?type=pixel" width="1" height="1" style="display:none" alt="" />
       </body>
     </html>
   `;
@@ -125,20 +133,61 @@ export const sendCustomEmail = async ({
     tracking_token: token,
   });
 
-  // Send actual email
+  // Send via employee's Gmail
   const toEmail = recipientEmail || contact.email;
   try {
-    await sendMail({
+    const result = await gmailService.sendEmailViaGmail({
+      empId,
       to: toEmail,
       subject,
-      html: htmlBody,
-      attachments,
+      htmlBody,
+      cc,
+      bcc,
     });
-    console.log(`✅ Custom email sent to ${toEmail} (ID: ${emailId})`);
+    
+    // Update email record with Gmail message ID
+    await emailRepo.updateGmailId(emailId, result.messageId);
+    
+    console.log(`✅ Email sent via Gmail to ${toEmail} (ID: ${emailId})`);
   } catch (error) {
-    console.error(`❌ Failed to send custom email to ${toEmail}:`, error.message);
+    console.error(`❌ Failed to send email to ${toEmail}:`, error.message);
+    
+    // If it's an auth error, provide helpful message
+    if (error.message === "EMAIL_NOT_CONNECTED") {
+      throw new Error("Please connect your Gmail account to send emails");
+    }
     throw new Error(`Failed to send email: ${error.message}`);
   }
 
   return emailId;
+};
+
+/* ---------------------------------------------------
+   CHECK EMAIL CONNECTION STATUS
+--------------------------------------------------- */
+export const getEmailConnectionStatus = async (empId) => {
+  return {
+    connected: await googleOAuth.isEmailConnected(empId),
+  };
+};
+
+/* ---------------------------------------------------
+   GET AUTHORIZATION URL
+--------------------------------------------------- */
+export const getEmailAuthUrl = (empId) => {
+  return googleOAuth.getAuthUrl(empId);
+};
+
+/* ---------------------------------------------------
+   HANDLE OAUTH CALLBACK
+--------------------------------------------------- */
+export const handleEmailAuthCallback = async (code, empId) => {
+  return googleOAuth.handleAuthCallback(code, empId);
+};
+
+/* ---------------------------------------------------
+   DISCONNECT EMAIL
+--------------------------------------------------- */
+export const disconnectEmail = async (empId) => {
+  return googleOAuth.disconnectEmail(empId);
 };

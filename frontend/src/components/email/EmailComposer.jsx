@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Minus, Maximize2, Minimize2, Send, Paperclip, Smile, Link2, Trash2, Bold, Italic, Underline } from 'lucide-react';
+import { X, Minus, Maximize2, Minimize2, Send, Paperclip, Smile, Link2, Trash2, Bold, Italic, Underline, AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
+import { sendEmail, getConnectionStatus, getConnectUrl } from '../../services/emailService';
 
 // Common emojis for quick selection
 const EMOJI_LIST = [
@@ -11,9 +12,8 @@ const EMOJI_LIST = [
 const EmailComposer = ({ 
   isOpen, 
   onClose, 
-  contact, 
-  onSend, 
-  loading = false 
+  contact,
+  onSuccess,
 }) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -22,6 +22,10 @@ const EmailComposer = ({
   const [linkUrl, setLinkUrl] = useState('');
   const [linkText, setLinkText] = useState('');
   const [attachments, setAttachments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [emailConnected, setEmailConnected] = useState(null);
+  const [checkingConnection, setCheckingConnection] = useState(true);
   const [formData, setFormData] = useState({
     to: '',
     subject: '',
@@ -32,6 +36,13 @@ const EmailComposer = ({
   const bodyRef = useRef(null);
   const emojiPickerRef = useRef(null);
 
+  // Check email connection status when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      checkConnection();
+    }
+  }, [isOpen]);
+
   // Update form when contact changes
   useEffect(() => {
     if (contact) {
@@ -41,6 +52,7 @@ const EmailComposer = ({
         body: '',
       });
       setAttachments([]);
+      setError(null);
     }
   }, [contact]);
 
@@ -55,29 +67,60 @@ const EmailComposer = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const checkConnection = async () => {
+    try {
+      setCheckingConnection(true);
+      const status = await getConnectionStatus();
+      setEmailConnected(status.connected);
+    } catch (err) {
+      setEmailConnected(false);
+    } finally {
+      setCheckingConnection(false);
+    }
+  };
+
+  const handleConnectEmail = async () => {
+    try {
+      const { authUrl } = await getConnectUrl();
+      window.location.href = authUrl;
+    } catch (err) {
+      setError('Failed to initiate Gmail connection');
+    }
+  };
+
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.to || !formData.subject || !formData.body) {
-      alert('Please fill in all fields');
+      setError('Please fill in all fields');
       return;
     }
 
-    // Convert attachments to base64 for sending
-    const attachmentData = attachments.map(att => ({
-      filename: att.name,
-      content: att.base64,
-      encoding: 'base64',
-    }));
+    try {
+      setLoading(true);
+      setError(null);
 
-    onSend({
-      contactId: contact?.contact_id,
-      subject: formData.subject,
-      body: formData.body,
-      recipientEmail: formData.to,
-      attachments: attachmentData,
-    });
+      await sendEmail({
+        contactId: contact?.contact_id,
+        subject: formData.subject,
+        body: formData.body,
+      });
+
+      // Success - close and notify
+      onSuccess?.();
+      onClose();
+      setFormData({ to: contact?.email || '', subject: '', body: '' });
+      setAttachments([]);
+    } catch (err) {
+      if (err.response?.data?.code === 'EMAIL_NOT_CONNECTED') {
+        setEmailConnected(false);
+      } else {
+        setError(err.response?.data?.message || 'Failed to send email. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChange = (field, value) => {
@@ -216,6 +259,54 @@ const EmailComposer = ({
     ? 'fixed inset-4 md:inset-8'
     : 'fixed bottom-0 right-6 w-full max-w-lg';
 
+  // Show connection check or not connected state
+  if (checkingConnection || !emailConnected) {
+    return (
+      <div className={`${composerClasses} bg-white rounded-t-lg shadow-2xl z-50 flex flex-col`}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 bg-gray-800 text-white rounded-t-lg">
+          <span className="font-medium">New Message</span>
+          <button
+            onClick={onClose}
+            className="p-1.5 hover:bg-gray-700 rounded transition-colors"
+            title="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 flex items-center justify-center p-8">
+          {checkingConnection ? (
+            <div className="text-center">
+              <Loader2 className="w-8 h-8 animate-spin text-sky-500 mx-auto mb-3" />
+              <p className="text-gray-600">Checking email connection...</p>
+            </div>
+          ) : (
+            <div className="text-center max-w-sm">
+              <div className="w-16 h-16 mx-auto rounded-full bg-amber-100 flex items-center justify-center mb-4">
+                <AlertCircle className="w-8 h-8 text-amber-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Gmail Not Connected</h3>
+              <p className="text-gray-600 mb-6">
+                Connect your Gmail account to send emails directly from the CRM.
+              </p>
+              <button
+                onClick={handleConnectEmail}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-sky-500 hover:bg-sky-600 text-white rounded-lg font-medium transition-colors"
+              >
+                Connect Gmail
+                <ExternalLink className="w-4 h-4" />
+              </button>
+              <p className="text-xs text-gray-500 mt-4">
+                You'll be redirected to Google to authorize access
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`${composerClasses} bg-white rounded-t-lg shadow-2xl z-50 flex flex-col`}>
       {/* Header */}
@@ -249,6 +340,17 @@ const EmailComposer = ({
           </button>
         </div>
       </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-red-700">{error}</p>
+          <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">

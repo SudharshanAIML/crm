@@ -187,6 +187,75 @@ backend/
 | GET | `/api/analytics/performance` | Employee performance |
 | GET | `/api/analytics/activities` | Recent activities |
 
+### Emails (Gmail OAuth Integration)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/emails/connection-status` | Check Gmail connection |
+| GET | `/api/emails/connect` | Get OAuth URL to connect Gmail |
+| GET | `/api/emails/callback` | OAuth callback from Google |
+| DELETE | `/api/emails/disconnect` | Disconnect Gmail account |
+| POST | `/api/emails` | Send email via connected Gmail |
+| GET | `/api/emails/contact/:id` | Get emails sent to contact |
+
+## 📧 Gmail Integration Setup
+
+Employees can send emails directly from their own Gmail accounts using OAuth. Here's how to set it up:
+
+### 1. Google Cloud Console Setup
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+3. Enable the **Gmail API**:
+   - Go to "APIs & Services" → "Library"
+   - Search for "Gmail API" and enable it
+4. Configure OAuth consent screen:
+   - Go to "APIs & Services" → "OAuth consent screen"
+   - Choose "External" for user type
+   - Fill in app name, support email, and developer contact
+   - Add scopes: `gmail.send`, `userinfo.email`, `userinfo.profile`
+   - Add test users (for development)
+5. Create OAuth credentials:
+   - Go to "APIs & Services" → "Credentials"
+   - Click "Create Credentials" → "OAuth client ID"
+   - Choose "Web application"
+   - Add authorized redirect URI: `http://localhost:3000/api/emails/callback`
+   - Copy the Client ID and Client Secret
+
+### 2. Environment Configuration
+
+Add these to your `.env` file:
+
+```env
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/emails/callback
+FRONTEND_URL=http://localhost:5173
+```
+
+### 3. Database Migration
+
+Run the OAuth tokens migration:
+
+```sql
+-- Add OAuth columns to employees table
+ALTER TABLE employees
+ADD COLUMN google_access_token TEXT DEFAULT NULL,
+ADD COLUMN google_refresh_token TEXT DEFAULT NULL,
+ADD COLUMN google_token_expiry TIMESTAMP DEFAULT NULL,
+ADD COLUMN email_connected BOOLEAN DEFAULT FALSE;
+
+-- Add Gmail message ID to emails table
+ALTER TABLE emails
+ADD COLUMN gmail_message_id VARCHAR(255) DEFAULT NULL;
+```
+
+### 4. User Flow
+
+1. Employee goes to **Settings → Integrations**
+2. Clicks "Connect Gmail"
+3. Authorizes the app via Google OAuth
+4. Can now send emails from CRM using their Gmail account
+
 ## 🔧 Business Rules
 
 ### Session Limits
@@ -218,11 +287,19 @@ DATABASE_URL=mysql://user:pass@host:port/db
 
 # Authentication
 JWT_SECRET=your-secret
-GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# Gmail OAuth (for employee email sending)
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/emails/callback
+FRONTEND_URL=http://localhost:5173
 
 # Security
-CORS_ORIGIN=http://localhost:3000
+CORS_ORIGIN=http://localhost:5173
 RATE_LIMIT_MAX=100
+
+# Application URLs
+APP_URL=http://localhost:3000
 ```
 
 ## 📄 License

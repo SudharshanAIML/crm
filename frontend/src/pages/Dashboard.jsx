@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ContactGrid, ContactDetail, AddContactModal } from '../components/contacts';
 import { FollowupsModal, AddSessionModal, TakeActionModal } from '../components/sessions';
+import EmailComposer from '../components/email/EmailComposer';
 import Sidebar from '../components/layout/Sidebar';
 import Profile from '../components/layout/Profile';
 import AnalyticsDashboard from '../components/analytics/AnalyticsDashboard';
@@ -30,6 +31,9 @@ const Dashboard = () => {
   const [followupsContact, setFollowupsContact] = useState(null);
   const [addSessionContact, setAddSessionContact] = useState(null);
   const [takeActionData, setTakeActionData] = useState(null);
+  
+  // Email compose modal
+  const [emailContact, setEmailContact] = useState(null);
 
   // Close user menu when clicking outside
   useEffect(() => {
@@ -99,8 +103,7 @@ const Dashboard = () => {
   };
 
   const handleEmailClick = (contact) => {
-    console.log('Email clicked for:', contact);
-    alert(`Email functionality for ${contact.name} will be implemented next`);
+    setEmailContact(contact);
   };
 
   const handleFollowupsClick = (contact) => {
@@ -368,6 +371,17 @@ const Dashboard = () => {
         onClose={() => setTakeActionData(null)}
         onConfirm={handleConfirmPromotion}
         loading={submitting}
+      />
+
+      {/* Email Compose Modal */}
+      <EmailComposer
+        isOpen={!!emailContact}
+        contact={emailContact}
+        onClose={() => setEmailContact(null)}
+        onSuccess={() => {
+          // Optionally refresh contacts to show email was sent
+          fetchContacts();
+        }}
       />
     </div>
   );
