@@ -42,7 +42,6 @@ const EmployeeOnboardingForm = ({ initialData, onSubmit, loading = false }) => {
   const departments = DEPARTMENTS;
 
   const roles = [
-    { value: USER_ROLES.EMPLOYEE, label: 'Employee' },
     { value: USER_ROLES.ADMIN, label: 'Admin' },
   ];
 
@@ -107,7 +106,7 @@ const EmployeeOnboardingForm = ({ initialData, onSubmit, loading = false }) => {
                   id="name"
                   {...register('name', { 
                     required: 'Name is required',
-                    minLength: { value: 2, message: 'Name must be at least 2 characters' }
+                    minLength: { value: 3, message: 'Name must be at least 3 characters' }
                   })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-colors bg-white/50"
                   placeholder="Enter your full name"

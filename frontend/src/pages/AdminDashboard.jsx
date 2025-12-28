@@ -236,15 +236,21 @@ const AdminDashboard = () => {
     return matchesSearch && matchesDept && matchesStatus;
   });
 
-  // Calculate stats
-  const totalLeads = employees.reduce((sum, emp) => sum + (emp.contactsHandled || 0), 0);
-  const totalConversions = employees.reduce((sum, emp) => sum + (emp.dealsClosed || 0), 0);
-  const totalRevenue = employees.reduce((sum, emp) => sum + (emp.totalRevenue || 0), 0);
-  
-  // Calculate invitation stats
+  // Calculate invitation stats first (needed for other calculations)
   const invitedCount = employees.filter(e => e.invitation_status === 'INVITED').length;
   const activeCount = employees.filter(e => e.invitation_status === 'ACTIVE').length;
   const disabledCount = employees.filter(e => e.invitation_status === 'DISABLED').length;
+  
+  // Calculate stats with proper number handling
+  const totalLeads = employees.reduce((sum, emp) => sum + (parseInt(emp.contactsHandled) || 0), 0);
+  const totalConversions = employees.reduce((sum, emp) => sum + (parseInt(emp.dealsClosed) || 0), 0);
+  const totalRevenue = employees.reduce((sum, emp) => sum + (parseFloat(emp.totalRevenue) || 0), 0);
+  
+  // Calculate conversion rate
+  const conversionRate = totalLeads > 0 ? ((totalConversions / totalLeads) * 100).toFixed(1) : 0;
+  
+  // Calculate average leads per active employee
+  const avgLeadsPerEmployee = activeCount > 0 ? Math.round(totalLeads / activeCount) : 0;
 
   const getInvitationStatusBadge = (status) => {
     switch (status) {
@@ -366,12 +372,12 @@ const AdminDashboard = () => {
       <div className="p-6">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-sky-100 rounded-xl flex items-center justify-center">
                 <Users className="w-6 h-6 text-sky-600" />
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="text-sm text-gray-500">Total Team</p>
                 <p className="text-2xl font-bold text-gray-900">{employees.length}</p>
                 <div className="flex items-center gap-2 mt-1">
@@ -383,38 +389,57 @@ const AdminDashboard = () => {
             </div>
           </div>
           
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
                 <Target className="w-6 h-6 text-purple-600" />
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="text-sm text-gray-500">Total Leads</p>
-                <p className="text-2xl font-bold text-gray-900">{totalLeads}</p>
+                <p className="text-2xl font-bold text-gray-900">{totalLeads.toLocaleString()}</p>
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="text-xs text-gray-500">~{avgLeadsPerEmployee} per employee</span>
+                </div>
               </div>
             </div>
           </div>
           
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
                 <TrendingUp className="w-6 h-6 text-emerald-600" />
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="text-sm text-gray-500">Conversions</p>
-                <p className="text-2xl font-bold text-gray-900">{totalConversions}</p>
+                <p className="text-2xl font-bold text-gray-900">{totalConversions.toLocaleString()}</p>
+                <div className="flex items-center gap-1 mt-1">
+                  <span className={`text-xs ${parseFloat(conversionRate) > 20 ? 'text-emerald-600' : parseFloat(conversionRate) > 10 ? 'text-amber-600' : 'text-gray-500'}`}>
+                    {conversionRate}% conversion rate
+                  </span>
+                </div>
               </div>
             </div>
           </div>
           
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
                 <DollarSign className="w-6 h-6 text-amber-600" />
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="text-sm text-gray-500">Revenue</p>
-                <p className="text-2xl font-bold text-gray-900">${(totalRevenue / 1000).toFixed(1)}k</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  ${totalRevenue >= 1000000 
+                    ? (totalRevenue / 1000000).toFixed(1) + 'M' 
+                    : totalRevenue >= 1000 
+                      ? (totalRevenue / 1000).toFixed(1) + 'k' 
+                      : totalRevenue.toFixed(0)}
+                </p>
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="text-xs text-gray-500">
+                    ${totalConversions > 0 ? Math.round(totalRevenue / totalConversions).toLocaleString() : 0} avg deal
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -504,7 +529,7 @@ const AdminDashboard = () => {
                     <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
                     <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                     <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Department</th>
-                    <th className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Leads</th>
+                    <th className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Performance</th>
                     <th className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -550,8 +575,25 @@ const AdminDashboard = () => {
                           {employee.department || 'N/A'}
                         </span>
                       </td>
-                      <td className="py-4 px-6 text-center">
-                        <span className="text-sm font-semibold text-gray-900">{employee.contactsHandled || 0}</span>
+                      <td className="py-4 px-6">
+                        <div className="flex items-center justify-center gap-4">
+                          <div className="text-center">
+                            <p className="text-sm font-bold text-purple-600">{parseInt(employee.contactsHandled) || 0}</p>
+                            <p className="text-xs text-gray-400">Leads</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm font-bold text-emerald-600">{parseInt(employee.dealsClosed) || 0}</p>
+                            <p className="text-xs text-gray-400">Deals</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm font-bold text-amber-600">
+                              ${parseFloat(employee.totalRevenue) >= 1000 
+                                ? (parseFloat(employee.totalRevenue) / 1000).toFixed(1) + 'k' 
+                                : (parseFloat(employee.totalRevenue) || 0).toFixed(0)}
+                            </p>
+                            <p className="text-xs text-gray-400">Revenue</p>
+                          </div>
+                        </div>
                       </td>
                       <td className="py-4 px-6">
                         <div className="flex items-center justify-center gap-2">

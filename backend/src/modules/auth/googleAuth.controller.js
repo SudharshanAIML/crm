@@ -6,7 +6,7 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 export const googleLogin = async (req, res, next) => {
   try {
-    const { token, inviteToken } = req.body;
+    const { token, inviteToken, isAdminRegistration } = req.body;
 
     if (!token) {
       return res.status(400).json({
@@ -20,7 +20,7 @@ export const googleLogin = async (req, res, next) => {
     });
 
     const payload = ticket.getPayload();
-    const { email, name } = payload;
+    const { email, name, picture } = payload;
 
     // Check if employee exists
     let employee = await employeeRepo.getByEmail(email);
@@ -47,6 +47,44 @@ export const googleLogin = async (req, res, next) => {
       // Accept the invitation and update employee
       await employeeRepo.acceptInvitation(invitedEmployee.emp_id);
       employee = await employeeRepo.getById(invitedEmployee.emp_id);
+    }
+    
+    // Handle admin registration - allow new admins to self-register
+    if (isAdminRegistration && !employee) {
+      // Create a new admin employee (without company yet - will be set during onboarding)
+      const newEmployee = await employeeRepo.createAdminEmployee({
+        email,
+        name,
+        picture,
+        invitation_status: 'ACTIVE',
+        role: 'ADMIN'
+      });
+      
+      employee = await employeeRepo.getById(newEmployee.insertId);
+      
+      // Create JWT for new admin
+      const jwtToken = jwt.sign(
+        {
+          empId: employee.emp_id,
+          companyId: null, // No company yet
+          role: 'ADMIN',
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+
+      return res.json({
+        token: jwtToken,
+        isNewAdmin: true,
+        user: {
+          name: employee.name,
+          email: employee.email,
+          phone: employee.phone,
+          department: employee.department,
+          role: 'ADMIN',
+          profileComplete: false,
+        },
+      });
     }
 
     // If no employee found and no invite token

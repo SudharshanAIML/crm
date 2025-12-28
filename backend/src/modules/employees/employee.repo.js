@@ -48,6 +48,32 @@ export const createEmployee = async (data) => {
 };
 
 /* ---------------------------------------------------
+   CREATE ADMIN EMPLOYEE (self-registration)
+--------------------------------------------------- */
+export const createAdminEmployee = async (data) => {
+  const [result] = await db.query(
+    `
+    INSERT INTO employees (
+      company_id,
+      name,
+      email,
+      role,
+      invitation_status,
+      last_login_at
+    )
+    VALUES (?, ?, ?, 'ADMIN', 'ACTIVE', NOW())
+    `,
+    [
+      null, // No company yet - will be created during onboarding
+      data.name,
+      data.email,
+    ]
+  );
+
+  return { insertId: result.insertId };
+};
+
+/* ---------------------------------------------------
    GET EMPLOYEE BY ID
 --------------------------------------------------- */
 export const getById = async (empId) => {
@@ -188,18 +214,35 @@ export const resendInvitation = async (empId) => {
 };
 
 /* ---------------------------------------------------
-   GET EMPLOYEES BY COMPANY (with invitation info)
+   GET EMPLOYEES BY COMPANY (with invitation info and stats)
 --------------------------------------------------- */
 export const getByCompanyWithStatus = async (companyId) => {
   const [rows] = await db.query(
     `
     SELECT 
-      emp_id, company_id, name, email, phone, role, department,
-      invitation_status, invitation_sent_at, invited_by, last_login_at,
-      created_at, updated_at
-    FROM employees 
-    WHERE company_id = ?
-    ORDER BY created_at DESC
+      e.emp_id, 
+      e.company_id, 
+      e.name, 
+      e.email, 
+      e.phone, 
+      e.role, 
+      e.department,
+      e.invitation_status, 
+      e.invitation_sent_at, 
+      e.invited_by, 
+      e.last_login_at,
+      e.created_at, 
+      e.updated_at,
+      COUNT(DISTINCT c.contact_id) as contactsHandled,
+      COUNT(DISTINCT d.deal_id) as dealsClosed,
+      COALESCE(SUM(d.deal_value), 0) as totalRevenue
+    FROM employees e
+    LEFT JOIN contacts c ON c.assigned_emp_id = e.emp_id
+    LEFT JOIN opportunities o ON o.emp_id = e.emp_id
+    LEFT JOIN deals d ON d.opportunity_id = o.opportunity_id
+    WHERE e.company_id = ?
+    GROUP BY e.emp_id
+    ORDER BY e.created_at DESC
     `,
     [companyId]
   );
