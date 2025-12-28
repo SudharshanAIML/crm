@@ -3,17 +3,19 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   ArrowLeft, Plus, Phone, Mail, Users, Video, Star, ChevronLeft, ChevronRight, 
-  ArrowRight, X, Search, Clock, Calendar, Edit, Heart, MessageSquare, ChevronDown
+  ArrowRight, X, Search, Clock, Calendar, Edit, ChevronDown
 } from 'lucide-react';
 import { getSessionsByContact, createSession } from '../services/sessionService';
 import { getContactById, promoteToMQL, promoteToSQL, convertToOpportunity } from '../services/contactService';
 import { AddSessionModal, TakeActionModal } from '../components/sessions';
+import { TaskModal } from '../components/calendar';
+import { createTask } from '../services/taskService';
 
 const FollowupsPage = () => {
   const { contactId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { } = useAuth();
   
   // Get contact from navigation state or fetch it
   const [contact, setContact] = useState(location.state?.contact || null);
@@ -24,11 +26,14 @@ const FollowupsPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [selectedSession, setSelectedSession] = useState(null);
   const [showDetails, setShowDetails] = useState(true);
+  const [expandedRow, setExpandedRow] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const scrollContainerRef = useRef(null);
 
   // Modal states
   const [addSessionOpen, setAddSessionOpen] = useState(false);
   const [takeActionData, setTakeActionData] = useState(null);
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
 
   useEffect(() => {
     if (contactId) {
@@ -223,6 +228,34 @@ const FollowupsPage = () => {
 
   const nextStage = getNextStage();
 
+  // Filter sessions based on search query
+  const filteredSessions = sessions.filter(session => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      session.mode_of_contact?.toLowerCase().includes(query) ||
+      session.session_status?.toLowerCase().includes(query) ||
+      session.feedback?.toLowerCase().includes(query) ||
+      session.remarks?.toLowerCase().includes(query) ||
+      formatDate(session.created_at).toLowerCase().includes(query) ||
+      (session.stage || contact?.status || '').toLowerCase().includes(query)
+    );
+  });
+
+  // Handle task/appointment save
+  const handleTaskSave = async (taskData) => {
+    try {
+      await createTask({
+        ...taskData,
+        contact_id: contact?.contact_id || contactId,
+      });
+      setTaskModalOpen(false);
+    } catch (err) {
+      console.error('Error creating task:', err);
+      setError(err.response?.data?.message || 'Failed to create appointment');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -293,6 +326,8 @@ const FollowupsPage = () => {
                   <input
                     type="text"
                     placeholder="Search sessions..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                   />
                 </div>
@@ -314,186 +349,151 @@ const FollowupsPage = () => {
         {/* Action Buttons Row */}
         <div className="bg-white border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setAddSessionOpen(true)}
-                className="px-4 py-2 border border-sky-500 text-sky-600 rounded-lg hover:bg-sky-50 transition-colors font-medium"
-              >
-                Attempts
-              </button>
-              <button className="px-4 py-2 border border-sky-500 text-sky-600 rounded-lg hover:bg-sky-50 transition-colors font-medium">
-                Add Details
-              </button>
-            </div>
+            <div className="flex items-center gap-3"> </div>
             <div className="text-sm text-gray-500">
               {sessions.length} Sessions • Avg Rating: {formatRating(averageRating)}/10
             </div>
           </div>
         </div>
 
-        {/* Sessions Cards - Horizontal Scroll */}
-        <div className="flex-1 p-4 overflow-hidden">
-          <div className="relative">
-            {/* Scroll Buttons */}
-            {sessions.length > 0 && (
-              <>
-                <button
-                  onClick={scrollLeft}
-                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 bg-white shadow-lg rounded-full hover:bg-gray-50 transition-colors"
-                >
-                  <ChevronLeft className="w-5 h-5 text-gray-600" />
-                </button>
-                <button
-                  onClick={scrollRight}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 bg-white shadow-lg rounded-full hover:bg-gray-50 transition-colors"
-                >
-                  <ChevronRight className="w-5 h-5 text-gray-600" />
-                </button>
-              </>
+        {/* Sessions Table */}
+        <div className="flex-1 p-4 overflow-auto">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            {sessions.length === 0 ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Phone className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <p className="text-gray-500 mb-4">No follow-ups yet. Add your first session!</p>
+                  <button
+                    onClick={() => setAddSessionOpen(true)}
+                    className="px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition-colors"
+                  >
+                    Add Session
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">#</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Stage</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Mode</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Rating</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Time</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Feedback</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredSessions.map((session, index) => (
+                    <>
+                      <tr
+                        key={session.session_id}
+                        onClick={() => setSelectedSession(session)}
+                        className={`hover:bg-gray-50 cursor-pointer transition-colors ${
+                          selectedSession?.session_id === session.session_id ? 'bg-sky-50' : ''
+                        }`}
+                      >
+                        <td className="px-4 py-4">
+                          <span className="w-6 h-6 bg-sky-100 text-sky-700 text-sm font-medium rounded-full flex items-center justify-center">
+                            {index + 1}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="px-2 py-1 bg-sky-100 text-sky-700 text-sm font-medium rounded">
+                            {session.stage || contact?.status || 'MQL'} #{session.session_no || index + 1}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2 text-gray-700">
+                            {getModeIcon(session.mode_of_contact)}
+                            <span className="text-sm">{session.mode_of_contact?.replace('_', ' ') || 'CALL'}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border ${
+                            session.session_status === 'CONNECTED' 
+                              ? 'bg-green-50 border-green-200' 
+                              : session.session_status === 'NOT_CONNECTED' 
+                              ? 'bg-red-50 border-red-200' 
+                              : 'bg-yellow-50 border-yellow-200'
+                          }`}>
+                            <span className={`w-2 h-2 rounded-full ${getStatusBadgeColor(session.session_status)}`}></span>
+                            <span className={`text-sm font-medium ${
+                              session.session_status === 'CONNECTED' ? 'text-green-700' :
+                              session.session_status === 'NOT_CONNECTED' ? 'text-red-700' :
+                              'text-yellow-700'
+                            }`}>
+                              {session.session_status?.replace('_', ' ')}
+                            </span>
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2">
+                            {renderStars(session.rating || 0)}
+                            <span className="text-sm text-gray-600">{session.rating || 0}/10</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="text-sm text-gray-700">{formatDate(session.created_at)}</span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="text-sm text-gray-700">{formatTime(session.created_at)}</span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedRow(expandedRow === session.session_id ? null : session.session_id);
+                            }}
+                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                          >
+                            <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${
+                              expandedRow === session.session_id ? 'rotate-180' : ''
+                            }`} />
+                          </button>
+                        </td>
+                      </tr>
+                      {/* Expanded Feedback Row */}
+                      {expandedRow === session.session_id && (
+                        <tr key={`${session.session_id}-feedback`} className="bg-gray-50">
+                          <td colSpan={8} className="px-4 py-4">
+                            <div className="flex items-start gap-3 pl-10">
+                              <div className="flex-shrink-0">
+                                <div className="w-8 h-8 bg-sky-100 rounded-full flex items-center justify-center">
+                                  <Edit className="w-4 h-4 text-sky-600" />
+                                </div>
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-gray-700 mb-1">Feedback / Remarks</p>
+                                <p className="text-sm text-gray-600 leading-relaxed">
+                                  {session.feedback || session.remarks || 'No feedback provided for this session.'}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  ))}
+                </tbody>
+              </table>
             )}
 
-            {/* Cards Container */}
-            <div
-              ref={scrollContainerRef}
-              className="flex gap-4 overflow-x-auto pb-4 px-8 scrollbar-hide"
-              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-            >
-              {sessions.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center py-20">
-                  <div className="text-center">
-                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Phone className="w-8 h-8 text-gray-400" />
-                    </div>
-                    <p className="text-gray-500 mb-4">No follow-ups yet. Add your first session!</p>
-                    <button
-                      onClick={() => setAddSessionOpen(true)}
-                      className="px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition-colors"
-                    >
-                      Add Session
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {sessions.map((session, index) => (
-                    <div
-                      key={session.session_id}
-                      onClick={() => setSelectedSession(session)}
-                      className={`flex-shrink-0 w-80 bg-white rounded-xl shadow-sm border-2 transition-all cursor-pointer hover:shadow-md ${
-                        selectedSession?.session_id === session.session_id 
-                          ? 'border-sky-500' 
-                          : 'border-gray-200'
-                      }`}
-                    >
-                      {/* Card Header */}
-                      <div className="p-4 border-b border-gray-100">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="relative">
-                              <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
-                                {contact?.avatar || contact?.photo || contact?.profile_picture || contact?.profile_url ? (
-                                  <img
-                                    src={contact?.avatar || contact?.photo || contact?.profile_picture || contact?.profile_url}
-                                    alt={contact?.name || 'Profile'}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="text-sm font-medium text-gray-700">
-                                    {getInitials(contact?.name)}
-                                  </div>
-                                )}
-                              </div>
-                              <span className="absolute -top-1 -left-1 w-5 h-5 bg-gray-800 text-white text-xs rounded-full flex items-center justify-center">
-                                {index + 1}
-                              </span>
-                            </div>
-                            <div>
-                              <h3 className="font-semibold text-gray-900">{contact?.name}</h3>
-                              <p className="text-xs text-gray-500">
-                                {formatDate(session.created_at)} {formatTime(session.created_at)}
-                              </p>
-                            </div>
-                          </div>
-                          <button className="p-1 hover:bg-gray-100 rounded">
-                            <Edit className="w-4 h-4 text-gray-400" />
-                          </button>
-                        </div>
-                        
-                        {/* Status Badge */}
-                        <div className="mt-3 flex items-center gap-2">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(session.session_status)}`}>
-                            {session.session_status?.replace('_', ' ')}
-                          </span>
-                          <span className={`w-2 h-2 rounded-full ${getStatusBadgeColor(session.session_status)}`}></span>
-                        </div>
-                      </div>
-
-                      {/* Session Stage Header */}
-                      <div className="bg-sky-500 text-white text-center py-1.5 text-sm font-medium">
-                        {session.stage || 'Session'}: #{session.session_no}
-                      </div>
-
-                      {/* Card Details */}
-                      <div className="p-4 space-y-2.5 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Mode</span>
-                          <span className="text-gray-900 font-medium flex items-center gap-1">
-                            {getModeIcon(session.mode_of_contact)}
-                            {session.mode_of_contact?.replace('_', ' ') || 'CALL'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Rating</span>
-                          <span className="text-gray-900 font-medium">{session.rating || 0}/10</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Status</span>
-                          <span className="text-gray-900 font-medium">{session.session_status?.replace('_', ' ')}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Date</span>
-                          <span className="text-gray-900 font-medium">{formatDate(session.created_at)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Temperature</span>
-                          <span className={`font-medium ${
-                            contact?.temperature === 'HOT' ? 'text-red-600' :
-                            contact?.temperature === 'WARM' ? 'text-orange-600' :
-                            'text-blue-600'
-                          }`}>{contact?.temperature}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Session ID</span>
-                          <span className="text-gray-900 font-medium">{session.session_id}</span>
-                        </div>
-
-                        {/* Feedback/Remarks */}
-                        {(session.feedback || session.remarks) && (
-                          <div className="pt-2 border-t border-gray-100">
-                            <p className="text-gray-500 text-xs mb-1">Feedback</p>
-                            <p className="text-gray-700 text-xs line-clamp-2">
-                              {session.feedback || session.remarks}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Add New Session Card */}
-                  <div
-                    onClick={() => setAddSessionOpen(true)}
-                    className="flex-shrink-0 w-80 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-sky-400 hover:bg-sky-50 transition-all min-h-[400px]"
-                  >
-                    <div className="w-14 h-14 bg-sky-100 rounded-full flex items-center justify-center mb-4">
-                      <Plus className="w-7 h-7 text-sky-600" />
-                    </div>
-                    <p className="text-base font-medium text-gray-700">Add Session</p>
-                    <p className="text-sm text-gray-500">Log a new follow-up</p>
-                  </div>
-                </>
-              )}
-            </div>
+            {/* Add New Session Row */}
+            {sessions.length > 0 && (
+              <div
+                onClick={() => setAddSessionOpen(true)}
+                className="border-t border-gray-200 py-4 px-4 flex items-center justify-center gap-2 text-sky-600 hover:bg-sky-50 cursor-pointer transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                <span className="font-medium">Add New Session</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -555,7 +555,10 @@ const FollowupsPage = () => {
             <Calendar className="w-5 h-5 text-gray-500" />
             <span className="text-gray-600">No Scheduled Appointment</span>
           </div>
-          <button className="w-full py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition-colors flex items-center justify-center gap-2">
+          <button
+            onClick={() => setTaskModalOpen(true)}
+            className="w-full py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition-colors flex items-center justify-center gap-2"
+          >
             <Plus className="w-4 h-4" />
             Create New Appointment
           </button>
@@ -630,6 +633,17 @@ const FollowupsPage = () => {
         onClose={() => setTakeActionData(null)}
         onConfirm={handleConfirmPromotion}
         loading={submitting}
+      />
+
+      {/* Task Modal for Appointments */}
+      <TaskModal
+        isOpen={taskModalOpen}
+        task={null}
+        contacts={[]}
+        selectedDate={new Date()}
+        onClose={() => setTaskModalOpen(false)}
+        onSave={handleTaskSave}
+        lockedContact={contact}
       />
     </div>
   );
