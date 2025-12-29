@@ -192,31 +192,32 @@ export const convertToOpportunity = async (
 /* ---------------------------------------------------
    SYSTEM: OPPORTUNITY → CUSTOMER (Deal Closed)
 --------------------------------------------------- */
-export const closeDeal = async (opportunityId, dealValue) => {
-  const opportunity =
-    await opportunityRepo.getById(opportunityId);
+export const closeDeal = async (contactId, empId, dealValue) => {
+  // Find the open opportunity for this contact
+  const opportunity = await opportunityRepo.getOpenByContact(contactId);
 
   if (!opportunity || opportunity.status !== "OPEN") {
-    throw new Error("Invalid opportunity");
+    throw new Error("No open opportunity found for this contact");
   }
 
   await dealRepo.createDeal({
-    opportunity_id: opportunityId,
+    opportunity_id: opportunity.opportunity_id,
     deal_value: dealValue,
+    closed_by: empId,
   });
 
-  await opportunityRepo.markWon(opportunityId);
+  await opportunityRepo.markWon(opportunity.opportunity_id);
 
   await contactRepo.updateStatus(
-    opportunity.contact_id,
+    contactId,
     "CUSTOMER"
   );
 
   await contactRepo.insertStatusHistory(
-    opportunity.contact_id,
+    contactId,
     "OPPORTUNITY",
     "CUSTOMER",
-    null // system
+    empId
   );
 };
 

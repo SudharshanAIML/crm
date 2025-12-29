@@ -23,7 +23,7 @@ import {
 import { toLocalDateOnly } from "./constants";
 
 // Task Modal Component
-const TaskModal= ({ isOpen, task, contacts, selectedDate, onClose, onSave }) => {
+const TaskModal= ({ isOpen, task, contacts, selectedDate, onClose, onSave, lockedContact }) => {
   // Helper to format date in local timezone
   const formatLocalDate = (date) => {
     const year = date.getFullYear();
@@ -40,10 +40,17 @@ const TaskModal= ({ isOpen, task, contacts, selectedDate, onClose, onSave }) => 
     due_date: task?.due_date ? toLocalDateOnly(task.due_date) : formatLocalDate(selectedDate),
     due_time: task?.due_time?.substring(0, 5) || "",
     duration_minutes: task?.duration_minutes || 30,
-    contact_id: task?.contact_id || "",
+    contact_id: task?.contact_id || lockedContact?.contact_id || "",
     is_all_day: task?.is_all_day || false,
   });
   const [saving, setSaving] = useState(false);
+
+  // Update contact_id when lockedContact changes
+  useEffect(() => {
+    if (lockedContact && !task?.contact_id) {
+      setFormData(prev => ({ ...prev, contact_id: lockedContact.contact_id }));
+    }
+  }, [lockedContact, task]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

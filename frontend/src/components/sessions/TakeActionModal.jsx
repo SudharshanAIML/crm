@@ -14,11 +14,11 @@ const TakeActionModal = ({
 
   if (!isOpen || !contact || !targetStatus) return null;
 
-  const requiresValue = targetStatus === 'OPPORTUNITY';
+  const requiresValue = targetStatus === 'OPPORTUNITY' || targetStatus === 'CUSTOMER';
 
   const handleConfirm = () => {
     if (requiresValue && !expectedValue) {
-      setError('Expected deal value is required');
+      setError(targetStatus === 'CUSTOMER' ? 'Deal value is required' : 'Expected deal value is required');
       return;
     }
 
@@ -29,6 +29,11 @@ const TakeActionModal = ({
 
     setError('');
     onConfirm(contact, targetStatus, requiresValue ? parseFloat(expectedValue) : null);
+  };
+
+  const getValueLabel = () => {
+    if (targetStatus === 'CUSTOMER') return 'Closed Deal Value *';
+    return 'Expected Deal Value *';
   };
 
   const getStatusDescription = () => {
@@ -111,11 +116,11 @@ const TakeActionModal = ({
             <p className="text-sm text-sky-800">{getStatusDescription()}</p>
           </div>
 
-          {/* Expected Value Input (for Opportunity) */}
+          {/* Expected Value Input (for Opportunity or Customer) */}
           {requiresValue && (
             <div className="mb-6">
               <label htmlFor="expectedValue" className="block text-sm font-medium text-gray-700 mb-2">
-                Expected Deal Value *
+                {getValueLabel()}
               </label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>

@@ -219,30 +219,46 @@ export const resendInvitation = async (empId) => {
 export const getByCompanyWithStatus = async (companyId) => {
   const [rows] = await db.query(
     `
-    SELECT 
-      e.emp_id, 
-      e.company_id, 
-      e.name, 
-      e.email, 
-      e.phone, 
-      e.role, 
-      e.department,
-      e.invitation_status, 
-      e.invitation_sent_at, 
-      e.invited_by, 
-      e.last_login_at,
-      e.created_at, 
-      e.updated_at,
-      COUNT(DISTINCT c.contact_id) as contactsHandled,
-      COUNT(DISTINCT d.deal_id) as dealsClosed,
-      COALESCE(SUM(d.deal_value), 0) as totalRevenue
-    FROM employees e
-    LEFT JOIN contacts c ON c.assigned_emp_id = e.emp_id
-    LEFT JOIN opportunities o ON o.emp_id = e.emp_id
-    LEFT JOIN deals d ON d.opportunity_id = o.opportunity_id
-    WHERE e.company_id = ?
-    GROUP BY e.emp_id
-    ORDER BY e.created_at DESC
+      SELECT 
+        e.emp_id,
+        e.company_id,
+        e.name,
+        e.email,
+        e.phone,
+        e.role,
+        e.department,
+        e.invitation_status,
+        e.invitation_sent_at,
+        e.invited_by,
+        e.last_login_at,
+        e.created_at,
+        e.updated_at,
+
+        COALESCE(c.contactsHandled, 0) AS contactsHandled,
+        COALESCE(d.dealsClosed, 0) AS dealsClosed,
+        COALESCE(d.totalRevenue, 0) AS totalRevenue
+
+      FROM employees e
+
+      LEFT JOIN (
+        SELECT 
+          assigned_emp_id,
+          COUNT(DISTINCT contact_id) AS contactsHandled
+        FROM contacts
+        GROUP BY assigned_emp_id
+      ) c ON c.assigned_emp_id = e.emp_id
+
+      LEFT JOIN (
+        SELECT 
+          closed_by,
+          COUNT(DISTINCT deal_id) AS dealsClosed,
+          SUM(deal_value) AS totalRevenue
+        FROM deals
+        GROUP BY closed_by
+      ) d ON d.closed_by = e.emp_id
+
+      WHERE e.company_id = ?
+      ORDER BY e.created_at DESC
     `,
     [companyId]
   );

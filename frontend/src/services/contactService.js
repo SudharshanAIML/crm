@@ -56,6 +56,14 @@ export const convertToOpportunity = async (contactId, expectedValue) => {
   return response.data;
 };
 
+// Close Deal - Convert Opportunity to Customer
+export const closeDeal = async (opportunityId, dealValue) => {
+  const response = await api.post(`/contacts/opportunities/${opportunityId}/close`, {
+    dealValue,
+  });
+  return response.data;
+};
+
 // Convert Customer to Evangelist
 export const convertToEvangelist = async (contactId) => {
   const response = await api.post(`/contacts/${contactId}/evangelist`);

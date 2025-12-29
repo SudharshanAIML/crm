@@ -185,7 +185,7 @@ export const closeDeal = async (req, res, next) => {
     }
 
     await contactService.closeDeal(
-      req.params.id,   // opportunityId
+      req.params.id,   // contactId
       req.user.empId,
       dealValue
     );

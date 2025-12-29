@@ -331,6 +331,8 @@ const Dashboard = () => {
             onEmailClick={handleEmailClick}
             onClose={() => setSelectedContact(null)}
             onUpdate={handleUpdateContact}
+            onAddSession={handleAddSession}
+            onFollowupsClick={handleFollowupsClick}
           />
         </>
       )}
