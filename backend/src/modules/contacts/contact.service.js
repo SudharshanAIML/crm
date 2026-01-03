@@ -36,12 +36,14 @@ export const createLead = async (data) => {
   const token = crypto.randomUUID();
   await contactRepo.saveTrackingToken(contactId, token);
 
-  // Send personalized email
+  // Send personalized email with company branding and employee info
   await sendLeadEmail({
     contactId,
     name: data.name,
     email: data.email,
     token,
+    empId: data.assigned_emp_id || null,
+    companyId: data.company_id || null,
   });
 
   return contactId;

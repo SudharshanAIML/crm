@@ -9,13 +9,25 @@ import * as contactService from "../contacts/contact.service.js";
 export const trackClick = async (req, res, next) => {
   try {
     const { token } = req.params;
+    const { type } = req.query;
 
     const { contactId } = await emailService.trackEmailClick(token);
 
     // Process lead activity (handles LEAD → MQL conversion)
     await contactService.processLeadActivity({ contactId, token });
 
-    // Redirect to landing page or thank you page
+    // If tracking pixel request, return 1x1 transparent gif
+    if (type === "pixel") {
+      const transparentPixel = Buffer.from(
+        "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+        "base64"
+      );
+      res.setHeader("Content-Type", "image/gif");
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+      return res.end(transparentPixel);
+    }
+
+    // Redirect to landing page
     const redirectUrl = process.env.LANDING_PAGE_URL || "https://example.com/thank-you";
     res.redirect(redirectUrl);
   } catch (error) {
