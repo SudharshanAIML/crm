@@ -255,3 +255,45 @@ export const convertToEvangelist = async (contactId) => {
     null // system
   );
 };
+
+/* ---------------------------------------------------
+   GET CONTACT FINANCIALS (Opportunities & Deals)
+--------------------------------------------------- */
+export const getContactFinancials = async (contactId) => {
+  const [opportunities, deals] = await Promise.all([
+    opportunityRepo.getByContactId(contactId),
+    dealRepo.getByContactId(contactId),
+  ]);
+
+  // Calculate summary statistics
+  const totalExpectedValue = opportunities.reduce(
+    (sum, opp) => sum + parseFloat(opp.expected_value || 0),
+    0
+  );
+  
+  const totalDealValue = deals.reduce(
+    (sum, deal) => sum + parseFloat(deal.deal_value || 0),
+    0
+  );
+
+  const openOpportunities = opportunities.filter(opp => opp.status === 'OPEN');
+  const wonOpportunities = opportunities.filter(opp => opp.status === 'WON');
+  const lostOpportunities = opportunities.filter(opp => opp.status === 'LOST');
+
+  return {
+    opportunities,
+    deals,
+    summary: {
+      totalOpportunities: opportunities.length,
+      openOpportunities: openOpportunities.length,
+      wonOpportunities: wonOpportunities.length,
+      lostOpportunities: lostOpportunities.length,
+      totalExpectedValue,
+      totalDeals: deals.length,
+      totalDealValue,
+      conversionRate: opportunities.length > 0 
+        ? Math.round((wonOpportunities.length / opportunities.length) * 100) 
+        : 0,
+    },
+  };
+};

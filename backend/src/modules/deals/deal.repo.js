@@ -76,6 +76,29 @@ export const getByCompany = async (companyId) => {
 };
 
 /* ---------------------------------------------------
+   GET DEALS BY CONTACT
+--------------------------------------------------- */
+export const getByContactId = async (contactId) => {
+  const [rows] = await db.query(
+    `
+    SELECT 
+      d.*,
+      o.expected_value,
+      o.status as opportunity_status,
+      e.name as closed_by_name
+    FROM deals d
+    JOIN opportunities o ON o.opportunity_id = d.opportunity_id
+    LEFT JOIN employees e ON e.emp_id = d.closed_by
+    WHERE o.contact_id = ?
+    ORDER BY d.closed_at DESC
+    `,
+    [contactId]
+  );
+
+  return rows;
+};
+
+/* ---------------------------------------------------
    DELETE DEAL (RARE / ADMIN)
 --------------------------------------------------- */
 export const deleteDeal = async (dealId) => {

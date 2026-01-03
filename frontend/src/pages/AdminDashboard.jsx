@@ -10,6 +10,8 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Phone,
   Mail,
   Star,
@@ -36,7 +38,9 @@ import {
   Snowflake,
   ArrowRight,
   Calendar,
-  ArrowUpDown
+  ArrowUpDown,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import { 
   getTeamMembers, 
@@ -82,7 +86,12 @@ const AdminDashboard = () => {
   
   // Sorting states
   const [employeeSort, setEmployeeSort] = useState({ column: 'name', direction: 'asc' });
-  const [contactSort, setContactSort] = useState({ column: 'created_at', direction: 'desc' });
+  const [contactSort, setContactSort] = useState({ column: 'name', direction: 'asc' });
+  
+  // Pagination states
+  const [employeePage, setEmployeePage] = useState(1);
+  const [contactPage, setContactPage] = useState(1);
+  const ROWS_PER_PAGE = 10;
   
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -372,6 +381,154 @@ const AdminDashboard = () => {
       compareValues(a, b, contactSort.column, contactSort.direction)
     );
   }, [contacts, contactSearchQuery, filterContactStatus, filterTemperature, filterAssignedEmp, contactSort, compareValues]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setEmployeePage(1);
+  }, [searchQuery, filterDepartment, filterStatus]);
+
+  useEffect(() => {
+    setContactPage(1);
+  }, [contactSearchQuery, filterContactStatus, filterTemperature, filterAssignedEmp]);
+
+  // Pagination calculations - O(1) slice operation
+  const employeeTotalPages = Math.ceil(filteredSortedEmployees.length / ROWS_PER_PAGE);
+  const contactTotalPages = Math.ceil(filteredSortedContacts.length / ROWS_PER_PAGE);
+
+  // Paginated data - memoized for performance
+  const paginatedEmployees = useMemo(() => {
+    const startIndex = (employeePage - 1) * ROWS_PER_PAGE;
+    return filteredSortedEmployees.slice(startIndex, startIndex + ROWS_PER_PAGE);
+  }, [filteredSortedEmployees, employeePage]);
+
+  const paginatedContacts = useMemo(() => {
+    const startIndex = (contactPage - 1) * ROWS_PER_PAGE;
+    return filteredSortedContacts.slice(startIndex, startIndex + ROWS_PER_PAGE);
+  }, [filteredSortedContacts, contactPage]);
+
+  // Pagination component
+  const Pagination = ({ currentPage, totalPages, totalItems, onPageChange, itemName = 'items' }) => {
+    if (totalPages <= 1) return null;
+    
+    const startItem = (currentPage - 1) * ROWS_PER_PAGE + 1;
+    const endItem = Math.min(currentPage * ROWS_PER_PAGE, totalItems);
+    
+    // Calculate visible page numbers (max 5 pages shown)
+    const getVisiblePages = () => {
+      const pages = [];
+      let start = Math.max(1, currentPage - 2);
+      let end = Math.min(totalPages, start + 4);
+      
+      // Adjust start if we're near the end
+      if (end - start < 4) {
+        start = Math.max(1, end - 4);
+      }
+      
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+      return pages;
+    };
+    
+    const visiblePages = getVisiblePages();
+    
+    return (
+      <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+        <div className="text-sm text-gray-600">
+          Showing <span className="font-semibold text-gray-900">{startItem}</span> to{' '}
+          <span className="font-semibold text-gray-900">{endItem}</span> of{' '}
+          <span className="font-semibold text-gray-900">{totalItems}</span> {itemName}
+        </div>
+        
+        <div className="flex items-center gap-1">
+          {/* First page */}
+          <button
+            onClick={() => onPageChange(1)}
+            disabled={currentPage === 1}
+            className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+            title="First page"
+          >
+            <ChevronsLeft className="w-4 h-4" />
+          </button>
+          
+          {/* Previous page */}
+          <button
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+            title="Previous page"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          
+          {/* Page numbers */}
+          <div className="flex items-center gap-1 mx-1">
+            {visiblePages[0] > 1 && (
+              <>
+                <button
+                  onClick={() => onPageChange(1)}
+                  className="min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-200 transition-colors"
+                >
+                  1
+                </button>
+                {visiblePages[0] > 2 && (
+                  <span className="px-1 text-gray-400">...</span>
+                )}
+              </>
+            )}
+            
+            {visiblePages.map(page => (
+              <button
+                key={page}
+                onClick={() => onPageChange(page)}
+                className={`min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium transition-colors ${
+                  currentPage === page
+                    ? 'bg-sky-500 text-white shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+            
+            {visiblePages[visiblePages.length - 1] < totalPages && (
+              <>
+                {visiblePages[visiblePages.length - 1] < totalPages - 1 && (
+                  <span className="px-1 text-gray-400">...</span>
+                )}
+                <button
+                  onClick={() => onPageChange(totalPages)}
+                  className="min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-200 transition-colors"
+                >
+                  {totalPages}
+                </button>
+              </>
+            )}
+          </div>
+          
+          {/* Next page */}
+          <button
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+            title="Next page"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+          
+          {/* Last page */}
+          <button
+            onClick={() => onPageChange(totalPages)}
+            disabled={currentPage === totalPages}
+            className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+            title="Last page"
+          >
+            <ChevronsRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   // Sort icon component
   const SortIcon = ({ column, currentSort }) => {
@@ -740,6 +897,7 @@ const AdminDashboard = () => {
                 </button>
               </div>
             ) : (
+              <>
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50">
@@ -801,7 +959,7 @@ const AdminDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredSortedEmployees.map((employee) => (
+                  {paginatedEmployees.map((employee) => (
                     <tr key={employee.emp_id} className={`hover:bg-gray-50 transition-colors ${employee.invitation_status === 'DISABLED' ? 'opacity-60' : ''}`}>
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-3">
@@ -969,6 +1127,16 @@ const AdminDashboard = () => {
                   ))}
                 </tbody>
               </table>
+              
+              {/* Employee Pagination */}
+              <Pagination
+                currentPage={employeePage}
+                totalPages={employeeTotalPages}
+                totalItems={filteredSortedEmployees.length}
+                onPageChange={setEmployeePage}
+                itemName="employees"
+              />
+            </>
             )}
           </div>
             </>
@@ -1053,6 +1221,7 @@ const AdminDashboard = () => {
                     <p className="text-gray-500">No contacts found</p>
                   </div>
                 ) : (
+                  <>
                   <table className="w-full">
                     <thead>
                       <tr className="bg-gray-50">
@@ -1114,7 +1283,7 @@ const AdminDashboard = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {filteredSortedContacts.map((contact) => (
+                      {paginatedContacts.map((contact) => (
                         <tr key={contact.contact_id} className="hover:bg-gray-50 transition-colors">
                           <td className="py-4 px-6">
                             <div className="flex items-center gap-3">
@@ -1184,6 +1353,16 @@ const AdminDashboard = () => {
                       ))}
                     </tbody>
                   </table>
+                  
+                  {/* Contact Pagination */}
+                  <Pagination
+                    currentPage={contactPage}
+                    totalPages={contactTotalPages}
+                    totalItems={filteredSortedContacts.length}
+                    onPageChange={setContactPage}
+                    itemName="contacts"
+                  />
+                  </>
                 )}
               </div>
             </>
