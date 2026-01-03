@@ -120,3 +120,10 @@ export const getEmployeeContacts = async (companyId, empId, filters) => {
 export const getComprehensiveAnalytics = async (companyId, empId) => {
   return await analyticsRepo.getComprehensiveAnalytics(companyId, empId);
 };
+
+/* ---------------------------------------------------
+   ADMIN: GET COMPANY-WIDE ANALYTICS
+--------------------------------------------------- */
+export const getAdminAnalytics = async (companyId) => {
+  return await analyticsRepo.getAdminAnalytics(companyId);
+};

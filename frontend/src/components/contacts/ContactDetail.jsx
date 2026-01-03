@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   X,
   Mail,
@@ -25,8 +25,16 @@ import {
   ExternalLink,
   Copy,
   Check,
+  DollarSign,
+  PieChart,
+  Award,
+  TrendingDown,
+  CircleDollarSign,
+  BadgeCheck,
+  AlertCircle,
 } from 'lucide-react';
 import { getSessionsByContact } from '../../services/sessionService';
+import { getContactFinancials } from '../../services/contactService';
 
 const ContactDetail = ({ 
   contact, 
@@ -43,6 +51,8 @@ const ContactDetail = ({
   const [sessions, setSessions] = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [copiedField, setCopiedField] = useState(null);
+  const [financials, setFinancials] = useState(null);
+  const [financialsLoading, setFinancialsLoading] = useState(false);
   const sidebarRef = useRef(null);
 
   useEffect(() => {
@@ -51,6 +61,7 @@ const ContactDetail = ({
     setActiveTab('overview');
     if (contact) {
       fetchSessions();
+      fetchFinancials();
     }
   }, [contact]);
 
@@ -64,6 +75,19 @@ const ContactDetail = ({
       console.error('Error fetching sessions:', error);
     } finally {
       setSessionsLoading(false);
+    }
+  };
+
+  const fetchFinancials = async () => {
+    if (!contact?.contact_id) return;
+    try {
+      setFinancialsLoading(true);
+      const data = await getContactFinancials(contact.contact_id);
+      setFinancials(data);
+    } catch (error) {
+      console.error('Error fetching financials:', error);
+    } finally {
+      setFinancialsLoading(false);
     }
   };
 
@@ -223,6 +247,32 @@ const ContactDetail = ({
     return formatDate(dateString);
   };
 
+  const formatCurrency = (value) => {
+    const num = parseFloat(value) || 0;
+    if (num >= 1000000) {
+      return `$${(num / 1000000).toFixed(1)}M`;
+    }
+    if (num >= 1000) {
+      return `$${(num / 1000).toFixed(1)}K`;
+    }
+    return `$${num.toFixed(0)}`;
+  };
+
+  const formatFullCurrency = (value) => {
+    const num = parseFloat(value) || 0;
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(num);
+  };
+
+  // Determine if contact should show financial data (OPPORTUNITY, CUSTOMER, EVANGELIST)
+  const showFinancials = useMemo(() => {
+    return ['OPPORTUNITY', 'CUSTOMER', 'EVANGELIST'].includes(contact.status);
+  }, [contact.status]);
+
   // Pipeline progress calculation
   const pipelineStages = ['LEAD', 'MQL', 'SQL', 'OPPORTUNITY', 'CUSTOMER', 'EVANGELIST'];
   const currentStageIndex = pipelineStages.indexOf(contact.status);
@@ -356,7 +406,7 @@ const ContactDetail = ({
 
           {/* Quick Stats */}
           <div className="px-5 pb-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className={`grid ${showFinancials ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
               <div className={`p-3 rounded-xl ${temp.lightBg} ${temp.border} border`}>
                 <div className="flex items-center gap-1.5 mb-1">
                   <TempIcon className={`w-3.5 h-3.5 ${temp.lightText}`} />
@@ -364,13 +414,15 @@ const ContactDetail = ({
                 </div>
                 <p className={`text-sm font-bold ${temp.lightText}`}>{temp.label}</p>
               </div>
-              <div className="p-3 rounded-xl bg-purple-50 border border-purple-200">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Target className="w-3.5 h-3.5 text-purple-600" />
-                  <span className="text-xs font-medium text-purple-600">Score</span>
+              {!showFinancials && (
+                <div className="p-3 rounded-xl bg-purple-50 border border-purple-200">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Target className="w-3.5 h-3.5 text-purple-600" />
+                    <span className="text-xs font-medium text-purple-600">Score</span>
+                  </div>
+                  <p className="text-sm font-bold text-purple-700">{contact.interest_score || 0}</p>
                 </div>
-                <p className="text-sm font-bold text-purple-700">{contact.interest_score || 0}</p>
-              </div>
+              )}
               <div className="p-3 rounded-xl bg-sky-50 border border-sky-200">
                 <div className="flex items-center gap-1.5 mb-1">
                   <Activity className="w-3.5 h-3.5 text-sky-600" />
@@ -379,6 +431,26 @@ const ContactDetail = ({
                 <p className="text-sm font-bold text-sky-700">{sessions.length}</p>
               </div>
             </div>
+
+            {/* Financial Quick Stats for Opportunity/Customer/Evangelist */}
+            {showFinancials && financials && (
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-xs font-medium text-emerald-600">Deal Value</span>
+                  </div>
+                  <p className="text-sm font-bold text-emerald-700">{formatCurrency(financials.summary.totalDealValue)}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Award className="w-3.5 h-3.5 text-amber-600" />
+                    <span className="text-xs font-medium text-amber-600">Deals</span>
+                  </div>
+                  <p className="text-sm font-bold text-amber-700">{financials.summary.totalDeals}</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Pipeline Progress */}
@@ -418,6 +490,7 @@ const ContactDetail = ({
               {[
                 { id: 'overview', label: 'Overview' },
                 { id: 'activity', label: 'Activity' },
+                ...(showFinancials ? [{ id: 'financials', label: 'Deals' }] : []),
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -701,6 +774,191 @@ const ContactDetail = ({
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Financials Tab */}
+          {activeTab === 'financials' && showFinancials && (
+            <div className="px-5 pb-6 space-y-4">
+              {financialsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-6 w-6 border-2 border-sky-500 border-t-transparent"></div>
+                </div>
+              ) : financials ? (
+                <>
+                  {/* Financial Summary Cards */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                          <DollarSign className="w-4 h-4 text-emerald-600" />
+                        </div>
+                        <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Total Deal Value</span>
+                      </div>
+                      <p className="text-xl font-bold text-emerald-700">
+                        {formatCurrency(financials.summary.totalDealValue)}
+                      </p>
+                      <p className="text-xs text-emerald-600 mt-1">
+                        {financials.summary.totalDeals} deal{financials.summary.totalDeals !== 1 ? 's' : ''} closed
+                      </p>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-amber-50 to-yellow-50 border border-amber-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+                          <Target className="w-4 h-4 text-amber-600" />
+                        </div>
+                        <span className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Expected Value</span>
+                      </div>
+                      <p className="text-xl font-bold text-amber-700">
+                        {formatCurrency(financials.summary.totalExpectedValue)}
+                      </p>
+                      <p className="text-xs text-amber-600 mt-1">
+                        {financials.summary.totalOpportunities} opportunit{financials.summary.totalOpportunities !== 1 ? 'ies' : 'y'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Opportunity Stats */}
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Opportunity Stats</h4>
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="text-center">
+                        <div className="w-10 h-10 mx-auto bg-blue-100 rounded-lg flex items-center justify-center mb-1">
+                          <PieChart className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <p className="text-lg font-bold text-gray-900">{financials.summary.totalOpportunities}</p>
+                        <p className="text-[10px] text-gray-500 uppercase">Total</p>
+                      </div>
+                      <div className="text-center">
+                        <div className="w-10 h-10 mx-auto bg-amber-100 rounded-lg flex items-center justify-center mb-1">
+                          <AlertCircle className="w-4 h-4 text-amber-600" />
+                        </div>
+                        <p className="text-lg font-bold text-amber-600">{financials.summary.openOpportunities}</p>
+                        <p className="text-[10px] text-gray-500 uppercase">Open</p>
+                      </div>
+                      <div className="text-center">
+                        <div className="w-10 h-10 mx-auto bg-emerald-100 rounded-lg flex items-center justify-center mb-1">
+                          <BadgeCheck className="w-4 h-4 text-emerald-600" />
+                        </div>
+                        <p className="text-lg font-bold text-emerald-600">{financials.summary.wonOpportunities}</p>
+                        <p className="text-[10px] text-gray-500 uppercase">Won</p>
+                      </div>
+                      <div className="text-center">
+                        <div className="w-10 h-10 mx-auto bg-red-100 rounded-lg flex items-center justify-center mb-1">
+                          <TrendingDown className="w-4 h-4 text-red-500" />
+                        </div>
+                        <p className="text-lg font-bold text-red-500">{financials.summary.lostOpportunities}</p>
+                        <p className="text-[10px] text-gray-500 uppercase">Lost</p>
+                      </div>
+                    </div>
+
+                    {/* Conversion Rate */}
+                    <div className="mt-4 pt-3 border-t border-gray-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-gray-600">Conversion Rate</span>
+                        <span className="text-sm font-bold text-gray-900">{financials.summary.conversionRate}%</span>
+                      </div>
+                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-emerald-400 to-green-500 rounded-full transition-all duration-500"
+                          style={{ width: `${financials.summary.conversionRate}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Deals List */}
+                  {financials.deals.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <span className="w-1 h-4 bg-emerald-500 rounded-full"></span>
+                        Closed Deals
+                      </h4>
+                      <div className="space-y-2">
+                        {financials.deals.map((deal) => (
+                          <div 
+                            key={deal.deal_id}
+                            className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl border border-emerald-100"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                                <Award className="w-5 h-5 text-emerald-600" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {formatFullCurrency(deal.deal_value)}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {deal.closed_by_name ? `Closed by ${deal.closed_by_name}` : 'Deal closed'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500">{formatDate(deal.closed_at)}</p>
+                              <p className="text-[10px] text-emerald-600 font-medium">
+                                Est: {formatCurrency(deal.expected_value)}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Open Opportunities */}
+                  {financials.opportunities.filter(o => o.status === 'OPEN').length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <span className="w-1 h-4 bg-amber-500 rounded-full"></span>
+                        Open Opportunities
+                      </h4>
+                      <div className="space-y-2">
+                        {financials.opportunities.filter(o => o.status === 'OPEN').map((opp) => (
+                          <div 
+                            key={opp.opportunity_id}
+                            className="flex items-center justify-between p-3 bg-amber-50 rounded-xl border border-amber-100"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                                <Target className="w-5 h-5 text-amber-600" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {formatFullCurrency(opp.expected_value)}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {opp.emp_name ? `Assigned to ${opp.emp_name}` : 'Unassigned'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-lg">
+                                Open
+                              </span>
+                              <p className="text-xs text-gray-500 mt-1">{formatDate(opp.created_at)}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* No Data State */}
+                  {financials.deals.length === 0 && financials.opportunities.length === 0 && (
+                    <div className="text-center py-8 bg-gray-50 rounded-xl">
+                      <CircleDollarSign className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">No deals or opportunities yet</p>
+                      <p className="text-xs text-gray-400 mt-1">Financial data will appear here</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-8 bg-gray-50 rounded-xl">
+                  <CircleDollarSign className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">Unable to load financial data</p>
                 </div>
               )}
             </div>

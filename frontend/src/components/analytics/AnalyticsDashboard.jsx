@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   TrendingUp,
   TrendingDown,
@@ -19,6 +19,32 @@ import {
 } from "lucide-react";
 import { getComprehensiveAnalytics } from "../../services/analyticsService";
 
+// =============================================================================
+// CACHE CONFIGURATION - Inspired by SWR/React Query patterns used in Salesforce/HubSpot
+// =============================================================================
+const CACHE_KEY = 'employee_analytics';
+const STALE_TIME = 5 * 60 * 1000; // 5 minutes - data is considered fresh
+const CACHE_TIME = 30 * 60 * 1000; // 30 minutes - data is kept in cache
+
+// Module-level cache (persists across component remounts)
+const analyticsCache = {
+  data: null,
+  timestamp: null,
+  promise: null, // For deduplication of concurrent requests
+};
+
+// Helper to check if cached data is still fresh
+const isCacheFresh = () => {
+  if (!analyticsCache.timestamp) return false;
+  return Date.now() - analyticsCache.timestamp < STALE_TIME;
+};
+
+// Helper to check if cached data is still valid (not expired)
+const isCacheValid = () => {
+  if (!analyticsCache.timestamp) return false;
+  return Date.now() - analyticsCache.timestamp < CACHE_TIME;
+};
+
 // Status color mapping
 const STATUS_COLORS = {
   LEAD: { bg: "bg-slate-100", text: "text-slate-600", accent: "bg-slate-500" },
@@ -35,47 +61,189 @@ const TEMPERATURE_COLORS = {
 };
 
 export default function AnalyticsDashboard() {
-  const [analytics, setAnalytics] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Use cached data as initial state (instant render if available)
+  const [analytics, setAnalytics] = useState(() => 
+    isCacheValid() ? analyticsCache.data : null
+  );
+  const [loading, setLoading] = useState(() => !isCacheValid());
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(() => 
+    analyticsCache.timestamp ? new Date(analyticsCache.timestamp) : null
+  );
+  
+  // Track if component is mounted to prevent state updates on unmount
+  const isMountedRef = useRef(true);
 
-  const fetchAnalytics = async () => {
+  // Deduplicated fetch function with caching
+  const fetchAnalytics = useCallback(async (forceRefresh = false) => {
+    // If data is fresh and not forcing refresh, skip fetch
+    if (!forceRefresh && isCacheFresh() && analyticsCache.data) {
+      return analyticsCache.data;
+    }
+
+    // Deduplicate concurrent requests
+    if (analyticsCache.promise) {
+      return analyticsCache.promise;
+    }
+
+    // Start the fetch
+    analyticsCache.promise = (async () => {
+      try {
+        const data = await getComprehensiveAnalytics();
+        
+        // Update cache
+        analyticsCache.data = data;
+        analyticsCache.timestamp = Date.now();
+        
+        return data;
+      } finally {
+        analyticsCache.promise = null;
+      }
+    })();
+
+    return analyticsCache.promise;
+  }, []);
+
+  // Initial load with stale-while-revalidate pattern
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    const loadAnalytics = async () => {
+      // If we have valid cached data, show it immediately
+      if (isCacheValid() && analyticsCache.data) {
+        setAnalytics(analyticsCache.data);
+        setLastUpdated(new Date(analyticsCache.timestamp));
+        setLoading(false);
+        
+        // If data is stale but valid, revalidate in background
+        if (!isCacheFresh()) {
+          setIsRefreshing(true);
+          try {
+            const freshData = await fetchAnalytics(true);
+            if (isMountedRef.current) {
+              setAnalytics(freshData);
+              setLastUpdated(new Date());
+            }
+          } catch (err) {
+            // Silent fail for background refresh - we still have cached data
+            console.warn("Background refresh failed:", err);
+          } finally {
+            if (isMountedRef.current) {
+              setIsRefreshing(false);
+            }
+          }
+        }
+      } else {
+        // No valid cache, do full load
+        setLoading(true);
+        setError(null);
+        try {
+          const data = await fetchAnalytics(true);
+          if (isMountedRef.current) {
+            setAnalytics(data);
+            setLastUpdated(new Date());
+          }
+        } catch (err) {
+          console.error("Failed to fetch analytics:", err);
+          if (isMountedRef.current) {
+            setError("Failed to load analytics. Please try again.");
+          }
+        } finally {
+          if (isMountedRef.current) {
+            setLoading(false);
+          }
+        }
+      }
+    };
+
+    loadAnalytics();
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [fetchAnalytics]);
+
+  // Manual refresh handler
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-      const data = await getComprehensiveAnalytics();
+      const data = await fetchAnalytics(true);
       setAnalytics(data);
+      setLastUpdated(new Date());
     } catch (err) {
-      console.error("Failed to fetch analytics:", err);
-      setError("Failed to load analytics. Please try again.");
+      console.error("Failed to refresh analytics:", err);
+      setError("Failed to refresh. Please try again.");
     } finally {
-      setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    fetchAnalytics();
-  }, []);
+  // Memoized computed values to prevent re-calculations on re-renders
+  const processedData = useMemo(() => {
+    if (!analytics) return null;
+    
+    const { overview, funnel, stagePerformance, followUpEffectiveness, temperatureInsights, sourcePerformance, trends } = analytics;
+    
+    // Pre-compute expensive calculations
+    const funnelMaxCount = Math.max(...(funnel?.map((s) => s.count) || [1]), 1);
+    const hasBottleneck = funnel?.some((s, i) => i > 0 && parseFloat(s.dropOff) > 60);
+    const bottleneckStage = hasBottleneck ? funnel.find((s, i) => i > 0 && parseFloat(s.dropOff) > 60)?.stage : null;
+    
+    const temperatureTotal = temperatureInsights?.reduce((sum, t) => sum + t.count, 0) || 1;
+    const sourceMaxLeads = Math.max(...(sourcePerformance?.map((s) => s.totalLeads) || [1]), 1);
+    const trendsMaxLeads = Math.max(...(trends?.weekly?.map((w) => w.leadsCreated) || [1]), 1);
+    
+    const connectRate = followUpEffectiveness?.totalSessions > 0 
+      ? ((followUpEffectiveness.connected / followUpEffectiveness.totalSessions) * 100).toFixed(1) 
+      : 0;
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="flex flex-col items-center gap-3">
-          <RefreshCw className="w-8 h-8 text-sky-500 animate-spin" />
-          <p className="text-gray-500">Loading analytics...</p>
-        </div>
-      </div>
-    );
+    return {
+      overview,
+      funnel,
+      funnelMaxCount,
+      hasBottleneck,
+      bottleneckStage,
+      stagePerformance,
+      followUpEffectiveness,
+      connectRate,
+      temperatureInsights,
+      temperatureTotal,
+      sourcePerformance,
+      sourceMaxLeads,
+      trends,
+      trendsMaxLeads,
+    };
+  }, [analytics]);
+
+  // Format last updated time
+  const lastUpdatedText = useMemo(() => {
+    if (!lastUpdated) return null;
+    const now = new Date();
+    const diffMs = now - lastUpdated;
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return lastUpdated.toLocaleDateString();
+  }, [lastUpdated]);
+
+  // Show skeleton loader only on initial load without cached data
+  if (loading && !analytics) {
+    return <AnalyticsSkeleton />;
   }
 
-  if (error) {
+  if (error && !analytics) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="flex flex-col items-center gap-3 text-center">
           <AlertCircle className="w-12 h-12 text-red-400" />
           <p className="text-gray-600">{error}</p>
           <button
-            onClick={fetchAnalytics}
+            onClick={handleRefresh}
             className="px-4 py-2 text-white bg-sky-500 rounded-lg hover:bg-sky-600 transition-colors"
           >
             Try Again
@@ -85,9 +253,15 @@ export default function AnalyticsDashboard() {
     );
   }
 
-  if (!analytics) return null;
+  if (!processedData) return null;
 
-  const { overview, funnel, stagePerformance, followUpEffectiveness, temperatureInsights, sourcePerformance, trends } = analytics;
+  const { 
+    overview, funnel, funnelMaxCount, hasBottleneck, bottleneckStage,
+    stagePerformance, followUpEffectiveness, connectRate,
+    temperatureInsights, temperatureTotal,
+    sourcePerformance, sourceMaxLeads,
+    trends, trendsMaxLeads
+  } = processedData;
 
   return (
     <div className="space-y-6 p-6">
@@ -95,16 +269,43 @@ export default function AnalyticsDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Analytics Dashboard</h1>
-          <p className="text-gray-500 mt-1">Track your pipeline health and performance</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-gray-500">Track your pipeline health and performance</p>
+            {lastUpdatedText && (
+              <span className="text-xs text-gray-400 flex items-center gap-1">
+                • Updated {lastUpdatedText}
+              </span>
+            )}
+          </div>
         </div>
         <button
-          onClick={fetchAnalytics}
-          className="flex items-center gap-2 px-4 py-2 text-sky-600 bg-sky-50 rounded-lg hover:bg-sky-100 transition-colors"
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className={`flex items-center gap-2 px-4 py-2 text-sky-600 bg-sky-50 rounded-lg hover:bg-sky-100 transition-colors ${isRefreshing ? 'opacity-70 cursor-not-allowed' : ''}`}
         >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
+          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          {isRefreshing ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
+
+      {/* Background refresh indicator */}
+      {isRefreshing && analytics && (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-sky-50 text-sky-600 text-sm rounded-lg w-fit">
+          <RefreshCw className="w-3 h-3 animate-spin" />
+          <span>Updating data in background...</span>
+        </div>
+      )}
+
+      {/* Error banner (when we have cached data but refresh failed) */}
+      {error && analytics && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 text-amber-700 text-sm rounded-lg">
+          <AlertCircle className="w-4 h-4" />
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="ml-auto text-amber-500 hover:text-amber-700">
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -144,12 +345,12 @@ export default function AnalyticsDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Pipeline Funnel - Takes 2 columns */}
         <div className="lg:col-span-2">
-          <PipelineFunnel funnel={funnel} />
+          <PipelineFunnel funnel={funnel} maxCount={funnelMaxCount} hasBottleneck={hasBottleneck} bottleneckStage={bottleneckStage} />
         </div>
 
         {/* Follow-up Effectiveness */}
         <div>
-          <FollowUpEffectiveness data={followUpEffectiveness} />
+          <FollowUpEffectiveness data={followUpEffectiveness} connectRate={connectRate} />
         </div>
       </div>
 
@@ -162,19 +363,19 @@ export default function AnalyticsDashboard() {
 
         {/* Lead Temperature */}
         <div>
-          <LeadTemperature data={temperatureInsights} />
+          <LeadTemperature data={temperatureInsights} total={temperatureTotal} />
         </div>
 
         {/* Source Performance */}
         <div>
-          <SourcePerformance data={sourcePerformance} />
+          <SourcePerformance data={sourcePerformance} maxLeads={sourceMaxLeads} />
         </div>
       </div>
 
       {/* Trends & Stuck Leads */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TrendsChart trends={trends} />
-        <StuckLeads leads={stagePerformance.stuckLeads} />
+        <TrendsChart trends={trends} maxLeads={trendsMaxLeads} />
+        <StuckLeads leads={stagePerformance?.stuckLeads || []} />
       </div>
     </div>
   );
@@ -210,9 +411,7 @@ function OverviewCard({ title, value, subtitle, icon, color, trend, urgent }) {
 }
 
 // Pipeline Funnel Component
-function PipelineFunnel({ funnel }) {
-  const maxCount = Math.max(...funnel.map((s) => s.count), 1);
-
+function PipelineFunnel({ funnel, maxCount, hasBottleneck, bottleneckStage }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
       <div className="flex items-center gap-2 mb-5">
@@ -221,7 +420,7 @@ function PipelineFunnel({ funnel }) {
       </div>
 
       <div className="space-y-3">
-        {funnel.map((stage, index) => {
+        {funnel?.map((stage, index) => {
           const colors = STATUS_COLORS[stage.stage] || STATUS_COLORS.LEAD;
           const widthPercent = (stage.count / maxCount) * 100;
 
@@ -269,14 +468,14 @@ function PipelineFunnel({ funnel }) {
       </div>
 
       {/* Bottleneck Alert */}
-      {funnel.some((s, i) => i > 0 && parseFloat(s.dropOff) > 60) && (
+      {hasBottleneck && (
         <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-100">
           <div className="flex items-center gap-2 text-red-600">
             <AlertCircle className="w-4 h-4" />
             <span className="text-sm font-medium">Bottleneck Detected</span>
           </div>
           <p className="text-xs text-red-500 mt-1">
-            {funnel.find((s, i) => i > 0 && parseFloat(s.dropOff) > 60)?.stage} stage has high drop-off. Consider reviewing qualification criteria.
+            {bottleneckStage} stage has high drop-off. Consider reviewing qualification criteria.
           </p>
         </div>
       )}
@@ -285,9 +484,7 @@ function PipelineFunnel({ funnel }) {
 }
 
 // Follow-up Effectiveness Component
-function FollowUpEffectiveness({ data }) {
-  const connectRate = data.totalSessions > 0 ? ((data.connected / data.totalSessions) * 100).toFixed(1) : 0;
-
+function FollowUpEffectiveness({ data, connectRate }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5 h-full">
       <div className="flex items-center gap-2 mb-5">
@@ -402,9 +599,7 @@ function StagePerformance({ data }) {
 }
 
 // Lead Temperature Component
-function LeadTemperature({ data }) {
-  const total = data.reduce((sum, t) => sum + t.count, 0) || 1;
-
+function LeadTemperature({ data, total }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5 h-full">
       <div className="flex items-center gap-2 mb-5">
@@ -414,7 +609,7 @@ function LeadTemperature({ data }) {
 
       <div className="space-y-3">
         {["HOT", "WARM", "COLD"].map((temp) => {
-          const item = data.find((d) => d.temperature === temp) || { count: 0, converted: 0 };
+          const item = data?.find((d) => d.temperature === temp) || { count: 0, converted: 0 };
           const colors = TEMPERATURE_COLORS[temp];
           const conversionRate = item.count > 0 ? ((item.converted / item.count) * 100).toFixed(0) : 0;
 
@@ -436,7 +631,7 @@ function LeadTemperature({ data }) {
         })}
       </div>
 
-      {data.length === 0 && (
+      {(!data || data.length === 0) && (
         <p className="text-sm text-gray-400 text-center py-4">Rate sessions to see temperature insights</p>
       )}
     </div>
@@ -444,9 +639,7 @@ function LeadTemperature({ data }) {
 }
 
 // Source Performance Component
-function SourcePerformance({ data }) {
-  const maxLeads = Math.max(...data.map((s) => s.totalLeads), 1);
-
+function SourcePerformance({ data, maxLeads }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5 h-full">
       <div className="flex items-center gap-2 mb-5">
@@ -455,7 +648,7 @@ function SourcePerformance({ data }) {
       </div>
 
       <div className="space-y-3">
-        {data.slice(0, 5).map((source) => {
+        {data?.slice(0, 5).map((source) => {
           const conversionRate = source.totalLeads > 0 ? ((source.converted / source.totalLeads) * 100).toFixed(0) : 0;
           const widthPercent = (source.totalLeads / maxLeads) * 100;
 
@@ -484,7 +677,7 @@ function SourcePerformance({ data }) {
         })}
       </div>
 
-      {data.length === 0 && (
+      {(!data || data.length === 0) && (
         <p className="text-sm text-gray-400 text-center py-4">No source data yet</p>
       )}
     </div>
@@ -492,9 +685,7 @@ function SourcePerformance({ data }) {
 }
 
 // Trends Chart Component (Simple)
-function TrendsChart({ trends }) {
-  const maxLeads = Math.max(...trends.weekly.map((w) => w.leadsCreated), 1);
-
+function TrendsChart({ trends, maxLeads }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
       <div className="flex items-center gap-2 mb-5">
@@ -502,11 +693,11 @@ function TrendsChart({ trends }) {
         <h2 className="text-lg font-semibold text-gray-800">Weekly Trends</h2>
       </div>
 
-      {trends.weekly.length > 0 ? (
+      {trends?.weekly?.length > 0 ? (
         <div className="flex items-end gap-2 h-32">
           {trends.weekly.map((week, i) => {
             const height = (week.leadsCreated / maxLeads) * 100;
-            const conversion = trends.conversions.find((c) => c.week === week.week);
+            const conversion = trends.conversions?.find((c) => c.week === week.week);
 
             return (
               <div key={week.week} className="flex-1 flex flex-col items-center gap-1 group">
@@ -561,7 +752,7 @@ function StuckLeads({ leads }) {
         <span className="text-xs text-gray-400">(14+ days in stage)</span>
       </div>
 
-      {leads.length > 0 ? (
+      {leads?.length > 0 ? (
         <div className="space-y-2 max-h-64 overflow-y-auto">
           {leads.map((lead) => {
             const colors = STATUS_COLORS[lead.status] || STATUS_COLORS.LEAD;
@@ -590,6 +781,87 @@ function StuckLeads({ leads }) {
           <p className="text-sm text-gray-500">No stuck leads! Great job keeping things moving.</p>
         </div>
       )}
+    </div>
+  );
+}
+
+// =============================================================================
+// SKELETON LOADER - Shows content structure while loading (better UX than spinner)
+// =============================================================================
+function AnalyticsSkeleton() {
+  return (
+    <div className="space-y-6 p-6 animate-pulse">
+      {/* Header Skeleton */}
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="h-8 w-48 bg-gray-200 rounded-lg mb-2" />
+          <div className="h-4 w-64 bg-gray-100 rounded" />
+        </div>
+        <div className="h-10 w-24 bg-gray-200 rounded-lg" />
+      </div>
+
+      {/* Overview Cards Skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="p-5 rounded-xl border-2 border-gray-100 bg-gray-50">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 bg-gray-200 rounded-lg" />
+            </div>
+            <div className="h-8 w-16 bg-gray-200 rounded mb-2" />
+            <div className="h-4 w-24 bg-gray-100 rounded mb-1" />
+            <div className="h-3 w-20 bg-gray-100 rounded" />
+          </div>
+        ))}
+      </div>
+
+      {/* Main Grid Skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
+          <div className="h-6 w-40 bg-gray-200 rounded mb-5" />
+          <div className="space-y-4">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i}>
+                <div className="flex justify-between mb-2">
+                  <div className="h-4 w-20 bg-gray-100 rounded" />
+                  <div className="h-4 w-24 bg-gray-100 rounded" />
+                </div>
+                <div className="h-6 bg-gray-100 rounded-lg" style={{ width: `${100 - i * 15}%` }} />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="h-6 w-40 bg-gray-200 rounded mb-5" />
+          <div className="grid grid-cols-3 gap-2 mb-5">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="text-center p-3 bg-gray-50 rounded-lg">
+                <div className="w-5 h-5 bg-gray-200 rounded mx-auto mb-1" />
+                <div className="h-5 w-8 bg-gray-200 rounded mx-auto mb-1" />
+                <div className="h-3 w-12 bg-gray-100 rounded mx-auto" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Second Row Skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="h-6 w-32 bg-gray-200 rounded mb-5" />
+            <div className="space-y-3">
+              {[1, 2, 3].map((j) => (
+                <div key={j} className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex justify-between">
+                    <div className="h-4 w-20 bg-gray-200 rounded" />
+                    <div className="h-4 w-12 bg-gray-200 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

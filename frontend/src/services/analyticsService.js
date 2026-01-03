@@ -28,9 +28,16 @@ export const getRecentActivities = async (limit = 20) => {
   return response.data;
 };
 
+// Get admin analytics (company-wide)
+export const getAdminAnalytics = async () => {
+  const response = await api.get("/analytics/admin");
+  return response.data;
+};
+
 export default {
   getComprehensiveAnalytics,
   getDashboard,
   getPipelineFunnel,
   getRecentActivities,
+  getAdminAnalytics,
 };

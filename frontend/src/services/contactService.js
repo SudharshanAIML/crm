@@ -84,3 +84,9 @@ export const convertToEvangelist = async (contactId) => {
   const response = await api.post(`/contacts/${contactId}/evangelist`);
   return response.data;
 };
+
+// Get contact financials (opportunities & deals)
+export const getContactFinancials = async (contactId) => {
+  const response = await api.get(`/contacts/${contactId}/financials`);
+  return response.data;
+};

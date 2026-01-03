@@ -230,3 +230,26 @@ export const getComprehensiveAnalytics = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @desc   Get company-wide analytics for admin dashboard
+ * @route  GET /analytics/admin
+ * @access Admin
+ */
+export const getAdminAnalytics = async (req, res, next) => {
+  try {
+    const companyId = req.user.companyId;
+
+    if (!companyId) {
+      return res.status(400).json({
+        message: "Company ID is required",
+      });
+    }
+
+    const data = await analyticsService.getAdminAnalytics(companyId);
+
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+};

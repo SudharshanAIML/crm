@@ -244,3 +244,17 @@ export const getAllContactsAdmin = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @desc   Get contact financial data (opportunities and deals)
+ * @route  GET /contacts/:id/financials
+ * @access Employee
+ */
+export const getContactFinancials = async (req, res, next) => {
+  try {
+    const financials = await contactService.getContactFinancials(req.params.id);
+    res.json(financials);
+  } catch (error) {
+    next(error);
+  }
+};

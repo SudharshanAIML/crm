@@ -10,6 +10,8 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Phone,
   Mail,
   Star,
@@ -36,7 +38,19 @@ import {
   Snowflake,
   ArrowRight,
   Calendar,
-  ArrowUpDown
+  ArrowUpDown,
+  ChevronsLeft,
+  ChevronsRight,
+  BarChart3,
+  PieChart,
+  Award,
+  Zap,
+  TrendingDown,
+  Percent,
+  Timer,
+  PhoneCall,
+  Trophy,
+  Crown
 } from 'lucide-react';
 import { 
   getTeamMembers, 
@@ -48,8 +62,10 @@ import {
   resendInvitation,
   toggleEmployeeStatus
 } from '../services/employeeService';
-import { getAllContactsAdmin } from '../services/contactService';
+import { getAllContactsAdmin, updateContact } from '../services/contactService';
+import { getAdminAnalytics } from '../services/analyticsService';
 import { ContactDetail } from '../components/contacts';
+import EmailComposer from '../components/email/EmailComposer';
 import Profile from '../components/layout/Profile';
 
 const AdminDashboard = () => {
@@ -57,7 +73,7 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   
   // Tab state
-  const [activeTab, setActiveTab] = useState('team'); // 'team' or 'contacts'
+  const [activeTab, setActiveTab] = useState('team'); // 'team', 'contacts', or 'analytics'
   
   // Employee states
   const [employees, setEmployees] = useState([]);
@@ -80,14 +96,25 @@ const AdminDashboard = () => {
   const [filterTemperature, setFilterTemperature] = useState('all');
   const [filterAssignedEmp, setFilterAssignedEmp] = useState('all');
   
+  // Analytics states
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState(null);
+  
   // Sorting states
   const [employeeSort, setEmployeeSort] = useState({ column: 'name', direction: 'asc' });
-  const [contactSort, setContactSort] = useState({ column: 'created_at', direction: 'desc' });
+  const [contactSort, setContactSort] = useState({ column: 'name', direction: 'asc' });
+  
+  // Pagination states
+  const [employeePage, setEmployeePage] = useState(1);
+  const [contactPage, setContactPage] = useState(1);
+  const ROWS_PER_PAGE = 10;
   
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [emailContact, setEmailContact] = useState(null);
   const [actionMenuOpen, setActionMenuOpen] = useState(null);
   const [inviteLoading, setInviteLoading] = useState(null); // Track which employee is being invited
   
@@ -161,6 +188,29 @@ const AdminDashboard = () => {
     }
   };
 
+  // Fetch analytics data when Analytics tab is selected
+  const fetchAnalytics = useCallback(async () => {
+    if (analytics) return; // Already loaded
+    try {
+      setAnalyticsLoading(true);
+      setAnalyticsError(null);
+      const data = await getAdminAnalytics();
+      setAnalytics(data);
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+      setAnalyticsError('Failed to load analytics data');
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, [analytics]);
+
+  // Load analytics when tab changes to analytics
+  useEffect(() => {
+    if (activeTab === 'analytics') {
+      fetchAnalytics();
+    }
+  }, [activeTab, fetchAnalytics]);
+
   const handleViewEmployee = (employee) => {
     setSelectedEmployee(employee);
     fetchEmployeeActivities(employee.emp_id);
@@ -177,6 +227,19 @@ const AdminDashboard = () => {
 
   const handleFollowupsClick = (contact) => {
     navigate(`/followups/${contact.contact_id}`);
+  };
+
+  const handleUpdateContact = async (contactId, updates) => {
+    try {
+      await updateContact(contactId, updates);
+      await fetchContacts();
+      if (selectedContact && selectedContact.contact_id === contactId) {
+        setSelectedContact({ ...selectedContact, ...updates });
+      }
+    } catch (error) {
+      console.error('Error updating contact:', error);
+      alert(error.response?.data?.message || 'Failed to update contact. Please try again.');
+    }
   };
 
   // Validate add employee form
@@ -373,6 +436,154 @@ const AdminDashboard = () => {
     );
   }, [contacts, contactSearchQuery, filterContactStatus, filterTemperature, filterAssignedEmp, contactSort, compareValues]);
 
+  // Reset page when filters change
+  useEffect(() => {
+    setEmployeePage(1);
+  }, [searchQuery, filterDepartment, filterStatus]);
+
+  useEffect(() => {
+    setContactPage(1);
+  }, [contactSearchQuery, filterContactStatus, filterTemperature, filterAssignedEmp]);
+
+  // Pagination calculations - O(1) slice operation
+  const employeeTotalPages = Math.ceil(filteredSortedEmployees.length / ROWS_PER_PAGE);
+  const contactTotalPages = Math.ceil(filteredSortedContacts.length / ROWS_PER_PAGE);
+
+  // Paginated data - memoized for performance
+  const paginatedEmployees = useMemo(() => {
+    const startIndex = (employeePage - 1) * ROWS_PER_PAGE;
+    return filteredSortedEmployees.slice(startIndex, startIndex + ROWS_PER_PAGE);
+  }, [filteredSortedEmployees, employeePage]);
+
+  const paginatedContacts = useMemo(() => {
+    const startIndex = (contactPage - 1) * ROWS_PER_PAGE;
+    return filteredSortedContacts.slice(startIndex, startIndex + ROWS_PER_PAGE);
+  }, [filteredSortedContacts, contactPage]);
+
+  // Pagination component
+  const Pagination = ({ currentPage, totalPages, totalItems, onPageChange, itemName = 'items' }) => {
+    if (totalPages <= 1) return null;
+    
+    const startItem = (currentPage - 1) * ROWS_PER_PAGE + 1;
+    const endItem = Math.min(currentPage * ROWS_PER_PAGE, totalItems);
+    
+    // Calculate visible page numbers (max 5 pages shown)
+    const getVisiblePages = () => {
+      const pages = [];
+      let start = Math.max(1, currentPage - 2);
+      let end = Math.min(totalPages, start + 4);
+      
+      // Adjust start if we're near the end
+      if (end - start < 4) {
+        start = Math.max(1, end - 4);
+      }
+      
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+      return pages;
+    };
+    
+    const visiblePages = getVisiblePages();
+    
+    return (
+      <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+        <div className="text-sm text-gray-600">
+          Showing <span className="font-semibold text-gray-900">{startItem}</span> to{' '}
+          <span className="font-semibold text-gray-900">{endItem}</span> of{' '}
+          <span className="font-semibold text-gray-900">{totalItems}</span> {itemName}
+        </div>
+        
+        <div className="flex items-center gap-1">
+          {/* First page */}
+          <button
+            onClick={() => onPageChange(1)}
+            disabled={currentPage === 1}
+            className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+            title="First page"
+          >
+            <ChevronsLeft className="w-4 h-4" />
+          </button>
+          
+          {/* Previous page */}
+          <button
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+            title="Previous page"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          
+          {/* Page numbers */}
+          <div className="flex items-center gap-1 mx-1">
+            {visiblePages[0] > 1 && (
+              <>
+                <button
+                  onClick={() => onPageChange(1)}
+                  className="min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-200 transition-colors"
+                >
+                  1
+                </button>
+                {visiblePages[0] > 2 && (
+                  <span className="px-1 text-gray-400">...</span>
+                )}
+              </>
+            )}
+            
+            {visiblePages.map(page => (
+              <button
+                key={page}
+                onClick={() => onPageChange(page)}
+                className={`min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium transition-colors ${
+                  currentPage === page
+                    ? 'bg-sky-500 text-white shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+            
+            {visiblePages[visiblePages.length - 1] < totalPages && (
+              <>
+                {visiblePages[visiblePages.length - 1] < totalPages - 1 && (
+                  <span className="px-1 text-gray-400">...</span>
+                )}
+                <button
+                  onClick={() => onPageChange(totalPages)}
+                  className="min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-200 transition-colors"
+                >
+                  {totalPages}
+                </button>
+              </>
+            )}
+          </div>
+          
+          {/* Next page */}
+          <button
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+            title="Next page"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+          
+          {/* Last page */}
+          <button
+            onClick={() => onPageChange(totalPages)}
+            disabled={currentPage === totalPages}
+            className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+            title="Last page"
+          >
+            <ChevronsRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // Sort icon component
   const SortIcon = ({ column, currentSort }) => {
     if (currentSort.column !== column) {
@@ -504,12 +715,13 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      {/* Header with Navigation */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="px-6">
+          {/* Top Bar */}
+          <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-sky-500 to-blue-600 rounded-xl flex items-center justify-center">
+              <div className="w-9 h-9 bg-gradient-to-br from-sky-500 to-blue-600 rounded-xl flex items-center justify-center">
                 <Building2 className="w-5 h-5 text-white" />
               </div>
               <div>
@@ -518,21 +730,59 @@ const AdminDashboard = () => {
               </div>
             </div>
             
+            {/* Navigation Tabs - Center */}
+            <nav className="hidden md:flex items-center gap-2 ml-auto mr-6">
+              <button
+                onClick={() => setActiveTab('team')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  activeTab === 'team'
+                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                Team
+              </button>
+              <button
+                onClick={() => setActiveTab('contacts')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  activeTab === 'contacts'
+                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                }`}
+              >
+                <Contact className="w-4 h-4" />
+                Contacts
+              </button>
+              <button
+                onClick={() => setActiveTab('analytics')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  activeTab === 'analytics'
+                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                Analytics
+              </button>
+            </nav>
+            
+            {/* User Menu */}
             <div className="flex items-center gap-4">
               <div className="relative" ref={userMenuRef}>
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center gap-3 pl-3 border-l border-gray-200 hover:bg-gray-50 rounded-lg py-1.5 pr-2 transition-colors"
+                  className="flex items-center gap-3 hover:bg-gray-50 rounded-lg py-1.5 px-2 transition-colors"
                 >
                   <div className="hidden sm:block text-right">
                     <p className="text-sm font-semibold text-gray-900">{user?.name}</p>
                     <p className="text-xs text-gray-500">{user?.department || user?.role}</p>
                   </div>
                   <div className="relative">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white font-semibold text-sm">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white font-semibold text-sm">
                       {getInitials(user?.name)}
                     </div>
-                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                    <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white"></div>
                   </div>
                   <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -548,171 +798,175 @@ const AdminDashboard = () => {
               </div>
             </div>
           </div>
+          
+          {/* Mobile Navigation */}
+          <div className="flex md:hidden items-center gap-2 pb-3 overflow-x-auto scrollbar-hide">
+            <button
+              onClick={() => setActiveTab('team')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all ${
+                activeTab === 'team'
+                  ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              Team
+            </button>
+            <button
+              onClick={() => setActiveTab('contacts')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all ${
+                activeTab === 'contacts'
+                  ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <Contact className="w-4 h-4" />
+              Contacts
+            </button>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all ${
+                activeTab === 'analytics'
+                  ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              Analytics
+            </button>
+          </div>
+          {/* Full-width divider under tabs */}
+          <div className="border-b border-gray-200 -mx-6" />
         </div>
       </header>
 
       <div className="p-6">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-sky-100 rounded-xl flex items-center justify-center">
-                <Users className="w-6 h-6 text-sky-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-500">Total Team</p>
-                <p className="text-2xl font-bold text-gray-900">{employees.length}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs text-emerald-600">{activeCount} active</span>
-                  <span className="text-xs text-gray-400">•</span>
-                  <span className="text-xs text-amber-600">{invitedCount} pending</span>
+        {/* Stats Cards - Show on Team and Contacts tabs */}
+        {(activeTab === 'team' || activeTab === 'contacts') && (
+          <div className="mb-6">
+            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Organization Overview</p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Users className="w-5 h-5 text-sky-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-500 truncate">Total Team</p>
+                  <p className="text-xl font-bold text-gray-900">{employees.length}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-xs text-emerald-600">{activeCount} active</span>
+                    <span className="text-xs text-gray-300">•</span>
+                    <span className="text-xs text-amber-600">{invitedCount} pending</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-          
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <Target className="w-6 h-6 text-purple-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-500">Total Leads</p>
-                <p className="text-2xl font-bold text-gray-900">{totalLeads.toLocaleString()}</p>
-                <div className="flex items-center gap-1 mt-1">
-                  <span className="text-xs text-gray-500">~{avgLeadsPerEmployee} per employee</span>
+            
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Target className="w-5 h-5 text-purple-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-500 truncate">Total Leads</p>
+                  <p className="text-xl font-bold text-gray-900">{totalLeads.toLocaleString()}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">~{avgLeadsPerEmployee}/employee</p>
                 </div>
               </div>
             </div>
-          </div>
-          
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-emerald-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-500">Conversions</p>
-                <p className="text-2xl font-bold text-gray-900">{totalConversions.toLocaleString()}</p>
-                <div className="flex items-center gap-1 mt-1">
-                  <span className={`text-xs ${parseFloat(conversionRate) > 20 ? 'text-emerald-600' : parseFloat(conversionRate) > 10 ? 'text-amber-600' : 'text-gray-500'}`}>
-                    {conversionRate}% conversion rate
-                  </span>
+            
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <TrendingUp className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-500 truncate">Conversions</p>
+                  <p className="text-xl font-bold text-gray-900">{totalConversions.toLocaleString()}</p>
+                  <p className={`text-xs mt-0.5 ${parseFloat(conversionRate) > 20 ? 'text-emerald-600' : parseFloat(conversionRate) > 10 ? 'text-amber-600' : 'text-gray-500'}`}>
+                    {conversionRate}% rate
+                  </p>
                 </div>
               </div>
             </div>
-          </div>
-          
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-amber-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-500">Revenue</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  ${totalRevenue >= 1000000 
-                    ? (totalRevenue / 1000000).toFixed(1) + 'M' 
-                    : totalRevenue >= 1000 
-                      ? (totalRevenue / 1000).toFixed(1) + 'k' 
-                      : totalRevenue.toFixed(0)}
-                </p>
-                <div className="flex items-center gap-1 mt-1">
-                  <span className="text-xs text-gray-500">
-                    ${totalConversions > 0 ? Math.round(totalRevenue / totalConversions).toLocaleString() : 0} avg deal
-                  </span>
+            
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <DollarSign className="w-5 h-5 text-amber-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-500 truncate">Revenue</p>
+                  <p className="text-xl font-bold text-gray-900">
+                    ${totalRevenue >= 1000000 
+                      ? (totalRevenue / 1000000).toFixed(1) + 'M' 
+                      : totalRevenue >= 1000 
+                        ? (totalRevenue / 1000).toFixed(1) + 'k' 
+                        : totalRevenue.toFixed(0)}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    ${totalConversions > 0 ? Math.round(totalRevenue / totalConversions).toLocaleString() : 0} avg
+                  </p>
                 </div>
               </div>
             </div>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Tab Navigation */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mb-6">
-          <div className="border-b border-gray-100">
-            <div className="flex">
-              <button
-                onClick={() => setActiveTab('team')}
-                className={`flex items-center gap-2 px-6 py-4 text-sm font-semibold border-b-2 transition-colors ${
-                  activeTab === 'team'
-                    ? 'border-sky-500 text-sky-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Users className="w-4 h-4" />
-                Team Management
-                <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
-                  {employees.length}
-                </span>
-              </button>
-              <button
-                onClick={() => setActiveTab('contacts')}
-                className={`flex items-center gap-2 px-6 py-4 text-sm font-semibold border-b-2 transition-colors ${
-                  activeTab === 'contacts'
-                    ? 'border-sky-500 text-sky-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Contact className="w-4 h-4" />
-                All Contacts
-                <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
-                  {contacts.length}
-                </span>
-              </button>
-            </div>
-          </div>
-
-          {/* Team Management Tab */}
-          {activeTab === 'team' && (
-            <>
-              <div className="p-4 border-b border-gray-100">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <h2 className="text-lg font-bold text-gray-900">Team Management</h2>
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
-                    {/* Search */}
-                    <div className="relative flex-1 w-full sm:w-64">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input
-                        type="text"
-                        placeholder="Search employees..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                      />
-                    </div>
-                    
-                    {/* Status Filter */}
-                    <div className="relative">
-                      <select
-                        value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value)}
-                        className="appearance-none px-4 py-2.5 pr-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-sm font-medium"
-                      >
-                        <option value="all">All Status</option>
-                        <option value="ACTIVE">Active</option>
-                        <option value="INVITED">Invited</option>
-                        <option value="DISABLED">Disabled</option>
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    </div>
-                    
-                    {/* Department Filter */}
-                    <div className="relative">
-                      <select
-                        value={filterDepartment}
-                        onChange={(e) => setFilterDepartment(e.target.value)}
-                        className="appearance-none px-4 py-2.5 pr-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-sm font-medium"
-                      >
-                        <option value="all">All Departments</option>
-                        {departments.map(dept => (
-                          <option key={dept} value={dept}>{dept}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                </div>
-                <button
+        {/* Team Management Tab */}
+        {activeTab === 'team' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+            <div className="p-4 border-b border-gray-100">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <p className="text-sm text-gray-500">Manage employees and roles</p>
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  {/* Search */}
+                  <div className="relative flex-1 min-w-0 sm:w-52">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search employees..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full h-9 pl-9 pr-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  
+                  {/* Status Filter */}
+                  <div className="relative">
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                      className="appearance-none h-9 px-3 pr-8 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-sm"
+                    >
+                      <option value="all">All Status</option>
+                      <option value="ACTIVE">Active</option>
+                      <option value="INVITED">Invited</option>
+                      <option value="DISABLED">Disabled</option>
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
+                  
+                  {/* Department Filter */}
+                  <div className="relative">
+                    <select
+                      value={filterDepartment}
+                      onChange={(e) => setFilterDepartment(e.target.value)}
+                      className="appearance-none h-9 px-3 pr-8 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-sm"
+                    >
+                      <option value="all">All Depts</option>
+                      {departments.map(dept => (
+                        <option key={dept} value={dept}>{dept}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
+                  
+                  <button
                   onClick={() => setShowAddModal(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-sky-500 to-blue-600 text-white rounded-xl font-medium text-sm hover:from-sky-600 hover:to-blue-700 transition-all shadow-lg shadow-sky-500/25"
+                  className="inline-flex items-center gap-2 h-9 px-4 bg-gradient-to-r from-sky-500 to-blue-600 text-white rounded-lg font-medium text-sm hover:from-sky-600 hover:to-blue-700 transition-all shadow-sm"
                 >
                   <UserPlus className="w-4 h-4" />
                   Invite Employee
@@ -740,6 +994,7 @@ const AdminDashboard = () => {
                 </button>
               </div>
             ) : (
+              <>
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50">
@@ -801,7 +1056,7 @@ const AdminDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredSortedEmployees.map((employee) => (
+                  {paginatedEmployees.map((employee) => (
                     <tr key={employee.emp_id} className={`hover:bg-gray-50 transition-colors ${employee.invitation_status === 'DISABLED' ? 'opacity-60' : ''}`}>
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-3">
@@ -969,58 +1224,68 @@ const AdminDashboard = () => {
                   ))}
                 </tbody>
               </table>
+              
+              {/* Employee Pagination */}
+              <Pagination
+                currentPage={employeePage}
+                totalPages={employeeTotalPages}
+                totalItems={filteredSortedEmployees.length}
+                onPageChange={setEmployeePage}
+                itemName="employees"
+              />
+            </>
             )}
           </div>
-            </>
-          )}
+          </div>
+        )}
 
-          {/* Contacts Tab */}
-          {activeTab === 'contacts' && (
-            <>
-              <div className="p-4 border-b border-gray-100">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <h2 className="text-lg font-bold text-gray-900">All Contacts</h2>
-                  <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-                    {/* Search */}
-                    <div className="relative flex-1 w-full sm:w-64">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input
-                        type="text"
-                        placeholder="Search contacts..."
-                        value={contactSearchQuery}
-                        onChange={(e) => setContactSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                      />
-                    </div>
-                    
-                    {/* Status Filter */}
-                    <div className="relative">
-                      <select
-                        value={filterContactStatus}
-                        onChange={(e) => setFilterContactStatus(e.target.value)}
-                        className="appearance-none px-4 py-2.5 pr-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-sm font-medium"
-                      >
-                        <option value="all">All Status</option>
-                        {contactStatuses.map(status => (
-                          <option key={status} value={status}>{status}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    </div>
-                    
-                    {/* Temperature Filter */}
-                    <div className="relative">
-                      <select
-                        value={filterTemperature}
-                        onChange={(e) => setFilterTemperature(e.target.value)}
-                        className="appearance-none px-4 py-2.5 pr-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-sm font-medium"
+        {/* Contacts Tab */}
+        {activeTab === 'contacts' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+            <div className="p-4 border-b border-gray-100">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <p className="text-sm text-gray-500">View and manage all contacts</p>
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  {/* Search */}
+                  <div className="relative flex-1 min-w-0 sm:w-52">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search contacts..."
+                      value={contactSearchQuery}
+                      onChange={(e) => setContactSearchQuery(e.target.value)}
+                      className="w-full h-9 pl-9 pr-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  
+                  {/* Status Filter */}
+                  <div className="relative">
+                    <select
+                      value={filterContactStatus}
+                      onChange={(e) => setFilterContactStatus(e.target.value)}
+                      className="appearance-none h-9 px-3 pr-8 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-sm"
+                    >
+                      <option value="all">All Status</option>
+                      {contactStatuses.map(status => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
+                  
+                  {/* Temperature Filter */}
+                  <div className="relative">
+                    <select
+                      value={filterTemperature}
+                      onChange={(e) => setFilterTemperature(e.target.value)}
+                      className="appearance-none h-9 px-3 pr-8 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-sm"
                       >
                         <option value="all">All Temp</option>
                         {temperatures.map(temp => (
                           <option key={temp} value={temp}>{temp}</option>
                         ))}
                       </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                     </div>
                     
                     {/* Assigned Employee Filter */}
@@ -1028,14 +1293,14 @@ const AdminDashboard = () => {
                       <select
                         value={filterAssignedEmp}
                         onChange={(e) => setFilterAssignedEmp(e.target.value)}
-                        className="appearance-none px-4 py-2.5 pr-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-sm font-medium"
+                        className="appearance-none h-9 px-3 pr-8 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-sm"
                       >
                         <option value="all">All Employees</option>
                         {employees.filter(e => e.invitation_status === 'ACTIVE').map(emp => (
                           <option key={emp.emp_id} value={emp.emp_id}>{emp.name}</option>
                         ))}
                       </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                     </div>
                   </div>
                 </div>
@@ -1053,6 +1318,7 @@ const AdminDashboard = () => {
                     <p className="text-gray-500">No contacts found</p>
                   </div>
                 ) : (
+                  <>
                   <table className="w-full">
                     <thead>
                       <tr className="bg-gray-50">
@@ -1114,7 +1380,7 @@ const AdminDashboard = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {filteredSortedContacts.map((contact) => (
+                      {paginatedContacts.map((contact) => (
                         <tr key={contact.contact_id} className="hover:bg-gray-50 transition-colors">
                           <td className="py-4 px-6">
                             <div className="flex items-center gap-3">
@@ -1184,11 +1450,640 @@ const AdminDashboard = () => {
                       ))}
                     </tbody>
                   </table>
+                  
+                  {/* Contact Pagination */}
+                  <Pagination
+                    currentPage={contactPage}
+                    totalPages={contactTotalPages}
+                    totalItems={filteredSortedContacts.length}
+                    onPageChange={setContactPage}
+                    itemName="contacts"
+                  />
+                  </>
                 )}
               </div>
-            </>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Analytics Tab */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-6">
+            {analyticsLoading ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12">
+                <div className="flex flex-col items-center justify-center">
+                  <RefreshCw className="w-8 h-8 text-sky-500 animate-spin mb-4" />
+                  <p className="text-gray-500">Loading analytics...</p>
+                </div>
+              </div>
+            ) : analyticsError ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12">
+                <div className="flex flex-col items-center justify-center">
+                  <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
+                  <p className="text-gray-600 mb-4">{analyticsError}</p>
+                  <button
+                    onClick={() => { setAnalytics(null); fetchAnalytics(); }}
+                    className="px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            ) : analytics ? (
+              <>
+                {/* Refresh Button */}
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-lg font-bold text-gray-900">Company Analytics</h2>
+                  <button
+                    onClick={() => { setAnalytics(null); fetchAnalytics(); }}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-sky-600 hover:bg-white border border-gray-200 rounded-lg transition-colors"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Refresh
+                  </button>
+                </div>
+
+                {/* KPI Cards Row */}
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="p-1.5 bg-blue-500 rounded-lg">
+                        <Users className="w-4 h-4 text-white" />
+                      </div>
+                      <span className="text-xs font-medium text-blue-600">Total Contacts</span>
+                    </div>
+                    <p className="text-2xl font-bold text-blue-900">{analytics.overview.totalContacts.toLocaleString()}</p>
+                  </div>
+                  
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="p-1.5 bg-green-500 rounded-lg">
+                        <DollarSign className="w-4 h-4 text-white" />
+                      </div>
+                      <span className="text-xs font-medium text-green-600">Revenue</span>
+                    </div>
+                    <p className="text-2xl font-bold text-green-900">
+                      ${analytics.overview.totalRevenue >= 1000000 
+                        ? (analytics.overview.totalRevenue / 1000000).toFixed(1) + 'M'
+                        : analytics.overview.totalRevenue >= 1000 
+                          ? (analytics.overview.totalRevenue / 1000).toFixed(1) + 'k'
+                          : analytics.overview.totalRevenue.toFixed(0)}
+                    </p>
+                  </div>
+                  
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="p-1.5 bg-purple-500 rounded-lg">
+                        <Target className="w-4 h-4 text-white" />
+                      </div>
+                      <span className="text-xs font-medium text-purple-600">Deals Closed</span>
+                    </div>
+                    <p className="text-2xl font-bold text-purple-900">{analytics.overview.totalDeals}</p>
+                  </div>
+                  
+                  <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-4 border border-amber-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="p-1.5 bg-amber-500 rounded-lg">
+                        <Percent className="w-4 h-4 text-white" />
+                      </div>
+                      <span className="text-xs font-medium text-amber-600">Conversion Rate</span>
+                    </div>
+                    <p className="text-2xl font-bold text-amber-900">{analytics.overview.overallConversionRate}%</p>
+                  </div>
+                  
+                  <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-xl p-4 border border-cyan-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="p-1.5 bg-cyan-500 rounded-lg">
+                        <Zap className="w-4 h-4 text-white" />
+                      </div>
+                      <span className="text-xs font-medium text-cyan-600">Pipeline Value</span>
+                    </div>
+                    <p className="text-2xl font-bold text-cyan-900">
+                      ${analytics.overview.pipelineValue >= 1000000 
+                        ? (analytics.overview.pipelineValue / 1000000).toFixed(1) + 'M'
+                        : analytics.overview.pipelineValue >= 1000 
+                          ? (analytics.overview.pipelineValue / 1000).toFixed(1) + 'k'
+                          : analytics.overview.pipelineValue.toFixed(0)}
+                    </p>
+                  </div>
+                  
+                  <div className="bg-gradient-to-br from-rose-50 to-rose-100 rounded-xl p-4 border border-rose-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="p-1.5 bg-rose-500 rounded-lg">
+                        <Timer className="w-4 h-4 text-white" />
+                      </div>
+                      <span className="text-xs font-medium text-rose-600">Avg Sales Cycle</span>
+                    </div>
+                    <p className="text-2xl font-bold text-rose-900">{analytics.overview.avgSalesCycle}d</p>
+                  </div>
+                </div>
+
+                {/* Period Comparison Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-medium text-gray-500">Leads (Last 30 days)</span>
+                      <span className={`flex items-center gap-1 text-sm font-semibold ${
+                        analytics.periodComparison.leads.growth >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {analytics.periodComparison.leads.growth >= 0 ? (
+                          <TrendingUp className="w-4 h-4" />
+                        ) : (
+                          <TrendingDown className="w-4 h-4" />
+                        )}
+                        {Math.abs(analytics.periodComparison.leads.growth)}%
+                      </span>
+                    </div>
+                    <p className="text-3xl font-bold text-gray-900">{analytics.periodComparison.leads.current}</p>
+                    <p className="text-xs text-gray-400 mt-1">vs {analytics.periodComparison.leads.previous} previous period</p>
+                  </div>
+                  
+                  <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-medium text-gray-500">Deals (Last 30 days)</span>
+                      <span className={`flex items-center gap-1 text-sm font-semibold ${
+                        analytics.periodComparison.deals.growth >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {analytics.periodComparison.deals.growth >= 0 ? (
+                          <TrendingUp className="w-4 h-4" />
+                        ) : (
+                          <TrendingDown className="w-4 h-4" />
+                        )}
+                        {Math.abs(analytics.periodComparison.deals.growth)}%
+                      </span>
+                    </div>
+                    <p className="text-3xl font-bold text-gray-900">{analytics.periodComparison.deals.current}</p>
+                    <p className="text-xs text-gray-400 mt-1">vs {analytics.periodComparison.deals.previous} previous period</p>
+                  </div>
+                  
+                  <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-medium text-gray-500">Revenue (Last 30 days)</span>
+                      <span className={`flex items-center gap-1 text-sm font-semibold ${
+                          analytics.periodComparison.revenue.growth >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {analytics.periodComparison.revenue.growth >= 0 ? (
+                            <TrendingUp className="w-4 h-4" />
+                          ) : (
+                            <TrendingDown className="w-4 h-4" />
+                          )}
+                          {Math.abs(analytics.periodComparison.revenue.growth)}%
+                        </span>
+                      </div>
+                      <p className="text-3xl font-bold text-gray-900">
+                        ${analytics.periodComparison.revenue.current >= 1000 
+                          ? (analytics.periodComparison.revenue.current / 1000).toFixed(1) + 'k'
+                          : analytics.periodComparison.revenue.current.toFixed(0)}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        vs ${analytics.periodComparison.revenue.previous >= 1000 
+                          ? (analytics.periodComparison.revenue.previous / 1000).toFixed(1) + 'k'
+                          : analytics.periodComparison.revenue.previous.toFixed(0)} previous period
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Conversion Funnel & Pipeline Distribution */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Conversion Funnel */}
+                    <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <PieChart className="w-4 h-4 text-sky-500" />
+                        Conversion Funnel
+                      </h3>
+                      <div className="space-y-3">
+                        {analytics.funnel.map((stage, index) => {
+                          const maxCount = analytics.funnel[0].count || 1;
+                          const percentage = (stage.count / maxCount) * 100;
+                          const colors = {
+                            'LEAD': 'bg-gray-400',
+                            'MQL': 'bg-blue-400',
+                            'SQL': 'bg-indigo-500',
+                            'OPPORTUNITY': 'bg-purple-500',
+                            'CUSTOMER': 'bg-green-500',
+                            'EVANGELIST': 'bg-amber-500'
+                          };
+                          return (
+                            <div key={stage.stage}>
+                              <div className="flex items-center justify-between text-sm mb-1">
+                                <span className="font-medium text-gray-700">{stage.stage}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-gray-900">{stage.count}</span>
+                                  {stage.conversionRate !== undefined && index > 0 && (
+                                    <span className="text-xs text-gray-400">({stage.conversionRate}% from prev)</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="h-6 bg-gray-100 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full ${colors[stage.stage]} transition-all duration-500 rounded-full`}
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Opportunity Outcomes */}
+                    <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Target className="w-4 h-4 text-sky-500" />
+                        Opportunity Outcomes
+                      </h3>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="text-center p-4 bg-blue-50 rounded-xl">
+                          <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                            <Clock className="w-5 h-5 text-white" />
+                          </div>
+                          <p className="text-2xl font-bold text-blue-900">{analytics.opportunityOutcomes.open.count}</p>
+                          <p className="text-xs text-blue-600 font-medium">Open</p>
+                          <p className="text-xs text-blue-400 mt-1">
+                            ${(analytics.opportunityOutcomes.open.value / 1000).toFixed(1)}k value
+                          </p>
+                        </div>
+                        <div className="text-center p-4 bg-green-50 rounded-xl">
+                          <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                            <CheckCircle2 className="w-5 h-5 text-white" />
+                          </div>
+                          <p className="text-2xl font-bold text-green-900">{analytics.opportunityOutcomes.won.count}</p>
+                          <p className="text-xs text-green-600 font-medium">Won</p>
+                          <p className="text-xs text-green-400 mt-1">
+                            ${(analytics.opportunityOutcomes.won.value / 1000).toFixed(1)}k value
+                          </p>
+                        </div>
+                        <div className="text-center p-4 bg-red-50 rounded-xl">
+                          <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                            <XCircle className="w-5 h-5 text-white" />
+                          </div>
+                          <p className="text-2xl font-bold text-red-900">{analytics.opportunityOutcomes.lost.count}</p>
+                          <p className="text-xs text-red-600 font-medium">Lost</p>
+                          <p className="text-xs text-red-400 mt-1">
+                            ${(analytics.opportunityOutcomes.lost.value / 1000).toFixed(1)}k value
+                          </p>
+                        </div>
+                      </div>
+                      {/* Win Rate */}
+                      {(analytics.opportunityOutcomes.won.count + analytics.opportunityOutcomes.lost.count) > 0 && (
+                        <div className="mt-4 pt-4 border-t border-gray-100">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-600">Win Rate</span>
+                            <span className="text-lg font-bold text-green-600">
+                              {((analytics.opportunityOutcomes.won.count / 
+                                (analytics.opportunityOutcomes.won.count + analytics.opportunityOutcomes.lost.count)) * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Source Performance & Temperature Distribution */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Lead Sources */}
+                    <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-sky-500" />
+                        Lead Source Performance
+                      </h3>
+                      <div className="space-y-3">
+                        {analytics.sourcePerformance.slice(0, 6).map((source) => (
+                          <div key={source.source} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{source.source}</p>
+                              <p className="text-xs text-gray-500">{source.totalLeads} leads • {source.converted} converted</p>
+                            </div>
+                            <div className="text-right">
+                              <span className={`text-sm font-semibold ${
+                                source.conversionRate >= 20 ? 'text-green-600' : 
+                                source.conversionRate >= 10 ? 'text-amber-600' : 'text-gray-600'
+                              }`}>
+                                {source.conversionRate}%
+                              </span>
+                              <p className="text-xs text-gray-400">conv. rate</p>
+                            </div>
+                          </div>
+                        ))}
+                        {analytics.sourcePerformance.length === 0 && (
+                          <p className="text-sm text-gray-400 text-center py-4">No source data available</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Temperature Distribution */}
+                    <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Thermometer className="w-4 h-4 text-sky-500" />
+                        Lead Temperature Distribution
+                      </h3>
+                      <div className="space-y-4">
+                        {analytics.temperatureDistribution.map((temp) => {
+                          const icons = {
+                            'HOT': <Flame className="w-5 h-5 text-red-500" />,
+                            'WARM': <Thermometer className="w-5 h-5 text-amber-500" />,
+                            'COLD': <Snowflake className="w-5 h-5 text-blue-500" />
+                          };
+                          const colors = {
+                            'HOT': 'bg-red-100 border-red-200 text-red-800',
+                            'WARM': 'bg-amber-100 border-amber-200 text-amber-800',
+                            'COLD': 'bg-blue-100 border-blue-200 text-blue-800'
+                          };
+                          const barColors = {
+                            'HOT': 'bg-red-500',
+                            'WARM': 'bg-amber-500',
+                            'COLD': 'bg-blue-500'
+                          };
+                          const totalTemp = analytics.temperatureDistribution.reduce((acc, t) => acc + t.count, 0);
+                          const percentage = totalTemp > 0 ? (temp.count / totalTemp) * 100 : 0;
+                          
+                          return (
+                            <div key={temp.temperature} className={`p-4 rounded-xl border ${colors[temp.temperature]}`}>
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  {icons[temp.temperature]}
+                                  <span className="font-semibold">{temp.temperature}</span>
+                                </div>
+                                <span className="text-lg font-bold">{temp.count}</span>
+                              </div>
+                              <div className="h-2 bg-white/50 rounded-full overflow-hidden mb-2">
+                                <div 
+                                  className={`h-full ${barColors[temp.temperature]} transition-all`}
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+                              <div className="flex justify-between text-xs opacity-75">
+                                <span>{percentage.toFixed(1)}% of total</span>
+                                <span>{temp.conversionRate}% conv. rate</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {analytics.temperatureDistribution.length === 0 && (
+                          <p className="text-sm text-gray-400 text-center py-4">No temperature data available</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Session Statistics */}
+                  <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <PhoneCall className="w-4 h-4 text-sky-500" />
+                      Session Statistics
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                      <div className="text-center p-3 bg-gray-50 rounded-lg">
+                        <p className="text-2xl font-bold text-gray-900">{analytics.sessionStats.total}</p>
+                        <p className="text-xs text-gray-500">Total Sessions</p>
+                      </div>
+                      <div className="text-center p-3 bg-green-50 rounded-lg">
+                        <p className="text-2xl font-bold text-green-600">{analytics.sessionStats.connected}</p>
+                        <p className="text-xs text-green-600">Connected</p>
+                      </div>
+                      <div className="text-center p-3 bg-red-50 rounded-lg">
+                        <p className="text-2xl font-bold text-red-600">{analytics.sessionStats.notConnected}</p>
+                        <p className="text-xs text-red-600">Not Connected</p>
+                      </div>
+                      <div className="text-center p-3 bg-amber-50 rounded-lg">
+                        <p className="text-2xl font-bold text-amber-600">{analytics.sessionStats.badTiming}</p>
+                        <p className="text-xs text-amber-600">Bad Timing</p>
+                      </div>
+                      <div className="text-center p-3 bg-sky-50 rounded-lg">
+                        <p className="text-2xl font-bold text-sky-600">{analytics.sessionStats.connectionRate}%</p>
+                        <p className="text-xs text-sky-600">Connection Rate</p>
+                      </div>
+                      <div className="text-center p-3 bg-purple-50 rounded-lg">
+                        <div className="flex items-center justify-center gap-1">
+                          <Star className="w-4 h-4 text-purple-500 fill-purple-500" />
+                          <p className="text-2xl font-bold text-purple-600">{analytics.sessionStats.avgRating}</p>
+                        </div>
+                        <p className="text-xs text-purple-600">Avg Rating</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Employee Leaderboard */}
+                  <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <Trophy className="w-4 h-4 text-amber-500" />
+                      Employee Leaderboard
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-gray-100">
+                            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Rank</th>
+                            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
+                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Contacts</th>
+                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Conversions</th>
+                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Conv. Rate</th>
+                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Deals</th>
+                            <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Revenue</th>
+                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Sessions</th>
+                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Avg Rating</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {analytics.employeeLeaderboard.map((emp, index) => (
+                            <tr key={emp.emp_id} className="hover:bg-gray-50 transition-colors">
+                              <td className="py-3 px-4">
+                                {index === 0 ? (
+                                  <div className="w-7 h-7 bg-amber-400 rounded-full flex items-center justify-center">
+                                    <Crown className="w-4 h-4 text-white" />
+                                  </div>
+                                ) : index === 1 ? (
+                                  <div className="w-7 h-7 bg-gray-300 rounded-full flex items-center justify-center">
+                                    <span className="text-xs font-bold text-white">2</span>
+                                  </div>
+                                ) : index === 2 ? (
+                                  <div className="w-7 h-7 bg-amber-600 rounded-full flex items-center justify-center">
+                                    <span className="text-xs font-bold text-white">3</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-gray-500 font-medium ml-2">{index + 1}</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">{emp.name}</p>
+                                  <p className="text-xs text-gray-500">{emp.department || 'No dept'}</p>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <span className="text-sm font-semibold text-gray-700">{emp.contactsHandled}</span>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <span className="text-sm font-semibold text-green-600">{emp.conversions}</span>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <span className={`text-sm font-semibold ${
+                                  emp.conversionRate >= 20 ? 'text-green-600' : 
+                                  emp.conversionRate >= 10 ? 'text-amber-600' : 'text-gray-600'
+                                }`}>
+                                  {emp.conversionRate}%
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <span className="text-sm font-semibold text-purple-600">{emp.dealsClosed}</span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <span className="text-sm font-bold text-gray-900">
+                                  ${emp.totalRevenue >= 1000 
+                                    ? (emp.totalRevenue / 1000).toFixed(1) + 'k'
+                                    : emp.totalRevenue.toFixed(0)}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <span className="text-sm text-gray-600">{emp.totalSessions}</span>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                                  <span className="text-sm font-medium text-gray-700">{emp.avgSessionRating}</span>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {analytics.employeeLeaderboard.length === 0 && (
+                        <p className="text-sm text-gray-400 text-center py-8">No employee data available</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Monthly Trends */}
+                  <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-sky-500" />
+                      Monthly Trends (Last 12 Months)
+                    </h3>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      {/* Revenue Trend */}
+                      <div>
+                        <h4 className="text-xs font-medium text-gray-500 mb-3 uppercase tracking-wider">Revenue</h4>
+                        <div className="space-y-2">
+                          {analytics.trends.revenue.slice(-6).map((month) => {
+                            const maxRevenue = Math.max(...analytics.trends.revenue.map(m => m.revenue)) || 1;
+                            const percentage = (month.revenue / maxRevenue) * 100;
+                            return (
+                              <div key={month.month} className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 w-16">{month.monthLabel}</span>
+                                <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-green-500 rounded-full transition-all"
+                                    style={{ width: `${percentage}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs font-semibold text-gray-700 w-14 text-right">
+                                  ${(month.revenue / 1000).toFixed(1)}k
+                                </span>
+                              </div>
+                            );
+                          })}
+                          {analytics.trends.revenue.length === 0 && (
+                            <p className="text-xs text-gray-400 text-center py-4">No data</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Leads Trend */}
+                      <div>
+                        <h4 className="text-xs font-medium text-gray-500 mb-3 uppercase tracking-wider">New Leads</h4>
+                        <div className="space-y-2">
+                          {analytics.trends.leads.slice(-6).map((month) => {
+                            const maxLeads = Math.max(...analytics.trends.leads.map(m => m.leads)) || 1;
+                            const percentage = (month.leads / maxLeads) * 100;
+                            return (
+                              <div key={month.month} className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 w-16">{month.monthLabel}</span>
+                                <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-blue-500 rounded-full transition-all"
+                                    style={{ width: `${percentage}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs font-semibold text-gray-700 w-10 text-right">
+                                  {month.leads}
+                                </span>
+                              </div>
+                            );
+                          })}
+                          {analytics.trends.leads.length === 0 && (
+                            <p className="text-xs text-gray-400 text-center py-4">No data</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Conversions Trend */}
+                      <div>
+                        <h4 className="text-xs font-medium text-gray-500 mb-3 uppercase tracking-wider">Conversions</h4>
+                        <div className="space-y-2">
+                          {analytics.trends.conversions.slice(-6).map((month) => {
+                            const maxConv = Math.max(...analytics.trends.conversions.map(m => m.conversions)) || 1;
+                            const percentage = (month.conversions / maxConv) * 100;
+                            return (
+                              <div key={month.month} className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 w-16">{month.monthLabel}</span>
+                                <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-purple-500 rounded-full transition-all"
+                                    style={{ width: `${percentage}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs font-semibold text-gray-700 w-10 text-right">
+                                  {month.conversions}
+                                </span>
+                              </div>
+                            );
+                          })}
+                          {analytics.trends.conversions.length === 0 && (
+                            <p className="text-xs text-gray-400 text-center py-4">No data</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Top Sources */}
+                  <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <Award className="w-4 h-4 text-sky-500" />
+                      Top Performing Sources (by Revenue)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                      {analytics.topSources.map((source, index) => (
+                        <div 
+                          key={source.source} 
+                          className={`p-4 rounded-xl border ${
+                            index === 0 ? 'bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200' :
+                            index === 1 ? 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200' :
+                            'bg-white border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            {index === 0 && <Trophy className="w-4 h-4 text-amber-500" />}
+                            <span className="text-sm font-semibold text-gray-900">{source.source}</span>
+                          </div>
+                          <p className="text-xl font-bold text-gray-900">
+                            ${source.revenue >= 1000 
+                              ? (source.revenue / 1000).toFixed(1) + 'k'
+                              : source.revenue}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {source.leads} leads • {source.conversions} conv.
+                          </p>
+                        </div>
+                      ))}
+                      {analytics.topSources.length === 0 && (
+                        <p className="text-sm text-gray-400 col-span-5 text-center py-4">No source data available</p>
+                      )}
+                    </div>
+                  </div>
+              </>
+            ) : null}
+          </div>
+        )}
       </div>
 
       {/* Add Employee Modal */}
@@ -1598,14 +2493,22 @@ const AdminDashboard = () => {
           <ContactDetail
             contact={selectedContact}
             onClose={() => setSelectedContact(null)}
-            onUpdate={() => {
-              fetchContacts();
-              setSelectedContact(null);
-            }}
+            onUpdate={handleUpdateContact}
             onFollowupsClick={handleFollowupsClick}
+            onEmailClick={(contact) => setEmailContact(contact)}
           />
         </>
       )}
+
+      {/* Email Compose Modal */}
+      <EmailComposer
+        isOpen={!!emailContact}
+        contact={emailContact}
+        onClose={() => setEmailContact(null)}
+        onSuccess={() => {
+          fetchContacts();
+        }}
+      />
 
       {/* CSS Animation */}
       <style>{`

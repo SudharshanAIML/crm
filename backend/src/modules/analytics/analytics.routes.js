@@ -137,4 +137,19 @@ router.get(
   analyticsController.getComprehensiveAnalytics
 );
 
+/* ---------------------------------------------------
+   ADMIN: GET COMPANY-WIDE ANALYTICS
+--------------------------------------------------- */
+/**
+ * @route   GET /analytics/admin
+ * @desc    Get company-wide analytics for admin dashboard
+ * @access  Admin
+ */
+router.get(
+  "/admin",
+  authenticateEmployee,
+  authorizeRoles(USER_ROLES.ADMIN),
+  analyticsController.getAdminAnalytics
+);
+
 export default router;

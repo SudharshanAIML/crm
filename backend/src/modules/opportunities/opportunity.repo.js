@@ -107,6 +107,26 @@ export const getByStatus = async (status, companyId) => {
 };
 
 /* ---------------------------------------------------
+   GET ALL OPPORTUNITIES BY CONTACT
+--------------------------------------------------- */
+export const getByContactId = async (contactId) => {
+  const [rows] = await db.query(
+    `
+    SELECT 
+      o.*,
+      e.name as emp_name
+    FROM opportunities o
+    LEFT JOIN employees e ON e.emp_id = o.emp_id
+    WHERE o.contact_id = ?
+    ORDER BY o.created_at DESC
+    `,
+    [contactId]
+  );
+
+  return rows;
+};
+
+/* ---------------------------------------------------
    DELETE OPPORTUNITY (RARE / ADMIN)
 --------------------------------------------------- */
 export const deleteOpportunity = async (opportunityId) => {

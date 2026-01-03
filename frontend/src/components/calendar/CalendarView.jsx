@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -33,85 +33,340 @@ import { getContacts } from "../../services/contactService";
 import { StatCard, TaskCard, TaskModal } from '../calendar';
 import { TASK_TYPES, PRIORITY_COLORS, STATUS_COLORS, toLocalDateOnly } from "./constants";
 
+// =============================================================================
+// CACHE CONFIGURATION - Persists data across component remounts (tab switches)
+// =============================================================================
+const STALE_TIME = 3 * 60 * 1000; // 3 minutes - calendar data changes more frequently
+const CACHE_TIME = 15 * 60 * 1000; // 15 minutes
+
+// Module-level cache
+const calendarCache = {
+  // Monthly task data keyed by "YYYY-MM"
+  monthlyTasks: new Map(),
+  // Static data that doesn't change often
+  todaysTasks: null,
+  overdueTasks: null,
+  stats: null,
+  contacts: null,
+  // Timestamps
+  staticDataTimestamp: null,
+  // Request deduplication
+  pendingRequests: new Map(),
+};
+
+// Helper functions
+const getMonthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+const isStaticDataFresh = () => {
+  if (!calendarCache.staticDataTimestamp) return false;
+  return Date.now() - calendarCache.staticDataTimestamp < STALE_TIME;
+};
+
+const isStaticDataValid = () => {
+  if (!calendarCache.staticDataTimestamp) return false;
+  return Date.now() - calendarCache.staticDataTimestamp < CACHE_TIME;
+};
+
+const isMonthDataFresh = (monthKey) => {
+  const cached = calendarCache.monthlyTasks.get(monthKey);
+  if (!cached?.timestamp) return false;
+  return Date.now() - cached.timestamp < STALE_TIME;
+};
+
+const isMonthDataValid = (monthKey) => {
+  const cached = calendarCache.monthlyTasks.get(monthKey);
+  if (!cached?.timestamp) return false;
+  return Date.now() - cached.timestamp < CACHE_TIME;
+};
+
 
 const CalendarView = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState("month"); // 'month', 'week', 'today'
   const [focusMode, setFocusMode] = useState(null); // null, 'today', 'week'
-  const [tasks, setTasks] = useState([]);
-  const [todaysTasks, setTodaysTasks] = useState([]);
-  const [overdueTasks, setOverdueTasks] = useState([]);
-  const [stats, setStats] = useState(null);
-  const [initialLoading, setInitialLoading] = useState(true); // Only for first load
-  const [refreshing, setRefreshing] = useState(false); // For subsequent updates
+  
+  // Initialize state from cache if available
+  const [tasks, setTasks] = useState(() => {
+    const monthKey = getMonthKey(new Date());
+    return calendarCache.monthlyTasks.get(monthKey)?.data || [];
+  });
+  const [todaysTasks, setTodaysTasks] = useState(() => calendarCache.todaysTasks || []);
+  const [overdueTasks, setOverdueTasks] = useState(() => calendarCache.overdueTasks || []);
+  const [stats, setStats] = useState(() => calendarCache.stats);
+  const [contacts, setContacts] = useState(() => calendarCache.contacts || []);
+  
+  // Loading states
+  const [initialLoading, setInitialLoading] = useState(() => !isStaticDataValid());
+  const [refreshing, setRefreshing] = useState(false);
+  const [isBackgroundRefresh, setIsBackgroundRefresh] = useState(false);
+  
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
-  const [contacts, setContacts] = useState([]);
   const [filterType, setFilterType] = useState("ALL");
+  const [lastUpdated, setLastUpdated] = useState(() => 
+    calendarCache.staticDataTimestamp ? new Date(calendarCache.staticDataTimestamp) : null
+  );
+  
+  // Track mounted state
+  const isMountedRef = useRef(true);
 
-  // Format date to YYYY-MM-DD (local timezone) - defined early for use in fetchData
-  const formatDate = (date) => {
+  // Format date to YYYY-MM-DD (local timezone)
+  const formatDate = useCallback((date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
-  };
+  }, []);
 
-  // Fetch data
-  const fetchData = async (isInitial = false) => {
-    try {
-      // Only show full loading on initial load
-      if (isInitial) {
-        setInitialLoading(true);
-      } else {
-        setRefreshing(true);
-      }
-      
-      // Calculate date range for current view
-      const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-      const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-      
-      // Fetch calendar tasks for current month - this is the main one that changes
-      const calendarTasks = await getCalendarTasks(formatDate(start), formatDate(end));
-      const normalizedTasks = calendarTasks.map(task => ({
-        ...task,
-        due_date: toLocalDateOnly(task.due_date), // 🔥 normalize ONCE
+  // Fetch monthly tasks with caching
+  const fetchMonthlyTasks = useCallback(async (date, forceRefresh = false) => {
+    const monthKey = getMonthKey(date);
+    
+    // Return cached data if fresh and not forcing refresh
+    if (!forceRefresh && isMonthDataFresh(monthKey)) {
+      return calendarCache.monthlyTasks.get(monthKey)?.data || [];
+    }
+
+    // Deduplicate concurrent requests
+    const requestKey = `month-${monthKey}`;
+    if (calendarCache.pendingRequests.has(requestKey)) {
+      return calendarCache.pendingRequests.get(requestKey);
+    }
+
+    const promise = (async () => {
+      try {
+        const start = new Date(date.getFullYear(), date.getMonth(), 1);
+        const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+        
+        const calendarTasks = await getCalendarTasks(formatDate(start), formatDate(end));
+        const normalizedTasks = calendarTasks.map(task => ({
+          ...task,
+          due_date: toLocalDateOnly(task.due_date),
         }));
-      setTasks(normalizedTasks);
-      
-      // Only fetch these on initial load or manual refresh (they don't change with month navigation)
-      if (isInitial || !stats) {
+        
+        // Update cache
+        calendarCache.monthlyTasks.set(monthKey, {
+          data: normalizedTasks,
+          timestamp: Date.now(),
+        });
+        
+        return normalizedTasks;
+      } finally {
+        calendarCache.pendingRequests.delete(requestKey);
+      }
+    })();
+
+    calendarCache.pendingRequests.set(requestKey, promise);
+    return promise;
+  }, [formatDate]);
+
+  // Fetch static data (stats, today, overdue, contacts) with caching
+  const fetchStaticData = useCallback(async (forceRefresh = false) => {
+    // Return cached data if fresh
+    if (!forceRefresh && isStaticDataFresh()) {
+      return {
+        todaysTasks: calendarCache.todaysTasks,
+        overdueTasks: calendarCache.overdueTasks,
+        stats: calendarCache.stats,
+        contacts: calendarCache.contacts,
+      };
+    }
+
+    // Deduplicate concurrent requests
+    const requestKey = 'static-data';
+    if (calendarCache.pendingRequests.has(requestKey)) {
+      return calendarCache.pendingRequests.get(requestKey);
+    }
+
+    const promise = (async () => {
+      try {
         const [today, overdue, taskStats, contactList] = await Promise.all([
           getTodaysTasks(),
           getOverdueTasks(),
           getTaskStats(),
           getContacts({}).catch(() => []),
         ]);
-        setTodaysTasks(today);
-        setOverdueTasks(overdue);
-        setStats(taskStats);
-        setContacts(Array.isArray(contactList) ? contactList : []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch calendar data:", error);
-    } finally {
-      setInitialLoading(false);
-      setRefreshing(false);
-    }
-  };
 
-  // Initial load
-  useEffect(() => {
-    fetchData(true);
+        // Update cache
+        calendarCache.todaysTasks = today;
+        calendarCache.overdueTasks = overdue;
+        calendarCache.stats = taskStats;
+        calendarCache.contacts = Array.isArray(contactList) ? contactList : [];
+        calendarCache.staticDataTimestamp = Date.now();
+
+        return {
+          todaysTasks: today,
+          overdueTasks: overdue,
+          stats: taskStats,
+          contacts: calendarCache.contacts,
+        };
+      } finally {
+        calendarCache.pendingRequests.delete(requestKey);
+      }
+    })();
+
+    calendarCache.pendingRequests.set(requestKey, promise);
+    return promise;
   }, []);
 
-  // Month change - only fetch calendar tasks
+  // Invalidate cache (called after mutations)
+  const invalidateCache = useCallback(() => {
+    calendarCache.staticDataTimestamp = null;
+    calendarCache.monthlyTasks.clear();
+  }, []);
+
+  // Initial load with stale-while-revalidate
   useEffect(() => {
-    if (!initialLoading) {
-      fetchData(false);
+    isMountedRef.current = true;
+    
+    const loadInitialData = async () => {
+      const monthKey = getMonthKey(currentDate);
+      
+      // Check if we have valid cached data
+      const hasValidStaticData = isStaticDataValid();
+      const hasValidMonthData = isMonthDataValid(monthKey);
+      
+      if (hasValidStaticData && hasValidMonthData) {
+        // Use cached data immediately
+        setTasks(calendarCache.monthlyTasks.get(monthKey)?.data || []);
+        setTodaysTasks(calendarCache.todaysTasks || []);
+        setOverdueTasks(calendarCache.overdueTasks || []);
+        setStats(calendarCache.stats);
+        setContacts(calendarCache.contacts || []);
+        setLastUpdated(new Date(calendarCache.staticDataTimestamp));
+        setInitialLoading(false);
+        
+        // Background revalidate if stale
+        if (!isStaticDataFresh() || !isMonthDataFresh(monthKey)) {
+          setIsBackgroundRefresh(true);
+          try {
+            const [monthTasks, staticData] = await Promise.all([
+              fetchMonthlyTasks(currentDate, true),
+              fetchStaticData(true),
+            ]);
+            
+            if (isMountedRef.current) {
+              setTasks(monthTasks);
+              setTodaysTasks(staticData.todaysTasks);
+              setOverdueTasks(staticData.overdueTasks);
+              setStats(staticData.stats);
+              setContacts(staticData.contacts);
+              setLastUpdated(new Date());
+            }
+          } catch (err) {
+            console.warn("Background refresh failed:", err);
+          } finally {
+            if (isMountedRef.current) {
+              setIsBackgroundRefresh(false);
+            }
+          }
+        }
+      } else {
+        // No valid cache, do full load
+        setInitialLoading(true);
+        try {
+          const [monthTasks, staticData] = await Promise.all([
+            fetchMonthlyTasks(currentDate, true),
+            fetchStaticData(true),
+          ]);
+          
+          if (isMountedRef.current) {
+            setTasks(monthTasks);
+            setTodaysTasks(staticData.todaysTasks);
+            setOverdueTasks(staticData.overdueTasks);
+            setStats(staticData.stats);
+            setContacts(staticData.contacts);
+            setLastUpdated(new Date());
+          }
+        } catch (error) {
+          console.error("Failed to fetch calendar data:", error);
+        } finally {
+          if (isMountedRef.current) {
+            setInitialLoading(false);
+          }
+        }
+      }
+    };
+
+    loadInitialData();
+    
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Month navigation - fetch month data with cache
+  useEffect(() => {
+    if (initialLoading) return;
+    
+    const loadMonthData = async () => {
+      const monthKey = getMonthKey(currentDate);
+      
+      // Check cache first
+      if (isMonthDataValid(monthKey)) {
+        setTasks(calendarCache.monthlyTasks.get(monthKey)?.data || []);
+        
+        // Background refresh if stale
+        if (!isMonthDataFresh(monthKey)) {
+          setRefreshing(true);
+          try {
+            const monthTasks = await fetchMonthlyTasks(currentDate, true);
+            if (isMountedRef.current) {
+              setTasks(monthTasks);
+            }
+          } finally {
+            if (isMountedRef.current) {
+              setRefreshing(false);
+            }
+          }
+        }
+      } else {
+        // No cache, fetch with loading indicator
+        setRefreshing(true);
+        try {
+          const monthTasks = await fetchMonthlyTasks(currentDate, true);
+          if (isMountedRef.current) {
+            setTasks(monthTasks);
+          }
+        } finally {
+          if (isMountedRef.current) {
+            setRefreshing(false);
+          }
+        }
+      }
+    };
+
+    loadMonthData();
+  }, [currentDate, initialLoading, fetchMonthlyTasks]);
+
+  // Full refresh (after mutations)
+  const refreshAllData = useCallback(async () => {
+    invalidateCache();
+    setRefreshing(true);
+    
+    try {
+      const [monthTasks, staticData] = await Promise.all([
+        fetchMonthlyTasks(currentDate, true),
+        fetchStaticData(true),
+      ]);
+      
+      if (isMountedRef.current) {
+        setTasks(monthTasks);
+        setTodaysTasks(staticData.todaysTasks);
+        setOverdueTasks(staticData.overdueTasks);
+        setStats(staticData.stats);
+        setContacts(staticData.contacts);
+        setLastUpdated(new Date());
+      }
+    } catch (error) {
+      console.error("Failed to refresh calendar data:", error);
+    } finally {
+      if (isMountedRef.current) {
+        setRefreshing(false);
+      }
     }
-  }, [currentDate]);
+  }, [currentDate, invalidateCache, fetchMonthlyTasks, fetchStaticData]);
 
   // Format time to HH:MM
   const formatTime = (timeStr) => {
@@ -209,7 +464,7 @@ const CalendarView = () => {
       const newStatus = task.status === "COMPLETED" ? "PENDING" : "COMPLETED";
       await updateTask(task.task_id, { status: newStatus });
       // Refresh all data including stats when status changes
-      fetchData(true);
+      refreshAllData();
     } catch (error) {
       console.error("Failed to update task:", error);
     }
@@ -221,7 +476,7 @@ const CalendarView = () => {
     try {
       await deleteTask(taskId);
       // Refresh all data including stats when task is deleted
-      fetchData(true);
+      refreshAllData();
     } catch (error) {
       console.error("Failed to delete task:", error);
     }
@@ -261,16 +516,9 @@ const CalendarView = () => {
   const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const monthName = currentDate.toLocaleString("default", { month: "long", year: "numeric" });
 
-  // Only show full loading screen on initial load
-  if (initialLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="flex flex-col items-center gap-3">
-          <RefreshCw className="w-8 h-8 text-sky-500 animate-spin" />
-          <p className="text-gray-500">Loading calendar...</p>
-        </div>
-      </div>
-    );
+  // Only show full loading screen on initial load without cached data
+  if (initialLoading && !stats) {
+    return <CalendarSkeleton />;
   }
 
   return (
@@ -279,10 +527,25 @@ const CalendarView = () => {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Calendar</h1>
-          <p className="text-gray-500 mt-1">Manage your tasks, calls, and follow-ups</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-gray-500">Manage your tasks, calls, and follow-ups</p>
+            {lastUpdated && (
+              <span className="text-xs text-gray-400">
+                • Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </div>
         </div>
         
         <div className="flex items-center gap-3">
+          {/* Background refresh indicator */}
+          {isBackgroundRefresh && (
+            <span className="flex items-center gap-1.5 text-xs text-sky-600">
+              <RefreshCw className="w-3 h-3 animate-spin" />
+              Updating...
+            </span>
+          )}
+          
           {/* Focus Mode Buttons */}
           <div className="flex bg-gray-100 rounded-lg p-1">
             <button
@@ -548,7 +811,7 @@ const CalendarView = () => {
                 await createTask(taskData);
               }
               // Refresh all data including stats when task is modified
-              fetchData(true);
+              refreshAllData();
               setShowAddModal(false);
               setEditingTask(null);
             } catch (error) {
@@ -560,4 +823,89 @@ const CalendarView = () => {
     </div>
   );
 }
+
+// =============================================================================
+// SKELETON LOADER - Shows content structure while loading
+// =============================================================================
+function CalendarSkeleton() {
+  return (
+    <div className="space-y-6 p-6 animate-pulse">
+      {/* Header Skeleton */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <div className="h-8 w-32 bg-gray-200 rounded-lg mb-2" />
+          <div className="h-4 w-64 bg-gray-100 rounded" />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-40 bg-gray-100 rounded-lg" />
+          <div className="h-10 w-28 bg-gray-200 rounded-lg" />
+        </div>
+      </div>
+
+      {/* Stats Cards Skeleton */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gray-100 rounded-lg" />
+              <div>
+                <div className="h-6 w-12 bg-gray-200 rounded mb-1" />
+                <div className="h-3 w-16 bg-gray-100 rounded" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Main Content Grid Skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Calendar Skeleton */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center justify-between mb-5">
+            <div className="h-6 w-40 bg-gray-200 rounded" />
+            <div className="flex gap-2">
+              <div className="h-8 w-8 bg-gray-100 rounded" />
+              <div className="h-8 w-16 bg-gray-100 rounded" />
+              <div className="h-8 w-8 bg-gray-100 rounded" />
+            </div>
+          </div>
+          {/* Week days */}
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+              <div key={i} className="h-4 bg-gray-100 rounded mx-2" />
+            ))}
+          </div>
+          {/* Calendar grid */}
+          <div className="grid grid-cols-7 gap-1">
+            {Array.from({ length: 35 }).map((_, i) => (
+              <div key={i} className="h-16 bg-gray-50 rounded-lg" />
+            ))}
+          </div>
+        </div>
+
+        {/* Task Panel Skeleton */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="h-5 w-32 bg-gray-200 rounded" />
+            <div className="h-8 w-24 bg-gray-100 rounded" />
+          </div>
+          <div className="space-y-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 bg-gray-200 rounded" />
+                  <div className="flex-1">
+                    <div className="h-4 w-3/4 bg-gray-200 rounded mb-2" />
+                    <div className="h-3 w-1/2 bg-gray-100 rounded" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default CalendarView;

@@ -84,6 +84,13 @@ router.post(
   contactController.convertToOpportunity
 );
 
+// Get contact financials (opportunities & deals)
+router.get(
+  "/:id/financials",
+  authenticateEmployee,
+  contactController.getContactFinancials
+);
+
 /* ---------------------------------------------------
    DEAL & CUSTOMER
 --------------------------------------------------- */
