@@ -10,7 +10,9 @@ const TakeActionModal = ({
   loading = false 
 }) => {
   const [expectedValue, setExpectedValue] = useState('');
+  const [productName, setProductName] = useState('');
   const [error, setError] = useState('');
+  const [productError, setProductError] = useState('');
 
   if (!isOpen || !contact || !targetStatus) return null;
 
@@ -27,8 +29,22 @@ const TakeActionModal = ({
       return;
     }
 
+    // Validate product name for CUSTOMER status
+    if (targetStatus === 'CUSTOMER' && !productName.trim()) {
+      setProductError('Product name is required');
+      return;
+    }
+
     setError('');
-    onConfirm(contact, targetStatus, requiresValue ? parseFloat(expectedValue) : null);
+    setProductError('');
+    
+    // Pass product name (converted to lowercase) along with other data
+    const additionalData = {
+      value: requiresValue ? parseFloat(expectedValue) : null,
+      productName: targetStatus === 'CUSTOMER' ? productName.toLowerCase().trim() : null
+    };
+    
+    onConfirm(contact, targetStatus, additionalData);
   };
 
   const getValueLabel = () => {
@@ -142,6 +158,35 @@ const TakeActionModal = ({
                 <div className="flex items-center gap-1 mt-2 text-red-600">
                   <AlertCircle className="w-4 h-4" />
                   <span className="text-sm">{error}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Product Name Input (for Customer only) */}
+          {targetStatus === 'CUSTOMER' && (
+            <div className="mb-6">
+              <label htmlFor="productName" className="block text-sm font-medium text-gray-700 mb-2">
+                Product Name *
+              </label>
+              <input
+                type="text"
+                id="productName"
+                value={productName}
+                onChange={(e) => {
+                  setProductName(e.target.value);
+                  setProductError('');
+                }}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-colors ${
+                  productError ? 'border-red-500' : 'border-gray-300'
+                }`}
+                placeholder="Enter product name (will be saved in lowercase)"
+              />
+              <p className="text-xs text-gray-500 mt-1">Product name will be automatically converted to lowercase</p>
+              {productError && (
+                <div className="flex items-center gap-1 mt-2 text-red-600">
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="text-sm">{productError}</span>
                 </div>
               )}
             </div>

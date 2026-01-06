@@ -34,10 +34,24 @@ export const getAdminAnalytics = async () => {
   return response.data;
 };
 
+// Get product analytics
+export const getProductAnalytics = async () => {
+  const response = await api.get("/analytics/products");
+  return response.data;
+};
+
+// Get product details
+export const getProductDetails = async (productName) => {
+  const response = await api.get(`/analytics/products/${encodeURIComponent(productName)}`);
+  return response.data;
+};
+
 export default {
   getComprehensiveAnalytics,
   getDashboard,
   getPipelineFunnel,
   getRecentActivities,
   getAdminAnalytics,
+  getProductAnalytics,
+  getProductDetails,
 };

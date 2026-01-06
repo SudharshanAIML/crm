@@ -6,3 +6,5 @@ backend/scripts/
 *.md
 .backup
 crm_google_oauth.json
+*.md
+venv/

@@ -101,4 +101,151 @@ router.post(
   emailController.sendEmail
 );
 
+/* ===================================================
+   GMAIL INBOX/SENT/DRAFTS ROUTES
+=================================================== */
+
+/**
+ * @route   GET /emails/gmail/inbox
+ * @desc    Get inbox messages from Gmail
+ * @access  Employee
+ */
+router.get(
+  "/gmail/inbox",
+  authenticateEmployee,
+  emailController.getGmailInbox
+);
+
+/**
+ * @route   GET /emails/gmail/sent
+ * @desc    Get sent messages from Gmail
+ * @access  Employee
+ */
+router.get(
+  "/gmail/sent",
+  authenticateEmployee,
+  emailController.getGmailSent
+);
+
+/**
+ * @route   GET /emails/gmail/drafts
+ * @desc    Get drafts from Gmail
+ * @access  Employee
+ */
+router.get(
+  "/gmail/drafts",
+  authenticateEmployee,
+  emailController.getGmailDrafts
+);
+
+/**
+ * @route   GET /emails/gmail/search
+ * @desc    Search Gmail messages
+ * @access  Employee
+ */
+router.get(
+  "/gmail/search",
+  authenticateEmployee,
+  emailController.searchGmail
+);
+
+/**
+ * @route   GET /emails/gmail/message/:messageId
+ * @desc    Get single message with full content
+ * @access  Employee
+ */
+router.get(
+  "/gmail/message/:messageId",
+  authenticateEmployee,
+  emailController.getGmailMessage
+);
+
+/**
+ * @route   POST /emails/gmail/message/:messageId/read
+ * @desc    Mark message as read
+ * @access  Employee
+ */
+router.post(
+  "/gmail/message/:messageId/read",
+  authenticateEmployee,
+  emailController.markMessageRead
+);
+
+/**
+ * @route   POST /emails/gmail/message/:messageId/unread
+ * @desc    Mark message as unread
+ * @access  Employee
+ */
+router.post(
+  "/gmail/message/:messageId/unread",
+  authenticateEmployee,
+  emailController.markMessageUnread
+);
+
+/**
+ * @route   DELETE /emails/gmail/message/:messageId
+ * @desc    Trash a message
+ * @access  Employee
+ */
+router.delete(
+  "/gmail/message/:messageId",
+  authenticateEmployee,
+  emailController.trashGmailMessage
+);
+
+/**
+ * @route   GET /emails/gmail/draft/:draftId
+ * @desc    Get single draft with full content
+ * @access  Employee
+ */
+router.get(
+  "/gmail/draft/:draftId",
+  authenticateEmployee,
+  emailController.getGmailDraft
+);
+
+/**
+ * @route   POST /emails/gmail/drafts
+ * @desc    Create a new draft
+ * @access  Employee
+ */
+router.post(
+  "/gmail/drafts",
+  authenticateEmployee,
+  emailController.createGmailDraft
+);
+
+/**
+ * @route   PUT /emails/gmail/draft/:draftId
+ * @desc    Update a draft
+ * @access  Employee
+ */
+router.put(
+  "/gmail/draft/:draftId",
+  authenticateEmployee,
+  emailController.updateGmailDraft
+);
+
+/**
+ * @route   DELETE /emails/gmail/draft/:draftId
+ * @desc    Delete a draft
+ * @access  Employee
+ */
+router.delete(
+  "/gmail/draft/:draftId",
+  authenticateEmployee,
+  emailController.deleteGmailDraft
+);
+
+/**
+ * @route   POST /emails/gmail/draft/:draftId/send
+ * @desc    Send a draft
+ * @access  Employee
+ */
+router.post(
+  "/gmail/draft/:draftId/send",
+  authenticateEmployee,
+  emailController.sendGmailDraft
+);
+
 export default router;

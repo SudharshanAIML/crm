@@ -9,13 +9,15 @@ export const createDeal = async (data) => {
     INSERT INTO deals (
       opportunity_id,
       deal_value,
+      product,
       closed_by
     )
-    VALUES (?, ?, ?)
+    VALUES (?, ?, ?, ?)
     `,
     [
       data.opportunity_id,
       data.deal_value,
+      data.product || null,
       data.closed_by,
     ]
   );

@@ -2,6 +2,7 @@ CREATE TABLE "deals" (
   "deal_id" int NOT NULL AUTO_INCREMENT,
   "opportunity_id" int NOT NULL,
   "deal_value" decimal(12,2) NOT NULL,
+  "product" varchar(255) DEFAULT NULL,
   "closed_by" int DEFAULT NULL,
   "closed_at" timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY ("deal_id"),

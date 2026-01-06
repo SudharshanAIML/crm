@@ -72,9 +72,10 @@ export const convertToOpportunity = async (contactId, expectedValue) => {
 };
 
 // Close Deal - Convert Opportunity to Customer
-export const closeDeal = async (opportunityId, dealValue) => {
+export const closeDeal = async (opportunityId, dealValue, productName = null) => {
   const response = await api.post(`/contacts/opportunities/${opportunityId}/close`, {
     dealValue,
+    productName,
   });
   return response.data;
 };

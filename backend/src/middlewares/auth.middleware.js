@@ -1,9 +1,6 @@
 import jwt from "jsonwebtoken";
 
-/**
- * Authentication Middleware
- * Attaches authenticated user to req.user
- */
+
 export const authenticateEmployee = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -28,16 +25,6 @@ export const authenticateEmployee = (req, res, next) => {
       });
     }
 
-    /**
-     * Expected token payload:
-     * {
-     *   empId,
-     *   companyId,
-     *   role,
-     *   iat,
-     *   exp
-     * }
-     */
     req.user = {
       empId: decoded.empId,
       companyId: decoded.companyId,

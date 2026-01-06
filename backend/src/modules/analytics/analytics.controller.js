@@ -253,3 +253,50 @@ export const getAdminAnalytics = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @desc   Get product analytics
+ * @route  GET /analytics/products
+ * @access Employee
+ */
+export const getProductAnalytics = async (req, res, next) => {
+  try {
+    const companyId = req.user.companyId;
+
+    if (!companyId) {
+      return res.status(400).json({
+        message: "Company ID is required",
+      });
+    }
+
+    const data = await analyticsService.getProductAnalytics(companyId);
+
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc   Get product details
+ * @route  GET /analytics/products/:productName
+ * @access Employee
+ */
+export const getProductDetails = async (req, res, next) => {
+  try {
+    const companyId = req.user.companyId;
+    const { productName } = req.params;
+
+    if (!companyId) {
+      return res.status(400).json({
+        message: "Company ID is required",
+      });
+    }
+
+    const data = await analyticsService.getProductDetails(companyId, productName);
+
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+};

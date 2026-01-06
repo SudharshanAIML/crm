@@ -201,7 +201,7 @@ export const convertToOpportunity = async (
 /* ---------------------------------------------------
    SYSTEM: OPPORTUNITY → CUSTOMER (Deal Closed)
 --------------------------------------------------- */
-export const closeDeal = async (contactId, empId, dealValue) => {
+export const closeDeal = async (contactId, empId, dealValue, productName = null) => {
   // Find the open opportunity for this contact
   const opportunity = await opportunityRepo.getOpenByContact(contactId);
 
@@ -212,6 +212,7 @@ export const closeDeal = async (contactId, empId, dealValue) => {
   await dealRepo.createDeal({
     opportunity_id: opportunity.opportunity_id,
     deal_value: dealValue,
+    product: productName ? productName.toLowerCase().trim() : null,
     closed_by: empId,
   });
 

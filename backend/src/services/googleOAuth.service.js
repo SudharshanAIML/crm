@@ -10,12 +10,15 @@ import { db } from "../config/db.js";
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/auth/google/callback"
+  process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/emails/callback"
 );
 
-// Required scopes for sending emails
+// Required scopes for full Gmail access (read, send, drafts)
 const SCOPES = [
+  "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/gmail.send",
+  "https://www.googleapis.com/auth/gmail.compose",
+  "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/userinfo.email",
   "https://www.googleapis.com/auth/userinfo.profile",
 ];

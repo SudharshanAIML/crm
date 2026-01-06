@@ -16,8 +16,10 @@ import {
   ArrowRight,
   Calendar,
   RefreshCw,
+  Package,
 } from "lucide-react";
 import { getComprehensiveAnalytics } from "../../services/analyticsService";
+import ProductAnalytics from "./ProductAnalytics";
 
 // =============================================================================
 // CACHE CONFIGURATION - Inspired by SWR/React Query patterns used in Salesforce/HubSpot
@@ -71,6 +73,7 @@ export default function AnalyticsDashboard() {
   const [lastUpdated, setLastUpdated] = useState(() => 
     analyticsCache.timestamp ? new Date(analyticsCache.timestamp) : null
   );
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' or 'products'
   
   // Track if component is mounted to prevent state updates on unmount
   const isMountedRef = useRef(true);
@@ -271,33 +274,72 @@ export default function AnalyticsDashboard() {
           <h1 className="text-2xl font-bold text-gray-800">Analytics Dashboard</h1>
           <div className="flex items-center gap-2 mt-1">
             <p className="text-gray-500">Track your pipeline health and performance</p>
-            {lastUpdatedText && (
+            {lastUpdatedText && activeTab === 'overview' && (
               <span className="text-xs text-gray-400 flex items-center gap-1">
                 • Updated {lastUpdatedText}
               </span>
             )}
           </div>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className={`flex items-center gap-2 px-4 py-2 text-sky-600 bg-sky-50 rounded-lg hover:bg-sky-100 transition-colors ${isRefreshing ? 'opacity-70 cursor-not-allowed' : ''}`}
-        >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          {isRefreshing ? 'Refreshing...' : 'Refresh'}
-        </button>
+        {activeTab === 'overview' && (
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className={`flex items-center gap-2 px-4 py-2 text-sky-600 bg-sky-50 rounded-lg hover:bg-sky-100 transition-colors ${isRefreshing ? 'opacity-70 cursor-not-allowed' : ''}`}
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+        )}
       </div>
 
-      {/* Background refresh indicator */}
-      {isRefreshing && analytics && (
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-sky-50 text-sky-600 text-sm rounded-lg w-fit">
-          <RefreshCw className="w-3 h-3 animate-spin" />
-          <span>Updating data in background...</span>
-        </div>
-      )}
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex gap-6">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'overview'
+                ? 'border-sky-500 text-sky-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              <span>Overview</span>
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('products')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'products'
+                ? 'border-sky-500 text-sky-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Package className="w-4 h-4" />
+              <span>Products</span>
+            </div>
+          </button>
+        </nav>
+      </div>
 
-      {/* Error banner (when we have cached data but refresh failed) */}
-      {error && analytics && (
+      {/* Tab Content */}
+      {activeTab === 'products' ? (
+        <ProductAnalytics />
+      ) : (
+        <>
+          {/* Background refresh indicator */}
+          {isRefreshing && analytics && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-sky-50 text-sky-600 text-sm rounded-lg w-fit">
+              <RefreshCw className="w-3 h-3 animate-spin" />
+              <span>Updating data in background...</span>
+            </div>
+          )}
+
+          {/* Error banner (when we have cached data but refresh failed) */}
+          {error && analytics && (
         <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 text-amber-700 text-sm rounded-lg">
           <AlertCircle className="w-4 h-4" />
           <span>{error}</span>
@@ -377,6 +419,8 @@ export default function AnalyticsDashboard() {
         <TrendsChart trends={trends} maxLeads={trendsMaxLeads} />
         <StuckLeads leads={stagePerformance?.stuckLeads || []} />
       </div>
+        </>
+      )}
     </div>
   );
 }

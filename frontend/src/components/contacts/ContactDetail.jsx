@@ -32,8 +32,6 @@ import {
   CircleDollarSign,
   BadgeCheck,
   AlertCircle,
-  UserCircle2,
-  Shield,
 } from 'lucide-react';
 import { getSessionsByContact } from '../../services/sessionService';
 import { getContactFinancials } from '../../services/contactService';
@@ -616,28 +614,6 @@ const ContactDetail = ({
                 </h4>
 
                 <div className="space-y-2">
-                  {/* Contact Owner - Prominent Display */}
-                  <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100">
-                    <div className="w-9 h-9 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Shield className="w-4 h-4 text-indigo-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-semibold text-indigo-400 uppercase tracking-wider">Contact Owner</p>
-                      {contact.assigned_emp_name ? (
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold text-indigo-700">{contact.assigned_emp_name}</p>
-                          {contact.assigned_emp_department && (
-                            <span className="text-xs text-indigo-500 bg-indigo-100 px-1.5 py-0.5 rounded">
-                              {contact.assigned_emp_department}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-500 italic">Unassigned</p>
-                      )}
-                    </div>
-                  </div>
-
                   {/* Source */}
                   {contact.source && (
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">

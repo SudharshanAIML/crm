@@ -12,7 +12,8 @@ import {
   ChevronLeft,
   ChevronRight,
   LayoutGrid,
-  CalendarDays
+  CalendarDays,
+  Mail
 } from 'lucide-react';
 
 const Sidebar = ({ activeStage, onStageChange, contactCounts = {}, collapsed, onToggle, onViewChange, activeView = 'contacts' }) => {
@@ -164,6 +165,18 @@ const Sidebar = ({ activeStage, onStageChange, contactCounts = {}, collapsed, on
             >
               <LayoutGrid className="w-5 h-5 flex-shrink-0" />
               {!collapsed && <span className="font-medium text-sm">Contacts</span>}
+            </button>
+            <button
+              onClick={() => onViewChange && onViewChange('gmail')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
+                activeView === 'gmail'
+                  ? 'bg-sky-100 text-sky-700'
+                  : 'text-gray-600 hover:bg-gray-50'
+              } ${collapsed ? 'justify-center px-2' : ''}`}
+              title="Gmail"
+            >
+              <Mail className="w-5 h-5 flex-shrink-0" />
+              {!collapsed && <span className="font-medium text-sm">Gmail</span>}
             </button>
             <button
               onClick={() => onViewChange && onViewChange('calendar')}

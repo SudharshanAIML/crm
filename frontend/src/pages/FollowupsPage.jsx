@@ -113,7 +113,7 @@ const FollowupsPage = () => {
     }
   };
 
-  const handleConfirmPromotion = async (contact, targetStatus, expectedValue) => {
+  const handleConfirmPromotion = async (contact, targetStatus, additionalData) => {
     try {
       setSubmitting(true);
       setError(null);
@@ -123,9 +123,9 @@ const FollowupsPage = () => {
       } else if (targetStatus === 'SQL') {
         await promoteToSQL(contact.contact_id);
       } else if (targetStatus === 'OPPORTUNITY') {
-        await convertToOpportunity(contact.contact_id, expectedValue);
+        await convertToOpportunity(contact.contact_id, additionalData.value);
       } else if (targetStatus === 'CUSTOMER') {
-        await closeDeal(contact.contact_id, expectedValue);
+        await closeDeal(contact.contact_id, additionalData.value, additionalData.productName);
       } else if (targetStatus === 'EVANGELIST') {
         await convertToEvangelist(contact.contact_id);
       }

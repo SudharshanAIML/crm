@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mail, Star, MessageSquare, UserCircle } from 'lucide-react';
+import { Mail, Star, MessageSquare } from 'lucide-react';
 
 const ContactCard = ({ contact, onSelect, onEmailClick, onFollowupsClick }) => {
   const [imageError, setImageError] = useState(false);
@@ -96,16 +96,6 @@ const ContactCard = ({ contact, onSelect, onEmailClick, onFollowupsClick }) => {
             </div>
           </div>
         </div>
-
-        {/* Assigned Employee Badge */}
-        {contact.assigned_emp_name && (
-          <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-100">
-            <UserCircle className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-            <span className="text-xs font-medium text-indigo-700 truncate">
-              Assigned to {contact.assigned_emp_name}
-            </span>
-          </div>
-        )}
 
         {/* Divider */}
         <div className="border-t border-gray-100 my-4"></div>

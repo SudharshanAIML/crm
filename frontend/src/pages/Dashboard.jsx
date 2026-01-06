@@ -8,6 +8,7 @@ import Sidebar from '../components/layout/Sidebar';
 import Profile from '../components/layout/Profile';
 import AnalyticsDashboard from '../components/analytics/AnalyticsDashboard';
 import CalendarView from '../components/calendar/CalendarView';
+import { GmailView } from '../components/gmail';
 import { getContacts, createContact, updateContact, promoteToMQL, promoteToSQL, convertToOpportunity } from '../services/contactService';
 import { createSession } from '../services/sessionService';
 import { Bell, Menu, X, Settings, LogOut, User, ChevronDown } from 'lucide-react';
@@ -136,7 +137,7 @@ const Dashboard = () => {
     setTakeActionData({ contact, targetStatus });
   };
 
-  const handleConfirmPromotion = async (contact, targetStatus, expectedValue) => {
+  const handleConfirmPromotion = async (contact, targetStatus, additionalData) => {
     try {
       setSubmitting(true);
       setError(null);
@@ -146,7 +147,7 @@ const Dashboard = () => {
       } else if (targetStatus === 'SQL') {
         await promoteToSQL(contact.contact_id);
       } else if (targetStatus === 'OPPORTUNITY') {
-        await convertToOpportunity(contact.contact_id, expectedValue);
+        await convertToOpportunity(contact.contact_id, additionalData ? additionalData.value : null);
       }
       
       await fetchContacts();
@@ -236,6 +237,8 @@ const Dashboard = () => {
                     ? 'Analytics Dashboard'
                     : activeView === 'calendar'
                     ? 'Calendar'
+                    : activeView === 'gmail'
+                    ? 'Gmail'
                     : `${activeStage.charAt(0) + activeStage.slice(1).toLowerCase()} Pipeline`
                   }
                 </h1>
@@ -305,6 +308,8 @@ const Dashboard = () => {
             <AnalyticsDashboard />
           ) : activeView === 'calendar' ? (
             <CalendarView />
+          ) : activeView === 'gmail' ? (
+            <GmailView />
           ) : (
             <ContactGrid
               contacts={contacts}

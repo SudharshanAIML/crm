@@ -339,11 +339,7 @@ const AdminDashboard = () => {
   };
 
   // Get unique departments for filter
-  const departments = [...new Set(employees.map(e => e.department).filter(Boolean))].sort((a, b) => {
-    if (a === 'Other') return 1;
-    if (b === 'Other') return -1;
-    return a.localeCompare(b);
-  });
+  const departments = [...new Set(employees.map(e => e.department).filter(Boolean))];
 
   // Optimized sorting handler using useCallback
   const handleEmployeeSort = useCallback((column) => {
@@ -1868,35 +1864,27 @@ const AdminDashboard = () => {
 
                   {/* Employee Leaderboard */}
                   <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                        <Trophy className="w-4 h-4 text-amber-500" />
-                        Employee Leaderboard
-                      </h3>
-                      {analytics.employeeLeaderboard.length > 7 && (
-                        <span className="text-xs text-gray-400">
-                          Showing top performers • Scroll for more
-                        </span>
-                      )}
-                    </div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <Trophy className="w-4 h-4 text-amber-500" />
+                      Employee Leaderboard
+                    </h3>
                     <div className="overflow-x-auto">
-                      <div className="max-h-[420px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                        <table className="w-full">
-                          <thead className="sticky top-0 bg-white z-10">
-                            <tr className="border-b border-gray-100">
-                              <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Rank</th>
-                              <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Employee</th>
-                              <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Contacts</th>
-                              <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Conversions</th>
-                              <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Conv. Rate</th>
-                              <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Deals</th>
-                              <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Revenue</th>
-                              <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Sessions</th>
-                              <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Avg Rating</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-50">
-                            {analytics.employeeLeaderboard.map((emp, index) => (
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-gray-100">
+                            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Rank</th>
+                            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
+                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Contacts</th>
+                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Conversions</th>
+                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Conv. Rate</th>
+                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Deals</th>
+                            <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Revenue</th>
+                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Sessions</th>
+                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Avg Rating</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {analytics.employeeLeaderboard.map((emp, index) => (
                             <tr key={emp.emp_id} className="hover:bg-gray-50 transition-colors">
                               <td className="py-3 px-4">
                                 {index === 0 ? (
@@ -1958,7 +1946,6 @@ const AdminDashboard = () => {
                           ))}
                         </tbody>
                       </table>
-                      </div>
                       {analytics.employeeLeaderboard.length === 0 && (
                         <p className="text-sm text-gray-400 text-center py-8">No employee data available</p>
                       )}

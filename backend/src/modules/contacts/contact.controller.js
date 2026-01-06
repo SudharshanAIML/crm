@@ -176,7 +176,7 @@ export const convertToOpportunity = async (req, res, next) => {
  */
 export const closeDeal = async (req, res, next) => {
   try {
-    const { dealValue } = req.body;
+    const { dealValue, productName } = req.body;
 
     if (!dealValue) {
       return res.status(400).json({
@@ -187,7 +187,8 @@ export const closeDeal = async (req, res, next) => {
     await contactService.closeDeal(
       req.params.id,   // contactId
       req.user.empId,
-      dealValue
+      dealValue,
+      productName
     );
 
     res.json({

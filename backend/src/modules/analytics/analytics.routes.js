@@ -152,4 +152,32 @@ router.get(
   analyticsController.getAdminAnalytics
 );
 
+/* ---------------------------------------------------
+   GET PRODUCT ANALYTICS
+--------------------------------------------------- */
+/**
+ * @route   GET /analytics/products
+ * @desc    Get product analytics and performance
+ * @access  Employee
+ */
+router.get(
+  "/products",
+  authenticateEmployee,
+  analyticsController.getProductAnalytics
+);
+
+/* ---------------------------------------------------
+   GET PRODUCT DETAILS
+--------------------------------------------------- */
+/**
+ * @route   GET /analytics/products/:productName
+ * @desc    Get detailed analytics for a specific product
+ * @access  Employee
+ */
+router.get(
+  "/products/:productName",
+  authenticateEmployee,
+  analyticsController.getProductDetails
+);
+
 export default router;

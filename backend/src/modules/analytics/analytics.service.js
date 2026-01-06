@@ -1,4 +1,5 @@
 import * as analyticsRepo from "./analytics.repo.js";
+import * as productAnalyticsRepo from "./productAnalytics.repo.js";
 
 /* ---------------------------------------------------
    GET DASHBOARD DATA
@@ -127,3 +128,18 @@ export const getComprehensiveAnalytics = async (companyId, empId) => {
 export const getAdminAnalytics = async (companyId) => {
   return await analyticsRepo.getAdminAnalytics(companyId);
 };
+
+/* ---------------------------------------------------
+   GET PRODUCT ANALYTICS
+--------------------------------------------------- */
+export const getProductAnalytics = async (companyId) => {
+  return await productAnalyticsRepo.getProductAnalytics(companyId);
+};
+
+/* ---------------------------------------------------
+   GET PRODUCT DETAILS
+--------------------------------------------------- */
+export const getProductDetails = async (companyId, productName) => {
+  return await productAnalyticsRepo.getProductDetails(companyId, productName);
+};
+

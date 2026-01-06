@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Minus, Maximize2, Minimize2, Send, Paperclip, Smile, Link2, Trash2, Bold, Italic, Underline, AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
 import { sendEmail, getConnectionStatus, getConnectUrl } from '../../services/emailService';
-
-// Common emojis for quick selection
+//nishithaaa
 const EMOJI_LIST = [
   '😀', '😃', '😄', '😁', '😊', '🙂', '😉', '😍',
   '🤔', '😎', '👍', '👋', '🎉', '✨', '💯', '🔥',
   '❤️', '💪', '🙏', '👏', '🤝', '📧', '📞', '💼',
 ];
-
+//emailuuuuu
 const EmailComposer = ({ 
   isOpen, 
   onClose, 
@@ -36,14 +35,12 @@ const EmailComposer = ({
   const bodyRef = useRef(null);
   const emojiPickerRef = useRef(null);
 
-  // Check email connection status when modal opens
   useEffect(() => {
     if (isOpen) {
       checkConnection();
     }
   }, [isOpen]);
 
-  // Update form when contact changes
   useEffect(() => {
     if (contact) {
       setFormData({
@@ -56,7 +53,6 @@ const EmailComposer = ({
     }
   }, [contact]);
 
-  // Close emoji picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
@@ -107,7 +103,6 @@ const EmailComposer = ({
         body: formData.body,
       });
 
-      // Success - close and notify
       onSuccess?.();
       onClose();
       setFormData({ to: contact?.email || '', subject: '', body: '' });

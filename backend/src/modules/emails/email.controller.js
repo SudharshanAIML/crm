@@ -1,5 +1,6 @@
 import * as emailService from "./email.service.js";
 import * as contactService from "../contacts/contact.service.js";
+import * as gmailService from "../../services/gmail.service.js";
 
 /**
  * @desc   Track email click (LEAD → MQL conversion trigger)
@@ -151,6 +152,277 @@ export const disconnectEmail = async (req, res, next) => {
   try {
     await emailService.disconnectEmail(req.user.empId);
     res.json({ message: "Gmail account disconnected successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/* ===================================================
+   GMAIL INBOX/SENT/DRAFTS CONTROLLERS
+=================================================== */
+
+/**
+ * @desc   Get Gmail inbox messages
+ * @route  GET /emails/gmail/inbox
+ * @access Employee
+ */
+export const getGmailInbox = async (req, res, next) => {
+  try {
+    const { maxResults, pageToken, q } = req.query;
+    console.log(`📧 Fetching inbox for employee ${req.user.empId}`);
+    
+    const result = await gmailService.getInboxMessages(req.user.empId, {
+      maxResults: parseInt(maxResults) || 20,
+      pageToken,
+      q,
+    });
+    
+    console.log(`📧 Found ${result.messages?.length || 0} messages`);
+    res.json(result);
+  } catch (error) {
+    console.error("❌ Gmail inbox error:", error.message, error.stack);
+    if (error.message === "EMAIL_NOT_CONNECTED") {
+      return res.status(403).json({
+        message: "Please connect your Gmail account",
+        code: "EMAIL_NOT_CONNECTED",
+      });
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc   Get Gmail sent messages
+ * @route  GET /emails/gmail/sent
+ * @access Employee
+ */
+export const getGmailSent = async (req, res, next) => {
+  try {
+    const { maxResults, pageToken } = req.query;
+    const result = await gmailService.getSentMessages(req.user.empId, {
+      maxResults: parseInt(maxResults) || 20,
+      pageToken,
+    });
+    res.json(result);
+  } catch (error) {
+    if (error.message === "EMAIL_NOT_CONNECTED") {
+      return res.status(403).json({
+        message: "Please connect your Gmail account",
+        code: "EMAIL_NOT_CONNECTED",
+      });
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc   Get Gmail drafts
+ * @route  GET /emails/gmail/drafts
+ * @access Employee
+ */
+export const getGmailDrafts = async (req, res, next) => {
+  try {
+    const { maxResults, pageToken } = req.query;
+    const result = await gmailService.getDrafts(req.user.empId, {
+      maxResults: parseInt(maxResults) || 20,
+      pageToken,
+    });
+    res.json(result);
+  } catch (error) {
+    if (error.message === "EMAIL_NOT_CONNECTED") {
+      return res.status(403).json({
+        message: "Please connect your Gmail account",
+        code: "EMAIL_NOT_CONNECTED",
+      });
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc   Search Gmail messages
+ * @route  GET /emails/gmail/search
+ * @access Employee
+ */
+export const searchGmail = async (req, res, next) => {
+  try {
+    const { q, maxResults, pageToken } = req.query;
+    if (!q) {
+      return res.status(400).json({ message: "Search query is required" });
+    }
+    const result = await gmailService.searchMessages(req.user.empId, q, {
+      maxResults: parseInt(maxResults) || 20,
+      pageToken,
+    });
+    res.json(result);
+  } catch (error) {
+    if (error.message === "EMAIL_NOT_CONNECTED") {
+      return res.status(403).json({
+        message: "Please connect your Gmail account",
+        code: "EMAIL_NOT_CONNECTED",
+      });
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc   Get single Gmail message
+ * @route  GET /emails/gmail/message/:messageId
+ * @access Employee
+ */
+export const getGmailMessage = async (req, res, next) => {
+  try {
+    const message = await gmailService.getMessage(req.user.empId, req.params.messageId);
+    res.json(message);
+  } catch (error) {
+    if (error.message === "EMAIL_NOT_CONNECTED") {
+      return res.status(403).json({
+        message: "Please connect your Gmail account",
+        code: "EMAIL_NOT_CONNECTED",
+      });
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc   Mark message as read
+ * @route  POST /emails/gmail/message/:messageId/read
+ * @access Employee
+ */
+export const markMessageRead = async (req, res, next) => {
+  try {
+    await gmailService.modifyMessageLabels(req.user.empId, req.params.messageId, {
+      removeLabels: ["UNREAD"],
+    });
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc   Mark message as unread
+ * @route  POST /emails/gmail/message/:messageId/unread
+ * @access Employee
+ */
+export const markMessageUnread = async (req, res, next) => {
+  try {
+    await gmailService.modifyMessageLabels(req.user.empId, req.params.messageId, {
+      addLabels: ["UNREAD"],
+    });
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc   Trash a Gmail message
+ * @route  DELETE /emails/gmail/message/:messageId
+ * @access Employee
+ */
+export const trashGmailMessage = async (req, res, next) => {
+  try {
+    await gmailService.trashMessage(req.user.empId, req.params.messageId);
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc   Get single Gmail draft
+ * @route  GET /emails/gmail/draft/:draftId
+ * @access Employee
+ */
+export const getGmailDraft = async (req, res, next) => {
+  try {
+    const draft = await gmailService.getDraft(req.user.empId, req.params.draftId);
+    res.json(draft);
+  } catch (error) {
+    if (error.message === "EMAIL_NOT_CONNECTED") {
+      return res.status(403).json({
+        message: "Please connect your Gmail account",
+        code: "EMAIL_NOT_CONNECTED",
+      });
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc   Create Gmail draft
+ * @route  POST /emails/gmail/drafts
+ * @access Employee
+ */
+export const createGmailDraft = async (req, res, next) => {
+  try {
+    const { to, subject, body, cc, bcc } = req.body;
+    const result = await gmailService.createDraft(req.user.empId, {
+      to,
+      subject,
+      body,
+      cc,
+      bcc,
+    });
+    res.status(201).json(result);
+  } catch (error) {
+    if (error.message === "EMAIL_NOT_CONNECTED") {
+      return res.status(403).json({
+        message: "Please connect your Gmail account",
+        code: "EMAIL_NOT_CONNECTED",
+      });
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc   Update Gmail draft
+ * @route  PUT /emails/gmail/draft/:draftId
+ * @access Employee
+ */
+export const updateGmailDraft = async (req, res, next) => {
+  try {
+    const { to, subject, body, cc, bcc } = req.body;
+    const result = await gmailService.updateDraft(req.user.empId, req.params.draftId, {
+      to,
+      subject,
+      body,
+      cc,
+      bcc,
+    });
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc   Delete Gmail draft
+ * @route  DELETE /emails/gmail/draft/:draftId
+ * @access Employee
+ */
+export const deleteGmailDraft = async (req, res, next) => {
+  try {
+    await gmailService.deleteDraft(req.user.empId, req.params.draftId);
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc   Send Gmail draft
+ * @route  POST /emails/gmail/draft/:draftId/send
+ * @access Employee
+ */
+export const sendGmailDraft = async (req, res, next) => {
+  try {
+    const result = await gmailService.sendDraft(req.user.empId, req.params.draftId);
+    res.json(result);
   } catch (error) {
     next(error);
   }
