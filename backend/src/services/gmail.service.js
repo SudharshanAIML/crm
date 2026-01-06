@@ -81,12 +81,15 @@ const parseFullMessage = (message) => {
 
 /* ---------------------------------------------------
    HELPER: Build raw RFC 2822 message
+   Adds X-CRM-Sent header to identify emails sent from CRM
 --------------------------------------------------- */
 const buildRawMessage = ({ from, to, subject, htmlBody, textBody, cc, bcc }) => {
   const messageParts = [
     `From: ${from}`,
     `To: ${to}`,
     `Subject: ${subject}`,
+    "X-CRM-Sent: true",
+    `X-CRM-Timestamp: ${new Date().toISOString()}`,
     "MIME-Version: 1.0",
     'Content-Type: multipart/alternative; boundary="boundary"',
     "",
@@ -197,6 +200,55 @@ export const getSentMessages = async (empId, options = {}) => {
 
   return {
     messages,
+    nextPageToken: response.data.nextPageToken || null,
+  };
+};
+
+/* ---------------------------------------------------
+   GET CRM SENT MESSAGES
+   Fetches only emails sent from CRM (with X-CRM-Sent header)
+--------------------------------------------------- */
+export const getCRMSentMessages = async (empId, options = {}) => {
+  const gmail = await googleOAuth.getGmailClient(empId);
+  const { maxResults = 20, pageToken } = options;
+
+  const response = await gmail.users.messages.list({
+    userId: "me",
+    maxResults: maxResults * 3, // Fetch more since we'll filter
+    pageToken,
+    labelIds: ["SENT"],
+  });
+
+  if (!response.data.messages) {
+    return { messages: [], nextPageToken: null };
+  }
+
+  // Fetch full headers to check for X-CRM-Sent
+  const messagesWithHeaders = await Promise.all(
+    response.data.messages.map(async (msg) => {
+      const fullMessage = await gmail.users.messages.get({
+        userId: "me",
+        id: msg.id,
+        format: "metadata",
+        metadataHeaders: ["From", "To", "Subject", "Date", "X-CRM-Sent", "X-CRM-Timestamp"],
+      });
+      return fullMessage.data;
+    })
+  );
+
+  // Filter for CRM-sent emails only
+  const crmMessages = messagesWithHeaders
+    .filter((msg) => {
+      const headers = msg.payload?.headers || [];
+      return headers.some(
+        (h) => h.name.toLowerCase() === "x-crm-sent" && h.value === "true"
+      );
+    })
+    .slice(0, maxResults) // Limit to requested max
+    .map(parseMessageMetadata);
+
+  return {
+    messages: crmMessages,
     nextPageToken: response.data.nextPageToken || null,
   };
 };

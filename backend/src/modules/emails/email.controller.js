@@ -216,6 +216,30 @@ export const getGmailSent = async (req, res, next) => {
 };
 
 /**
+ * @desc   Get CRM-sent emails only (emails sent via CRM with X-CRM-Sent header)
+ * @route  GET /emails/gmail/crm-sent
+ * @access Employee
+ */
+export const getGmailCRMSent = async (req, res, next) => {
+  try {
+    const { maxResults, pageToken } = req.query;
+    const result = await gmailService.getCRMSentMessages(req.user.empId, {
+      maxResults: parseInt(maxResults) || 20,
+      pageToken,
+    });
+    res.json(result);
+  } catch (error) {
+    if (error.message === "EMAIL_NOT_CONNECTED") {
+      return res.status(403).json({
+        message: "Please connect your Gmail account",
+        code: "EMAIL_NOT_CONNECTED",
+      });
+    }
+    next(error);
+  }
+};
+
+/**
  * @desc   Get Gmail drafts
  * @route  GET /emails/gmail/drafts
  * @access Employee

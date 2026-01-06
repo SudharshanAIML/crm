@@ -128,6 +128,17 @@ router.get(
 );
 
 /**
+ * @route   GET /emails/gmail/crm-sent
+ * @desc    Get only CRM-sent emails (with X-CRM-Sent header)
+ * @access  Employee
+ */
+router.get(
+  "/gmail/crm-sent",
+  authenticateEmployee,
+  emailController.getGmailCRMSent
+);
+
+/**
  * @route   GET /emails/gmail/drafts
  * @desc    Get drafts from Gmail
  * @access  Employee
