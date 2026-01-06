@@ -66,6 +66,16 @@ export const getGmailSent = async ({ maxResults = 20, pageToken } = {}) => {
   return response.data;
 };
 
+// Get CRM-sent emails only (emails sent via CRM with X-CRM-Sent header)
+export const getGmailCRMSent = async ({ maxResults = 20, pageToken } = {}) => {
+  const params = new URLSearchParams();
+  if (maxResults) params.append('maxResults', maxResults);
+  if (pageToken) params.append('pageToken', pageToken);
+  
+  const response = await api.get(`/emails/gmail/crm-sent?${params.toString()}`);
+  return response.data;
+};
+
 // Get drafts
 export const getGmailDrafts = async ({ maxResults = 20, pageToken } = {}) => {
   const params = new URLSearchParams();

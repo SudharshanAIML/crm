@@ -16,7 +16,7 @@ import {
     getConnectionStatus,
     getConnectUrl,
     getGmailInbox,
-    getGmailSent,
+    getGmailCRMSent,
     getGmailDrafts,
     searchGmail,
 } from '../../services/emailService';
@@ -26,7 +26,7 @@ import ComposeEmail from './ComposeEmail';
 
 const TABS = [
     { id: 'inbox', label: 'Inbox', icon: Inbox },
-    { id: 'sent', label: 'Sent', icon: Send },
+    { id: 'crm-sent', label: 'CRM Sent', icon: Send },
     { id: 'drafts', label: 'Drafts', icon: FileEdit },
 ];
 
@@ -96,8 +96,8 @@ const GmailView = () => {
             if (activeTab === 'inbox') {
                 result = await getGmailInbox({ pageToken });
                 setEmails(pageToken ? [...emails, ...result.messages] : result.messages);
-            } else if (activeTab === 'sent') {
-                result = await getGmailSent({ pageToken });
+            } else if (activeTab === 'crm-sent') {
+                result = await getGmailCRMSent({ pageToken });
                 setEmails(pageToken ? [...emails, ...result.messages] : result.messages);
             } else if (activeTab === 'drafts') {
                 result = await getGmailDrafts({ pageToken });
