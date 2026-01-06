@@ -130,3 +130,40 @@ export const getCompanyStats = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @desc   Get current user's company (for currency/settings)
+ * @route  GET /companies/my-company
+ * @access Employee
+ */
+export const getMyCompany = async (req, res, next) => {
+  try {
+    const companyId = req.user?.companyId;
+
+    if (!companyId) {
+      return res.status(404).json({
+        message: "No company associated with this account",
+        country: null,
+      });
+    }
+
+    const company = await companyService.getCompanyById(companyId);
+
+    if (!company) {
+      return res.status(404).json({
+        message: "Company not found",
+        country: null,
+      });
+    }
+
+    // Return only necessary fields for currency/settings
+    res.json({
+      company_id: company.company_id,
+      company_name: company.company_name,
+      country: company.country,
+      domain: company.domain,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

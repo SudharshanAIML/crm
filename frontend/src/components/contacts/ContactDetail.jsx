@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { getSessionsByContact } from '../../services/sessionService';
 import { getContactFinancials } from '../../services/contactService';
+import { useCurrency } from '../../context/CurrencyContext';
 
 const ContactDetail = ({ 
   contact, 
@@ -54,6 +55,9 @@ const ContactDetail = ({
   const [financials, setFinancials] = useState(null);
   const [financialsLoading, setFinancialsLoading] = useState(false);
   const sidebarRef = useRef(null);
+  
+  // Use centralized currency formatting
+  const { formatCompact, formatFull } = useCurrency();
 
   useEffect(() => {
     setEditedContact(contact);
@@ -247,26 +251,9 @@ const ContactDetail = ({
     return formatDate(dateString);
   };
 
-  const formatCurrency = (value) => {
-    const num = parseFloat(value) || 0;
-    if (num >= 1000000) {
-      return `$${(num / 1000000).toFixed(1)}M`;
-    }
-    if (num >= 1000) {
-      return `$${(num / 1000).toFixed(1)}K`;
-    }
-    return `$${num.toFixed(0)}`;
-  };
-
-  const formatFullCurrency = (value) => {
-    const num = parseFloat(value) || 0;
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(num);
-  };
+  // Currency formatting now uses the centralized useCurrency hook
+  const formatCurrency = formatCompact;
+  const formatFullCurrency = (value) => formatFull(value, 0);
 
   // Determine if contact should show financial data (OPPORTUNITY, CUSTOMER, EVANGELIST)
   const showFinancials = useMemo(() => {

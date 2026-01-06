@@ -7,6 +7,20 @@ import { USER_ROLES } from "../../utils/constants.js";
 const router = Router();
 
 /* ---------------------------------------------------
+   GET CURRENT USER'S COMPANY (for currency/settings)
+--------------------------------------------------- */
+/**
+ * @route   GET /companies/my-company
+ * @desc    Get the current user's company info
+ * @access  Employee
+ */
+router.get(
+  "/my-company",
+  authenticateEmployee,
+  companyController.getMyCompany
+);
+
+/* ---------------------------------------------------
    GET COMPANY STATS (ADMIN)
 --------------------------------------------------- */
 /**

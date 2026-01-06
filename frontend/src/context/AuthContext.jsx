@@ -1,20 +1,38 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { getCompanyById } from '../services/companyService';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
+  const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Check for existing token and user in localStorage
     const storedToken = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
+    const storedCompany = localStorage.getItem('company');
     
     if (storedToken && storedUser) {
       setToken(storedToken);
       setUser(JSON.parse(storedUser));
+      if (storedCompany) setCompany(JSON.parse(storedCompany));
+      else {
+        // Try to fetch company from token if not stored
+        try {
+          const payload = JSON.parse(atob(storedToken.split('.')[1] || ''));
+          if (payload?.companyId) {
+            getCompanyById(payload.companyId).then((c) => {
+              setCompany(c || null);
+              if (c) localStorage.setItem('company', JSON.stringify(c));
+            }).catch(() => {});
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
     }
     setLoading(false);
   }, []);
@@ -24,6 +42,22 @@ export const AuthProvider = ({ children }) => {
     setToken(authToken);
     localStorage.setItem('token', authToken);
     localStorage.setItem('user', JSON.stringify(userData));
+    // Fetch company when logging in (companyId may be in JWT)
+    try {
+      const payload = JSON.parse(atob(authToken.split('.')[1] || ''));
+      if (payload?.companyId) {
+        getCompanyById(payload.companyId).then((c) => {
+          setCompany(c || null);
+          if (c) localStorage.setItem('company', JSON.stringify(c));
+        }).catch(() => {});
+      } else {
+        setCompany(null);
+        localStorage.removeItem('company');
+      }
+    } catch (e) {
+      setCompany(null);
+      localStorage.removeItem('company');
+    }
   };
 
   const logout = () => {
@@ -43,6 +77,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     token,
+    company,
     loading,
     login,
     logout,

@@ -14,6 +14,7 @@ import {
   X
 } from 'lucide-react';
 import { getProductAnalytics } from '../../services/analyticsService';
+import { useCurrency } from '../../context/CurrencyContext';
 
 export default function ProductAnalytics() {
   const [productData, setProductData] = useState(null);
@@ -75,6 +76,7 @@ export default function ProductAnalytics() {
   }
 
   const { overview, products } = productData || {};
+  const { formatCompact, format: formatCurrency } = useCurrency();
 
   return (
     <div className="space-y-6">
@@ -104,21 +106,21 @@ export default function ProductAnalytics() {
         />
         <OverviewCard
           title="Total Revenue"
-          value={`$${(overview?.totalRevenue || 0).toLocaleString()}`}
+          value={formatCompact(overview?.totalRevenue || 0)}
           subtitle={`${overview?.totalDeals || 0} deals closed`}
           icon={<DollarSign className="w-5 h-5" />}
           color="emerald"
         />
         <OverviewCard
           title="Avg Revenue/Product"
-          value={`$${(overview?.avgRevenuePerProduct || 0).toLocaleString()}`}
+          value={formatCurrency(overview?.avgRevenuePerProduct || 0, { compact: false })}
           icon={<TrendingUp className="w-5 h-5" />}
           color="purple"
         />
         <OverviewCard
           title="Top Product"
           value={overview?.topProduct || 'N/A'}
-          subtitle={`$${(overview?.topProductRevenue || 0).toLocaleString()}`}
+          subtitle={formatCompact(overview?.topProductRevenue || 0)}
           icon={<Award className="w-5 h-5" />}
           color="amber"
         />
@@ -182,11 +184,11 @@ export default function ProductAnalytics() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span className="font-semibold text-emerald-600">
-                        ${product.totalRevenue.toLocaleString()}
-                      </span>
+                          {formatCompact(product.totalRevenue || 0)}
+                        </span>
                     </td>
                     <td className="px-6 py-4 text-right text-gray-700">
-                      ${product.avgDealValue.toLocaleString()}
+                        {formatCompact(product.avgDealValue || 0)}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -241,7 +243,7 @@ export default function ProductAnalytics() {
       {products && products.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Revenue Distribution Pie Chart */}
-          <RevenuePieChart products={products} totalRevenue={overview?.totalRevenue || 0} onProductClick={setSelectedProduct} />
+          <RevenuePieChart products={products} totalRevenue={overview?.totalRevenue || 0} onProductClick={setSelectedProduct} formatCompact={formatCompact} />
 
           {/* Deal Count Distribution */}
           <DealCountChart products={products} onProductClick={setSelectedProduct} />
@@ -254,7 +256,9 @@ export default function ProductAnalytics() {
           product={selectedProduct} 
           allProducts={products}
           totalRevenue={overview?.totalRevenue || 0}
-          onClose={() => setSelectedProduct(null)} 
+          onClose={() => setSelectedProduct(null)}
+          formatCompact={formatCompact}
+          formatCurrency={formatCurrency}
         />
       )}
     </div>
@@ -262,7 +266,7 @@ export default function ProductAnalytics() {
 }
 
 // Revenue Pie Chart Component
-function RevenuePieChart({ products, totalRevenue, onProductClick }) {
+function RevenuePieChart({ products, totalRevenue, onProductClick, formatCompact }) {
   const colors = [
     '#0ea5e9', // sky-500
     '#8b5cf6', // purple-500
@@ -356,7 +360,7 @@ function RevenuePieChart({ products, totalRevenue, onProductClick }) {
                 <span className="text-sm font-medium text-gray-700">{item.name}</span>
               </div>
               <div className="text-right">
-                <p className="text-sm font-semibold text-gray-900">${item.totalRevenue.toLocaleString()}</p>
+                <p className="text-sm font-semibold text-gray-900">{formatCompact(item.totalRevenue || 0)}</p>
                 <p className="text-xs text-gray-500">{item.revenueShare}%</p>
               </div>
             </div>
@@ -412,7 +416,7 @@ function DealCountChart({ products, onProductClick }) {
 }
 
 // Product Detail Modal Component
-function ProductDetailModal({ product, allProducts, totalRevenue, onClose }) {
+function ProductDetailModal({ product, allProducts, totalRevenue, onClose, formatCompact, formatCurrency }) {
   const productRank = allProducts.findIndex(p => p.name === product.name) + 1;
   
   return (
@@ -451,7 +455,7 @@ function ProductDetailModal({ product, allProducts, totalRevenue, onClose }) {
             />
             <MetricCard
               label="Total Revenue"
-              value={`$${product.totalRevenue.toLocaleString()}`}
+              value={formatCompact(product.totalRevenue || 0)}
               icon={<DollarSign className="w-5 h-5 text-emerald-600" />}
               color="emerald"
             />
@@ -485,13 +489,13 @@ function ProductDetailModal({ product, allProducts, totalRevenue, onClose }) {
               </div>
               <div>
                 <p className="text-sm text-gray-600 mb-1">Avg Deal Value</p>
-                <p className="text-2xl font-bold text-gray-900">${product.avgDealValue.toLocaleString()}</p>
+                <p className="text-2xl font-bold text-gray-900">{formatCompact(product.avgDealValue || 0)}</p>
                 <p className="text-xs text-gray-500 mt-1">Per transaction</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600 mb-1">Revenue per Customer</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  ${(product.totalRevenue / product.uniqueCustomers).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  {formatCurrency((product.totalRevenue / (product.uniqueCustomers || 1)) || 0, { compact: false, maximumFractionDigits: 0 })}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">Average value</p>
               </div>
@@ -504,7 +508,7 @@ function ProductDetailModal({ product, allProducts, totalRevenue, onClose }) {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">Minimum</span>
-                <span className="text-lg font-semibold text-gray-900">${product.minDealValue.toLocaleString()}</span>
+                <span className="text-lg font-semibold text-gray-900">{formatCurrency(product.minDealValue || 0, { compact: false })}</span>
               </div>
               <div className="relative pt-2 pb-2">
                 <div className="w-full bg-gray-200 rounded-full h-2">
@@ -518,11 +522,11 @@ function ProductDetailModal({ product, allProducts, totalRevenue, onClose }) {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">Average</span>
-                <span className="text-lg font-semibold text-sky-600">${product.avgDealValue.toLocaleString()}</span>
+                <span className="text-lg font-semibold text-sky-600">{formatCurrency(product.avgDealValue || 0, { compact: false })}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">Maximum</span>
-                <span className="text-lg font-semibold text-gray-900">${product.maxDealValue.toLocaleString()}</span>
+                <span className="text-lg font-semibold text-gray-900">{formatCurrency(product.maxDealValue || 0, { compact: false })}</span>
               </div>
             </div>
           </div>
@@ -540,7 +544,7 @@ function ProductDetailModal({ product, allProducts, totalRevenue, onClose }) {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-sky-600 mt-0.5">•</span>
-                <span>Contributes <strong>{product.revenueShare}%</strong> to total revenue (${totalRevenue.toLocaleString()})</span>
+                <span>Contributes <strong>{product.revenueShare}%</strong> to total revenue ({formatCompact(totalRevenue || 0)})</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-sky-600 mt-0.5">•</span>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useCurrency } from '../context/CurrencyContext';
 import { 
   Users, 
   TrendingUp, 
@@ -70,6 +71,7 @@ import Profile from '../components/layout/Profile';
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
+  const { formatCompact, format: formatCurrency } = useCurrency();
   const navigate = useNavigate();
   
   // Tab state
@@ -899,14 +901,10 @@ const AdminDashboard = () => {
                 <div className="min-w-0">
                   <p className="text-xs text-gray-500 truncate">Revenue</p>
                   <p className="text-xl font-bold text-gray-900">
-                    ${totalRevenue >= 1000000 
-                      ? (totalRevenue / 1000000).toFixed(1) + 'M' 
-                      : totalRevenue >= 1000 
-                        ? (totalRevenue / 1000).toFixed(1) + 'k' 
-                        : totalRevenue.toFixed(0)}
+                    {formatCompact(totalRevenue)}
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    ${totalConversions > 0 ? Math.round(totalRevenue / totalConversions).toLocaleString() : 0} avg
+                    {formatCurrency(totalConversions > 0 ? Math.round(totalRevenue / totalConversions) : 0, { compact: false })} avg
                   </p>
                 </div>
               </div>
@@ -1091,9 +1089,7 @@ const AdminDashboard = () => {
                       </td>
                       <td className="py-4 px-6 text-center">
                         <p className="text-sm font-bold text-amber-600">
-                          ${parseFloat(employee.totalRevenue) >= 1000 
-                            ? (parseFloat(employee.totalRevenue) / 1000).toFixed(1) + 'k' 
-                            : (parseFloat(employee.totalRevenue) || 0).toFixed(0)}
+                          {formatCompact(parseFloat(employee.totalRevenue) || 0)}
                         </p>
                       </td>
                       <td className="py-4 px-6">
@@ -1521,13 +1517,7 @@ const AdminDashboard = () => {
                       </div>
                       <span className="text-xs font-medium text-green-600">Revenue</span>
                     </div>
-                    <p className="text-2xl font-bold text-green-900">
-                      ${analytics.overview.totalRevenue >= 1000000 
-                        ? (analytics.overview.totalRevenue / 1000000).toFixed(1) + 'M'
-                        : analytics.overview.totalRevenue >= 1000 
-                          ? (analytics.overview.totalRevenue / 1000).toFixed(1) + 'k'
-                          : analytics.overview.totalRevenue.toFixed(0)}
-                    </p>
+                    <p className="text-2xl font-bold text-green-900">{formatCompact(analytics.overview.totalRevenue || 0)}</p>
                   </div>
                   
                   <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
@@ -1557,13 +1547,7 @@ const AdminDashboard = () => {
                       </div>
                       <span className="text-xs font-medium text-cyan-600">Pipeline Value</span>
                     </div>
-                    <p className="text-2xl font-bold text-cyan-900">
-                      ${analytics.overview.pipelineValue >= 1000000 
-                        ? (analytics.overview.pipelineValue / 1000000).toFixed(1) + 'M'
-                        : analytics.overview.pipelineValue >= 1000 
-                          ? (analytics.overview.pipelineValue / 1000).toFixed(1) + 'k'
-                          : analytics.overview.pipelineValue.toFixed(0)}
-                    </p>
+                    <p className="text-2xl font-bold text-cyan-900">{formatCompact(analytics.overview.pipelineValue || 0)}</p>
                   </div>
                   
                   <div className="bg-gradient-to-br from-rose-50 to-rose-100 rounded-xl p-4 border border-rose-200">
@@ -1629,16 +1613,8 @@ const AdminDashboard = () => {
                           {Math.abs(analytics.periodComparison.revenue.growth)}%
                         </span>
                       </div>
-                      <p className="text-3xl font-bold text-gray-900">
-                        ${analytics.periodComparison.revenue.current >= 1000 
-                          ? (analytics.periodComparison.revenue.current / 1000).toFixed(1) + 'k'
-                          : analytics.periodComparison.revenue.current.toFixed(0)}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        vs ${analytics.periodComparison.revenue.previous >= 1000 
-                          ? (analytics.periodComparison.revenue.previous / 1000).toFixed(1) + 'k'
-                          : analytics.periodComparison.revenue.previous.toFixed(0)} previous period
-                      </p>
+                      <p className="text-3xl font-bold text-gray-900">{formatCompact(analytics.periodComparison.revenue.current || 0)}</p>
+                      <p className="text-xs text-gray-400 mt-1">vs {formatCompact(analytics.periodComparison.revenue.previous || 0)} previous period</p>
                     </div>
                   </div>
 
@@ -1699,7 +1675,7 @@ const AdminDashboard = () => {
                           <p className="text-2xl font-bold text-blue-900">{analytics.opportunityOutcomes.open.count}</p>
                           <p className="text-xs text-blue-600 font-medium">Open</p>
                           <p className="text-xs text-blue-400 mt-1">
-                            ${(analytics.opportunityOutcomes.open.value / 1000).toFixed(1)}k value
+                            {formatCompact(analytics.opportunityOutcomes.open.value)} value
                           </p>
                         </div>
                         <div className="text-center p-4 bg-green-50 rounded-xl">
@@ -1709,7 +1685,7 @@ const AdminDashboard = () => {
                           <p className="text-2xl font-bold text-green-900">{analytics.opportunityOutcomes.won.count}</p>
                           <p className="text-xs text-green-600 font-medium">Won</p>
                           <p className="text-xs text-green-400 mt-1">
-                            ${(analytics.opportunityOutcomes.won.value / 1000).toFixed(1)}k value
+                            {formatCompact(analytics.opportunityOutcomes.won.value)} value
                           </p>
                         </div>
                         <div className="text-center p-4 bg-red-50 rounded-xl">
@@ -1719,7 +1695,7 @@ const AdminDashboard = () => {
                           <p className="text-2xl font-bold text-red-900">{analytics.opportunityOutcomes.lost.count}</p>
                           <p className="text-xs text-red-600 font-medium">Lost</p>
                           <p className="text-xs text-red-400 mt-1">
-                            ${(analytics.opportunityOutcomes.lost.value / 1000).toFixed(1)}k value
+                            {formatCompact(analytics.opportunityOutcomes.lost.value)} value
                           </p>
                         </div>
                       </div>
@@ -1864,27 +1840,35 @@ const AdminDashboard = () => {
 
                   {/* Employee Leaderboard */}
                   <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                      <Trophy className="w-4 h-4 text-amber-500" />
-                      Employee Leaderboard
-                    </h3>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                        <Trophy className="w-4 h-4 text-amber-500" />
+                        Employee Leaderboard
+                      </h3>
+                      {analytics.employeeLeaderboard.length > 7 && (
+                        <span className="text-xs text-gray-400">
+                          {analytics.employeeLeaderboard.length} employees • Scroll for more
+                        </span>
+                      )}
+                    </div>
                     <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b border-gray-100">
-                            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Rank</th>
-                            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
-                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Contacts</th>
-                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Conversions</th>
-                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Conv. Rate</th>
-                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Deals</th>
-                            <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Revenue</th>
-                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Sessions</th>
-                            <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Avg Rating</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50">
-                          {analytics.employeeLeaderboard.map((emp, index) => (
+                      <div className="max-h-[420px] overflow-y-auto scrollbar-thin">
+                        <table className="w-full">
+                          <thead className="sticky top-0 bg-white z-10">
+                            <tr className="border-b border-gray-100">
+                              <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Rank</th>
+                              <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Employee</th>
+                              <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Contacts</th>
+                              <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Conversions</th>
+                              <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Conv. Rate</th>
+                              <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Deals</th>
+                              <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Revenue</th>
+                              <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Sessions</th>
+                              <th className="text-center py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-white">Avg Rating</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                            {analytics.employeeLeaderboard.map((emp, index) => (
                             <tr key={emp.emp_id} className="hover:bg-gray-50 transition-colors">
                               <td className="py-3 px-4">
                                 {index === 0 ? (
@@ -1928,9 +1912,7 @@ const AdminDashboard = () => {
                               </td>
                               <td className="py-3 px-4 text-right">
                                 <span className="text-sm font-bold text-gray-900">
-                                  ${emp.totalRevenue >= 1000 
-                                    ? (emp.totalRevenue / 1000).toFixed(1) + 'k'
-                                    : emp.totalRevenue.toFixed(0)}
+                                  {formatCompact(emp.totalRevenue || 0)}
                                 </span>
                               </td>
                               <td className="py-3 px-4 text-center">
@@ -1946,6 +1928,7 @@ const AdminDashboard = () => {
                           ))}
                         </tbody>
                       </table>
+                      </div>
                       {analytics.employeeLeaderboard.length === 0 && (
                         <p className="text-sm text-gray-400 text-center py-8">No employee data available</p>
                       )}
@@ -1976,7 +1959,7 @@ const AdminDashboard = () => {
                                   />
                                 </div>
                                 <span className="text-xs font-semibold text-gray-700 w-14 text-right">
-                                  ${(month.revenue / 1000).toFixed(1)}k
+                                  {formatCompact(month.revenue)}
                                 </span>
                               </div>
                             );
@@ -2066,9 +2049,7 @@ const AdminDashboard = () => {
                             <span className="text-sm font-semibold text-gray-900">{source.source}</span>
                           </div>
                           <p className="text-xl font-bold text-gray-900">
-                            ${source.revenue >= 1000 
-                              ? (source.revenue / 1000).toFixed(1) + 'k'
-                              : source.revenue}
+                            {formatCompact(source.revenue)}
                           </p>
                           <p className="text-xs text-gray-500 mt-1">
                             {source.leads} leads • {source.conversions} conv.
@@ -2330,7 +2311,7 @@ const AdminDashboard = () => {
                   <p className="text-xs text-gray-500">Deals</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-amber-600">${((selectedEmployee.totalRevenue || 0) / 1000).toFixed(1)}k</p>
+                  <p className="text-2xl font-bold text-amber-600">{formatCompact(selectedEmployee.totalRevenue || 0)}</p>
                   <p className="text-xs text-gray-500">Revenue</p>
                 </div>
               </div>
