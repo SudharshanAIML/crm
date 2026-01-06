@@ -83,7 +83,7 @@ export const getConversionRates = async (companyId) => {
 };
 
 /* ---------------------------------------------------
-   GET EMPLOYEE PERFORMANCE
+   GET EMPLOYEE PERFORMANCE - using subqueries to avoid cartesian product
 --------------------------------------------------- */
 export const getEmployeePerformance = async (companyId) => {
   const [rows] = await db.query(
@@ -91,15 +91,11 @@ export const getEmployeePerformance = async (companyId) => {
     SELECT 
       e.emp_id,
       e.name,
-      COUNT(DISTINCT c.contact_id) as contactsHandled,
-      COUNT(DISTINCT d.deal_id) as dealsClosed,
-      SUM(d.deal_value) as totalRevenue
+      (SELECT COUNT(*) FROM contacts WHERE assigned_emp_id = e.emp_id) as contactsHandled,
+      (SELECT COUNT(*) FROM deals d JOIN opportunities o ON d.opportunity_id = o.opportunity_id WHERE o.emp_id = e.emp_id) as dealsClosed,
+      (SELECT COALESCE(SUM(d.deal_value), 0) FROM deals d JOIN opportunities o ON d.opportunity_id = o.opportunity_id WHERE o.emp_id = e.emp_id) as totalRevenue
     FROM employees e
-    LEFT JOIN contacts c ON c.assigned_emp_id = e.emp_id
-    LEFT JOIN opportunities o ON o.emp_id = e.emp_id
-    LEFT JOIN deals d ON d.opportunity_id = o.opportunity_id
     WHERE e.company_id = ?
-    GROUP BY e.emp_id, e.name
     ORDER BY totalRevenue DESC
     `,
     [companyId]
@@ -157,7 +153,7 @@ export const getRecentActivities = async (companyId, limit = 20) => {
 };
 
 /* ---------------------------------------------------
-   ADMIN: GET TEAM MEMBERS WITH STATS
+   ADMIN: GET TEAM MEMBERS WITH STATS - using subqueries to avoid cartesian product
 --------------------------------------------------- */
 export const getTeamMembers = async (companyId) => {
   const [rows] = await db.query(
@@ -170,15 +166,11 @@ export const getTeamMembers = async (companyId) => {
       e.department,
       e.role,
       e.created_at,
-      COUNT(DISTINCT c.contact_id) as contactsHandled,
-      COUNT(DISTINCT d.deal_id) as dealsClosed,
-      COALESCE(SUM(d.deal_value), 0) as totalRevenue
+      (SELECT COUNT(*) FROM contacts WHERE assigned_emp_id = e.emp_id) as contactsHandled,
+      (SELECT COUNT(*) FROM deals d JOIN opportunities o ON d.opportunity_id = o.opportunity_id WHERE o.emp_id = e.emp_id) as dealsClosed,
+      (SELECT COALESCE(SUM(d.deal_value), 0) FROM deals d JOIN opportunities o ON d.opportunity_id = o.opportunity_id WHERE o.emp_id = e.emp_id) as totalRevenue
     FROM employees e
-    LEFT JOIN contacts c ON c.assigned_emp_id = e.emp_id
-    LEFT JOIN opportunities o ON o.emp_id = e.emp_id
-    LEFT JOIN deals d ON d.opportunity_id = o.opportunity_id
     WHERE e.company_id = ?
-    GROUP BY e.emp_id, e.name, e.email, e.phone, e.department, e.role, e.created_at
     ORDER BY totalRevenue DESC, e.name ASC
     `,
     [companyId]
@@ -654,25 +646,20 @@ export const getAdminAnalytics = async (companyId) => {
     [companyId]
   );
 
-  // 6. Employee Leaderboard
+  // 6. Employee Leaderboard - using subqueries to avoid cartesian product multiplication
   const [employeeLeaderboard] = await db.query(
     `SELECT 
        e.emp_id,
        e.name,
        e.department,
-       COUNT(DISTINCT c.contact_id) as contactsHandled,
-       COUNT(DISTINCT CASE WHEN c.status IN ('CUSTOMER', 'EVANGELIST') THEN c.contact_id END) as conversions,
-       COUNT(DISTINCT d.deal_id) as dealsClosed,
-       COALESCE(SUM(d.deal_value), 0) as totalRevenue,
-       COUNT(DISTINCT s.session_id) as totalSessions,
-       COALESCE(AVG(s.rating), 0) as avgSessionRating
+       (SELECT COUNT(*) FROM contacts WHERE assigned_emp_id = e.emp_id) as contactsHandled,
+       (SELECT COUNT(*) FROM contacts WHERE assigned_emp_id = e.emp_id AND status IN ('CUSTOMER', 'EVANGELIST')) as conversions,
+       (SELECT COUNT(*) FROM deals d JOIN opportunities o ON d.opportunity_id = o.opportunity_id WHERE o.emp_id = e.emp_id) as dealsClosed,
+       (SELECT COALESCE(SUM(d.deal_value), 0) FROM deals d JOIN opportunities o ON d.opportunity_id = o.opportunity_id WHERE o.emp_id = e.emp_id) as totalRevenue,
+       (SELECT COUNT(*) FROM sessions WHERE emp_id = e.emp_id) as totalSessions,
+       (SELECT COALESCE(AVG(rating), 0) FROM sessions WHERE emp_id = e.emp_id) as avgSessionRating
      FROM employees e
-     LEFT JOIN contacts c ON c.assigned_emp_id = e.emp_id
-     LEFT JOIN opportunities o ON o.emp_id = e.emp_id
-     LEFT JOIN deals d ON d.opportunity_id = o.opportunity_id
-     LEFT JOIN sessions s ON s.emp_id = e.emp_id
      WHERE e.company_id = ? AND e.invitation_status = 'ACTIVE'
-     GROUP BY e.emp_id, e.name, e.department
      ORDER BY totalRevenue DESC, conversions DESC`,
     [companyId]
   );

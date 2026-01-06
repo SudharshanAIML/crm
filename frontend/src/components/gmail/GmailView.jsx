@@ -26,7 +26,7 @@ import ComposeEmail from './ComposeEmail';
 
 const TABS = [
     { id: 'inbox', label: 'Inbox', icon: Inbox },
-    { id: 'crm-sent', label: 'CRM Sent', icon: Send },
+    { id: 'crm-sent', label: 'Sent', icon: Send },
     { id: 'drafts', label: 'Drafts', icon: FileEdit },
 ];
 

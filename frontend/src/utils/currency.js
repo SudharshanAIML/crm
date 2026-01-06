@@ -139,23 +139,43 @@ export function countryToCurrencyCode(country) {
 // formatCurrency will return symbol + formatted amount. Keeps a compact option
 export function formatCurrency(amount = 0, country = null, { compact = true, maximumFractionDigits = 0 } = {}) {
   const code = countryToCurrencyCode(country);
-  // Handle non-number gracefully
-  const num = Number(amount) || 0;
+  // Handle non-number gracefully - ensure we have a valid number
+  const num = Number(amount);
+  
+  // Guard against invalid numbers
+  if (!Number.isFinite(num)) {
+    const symbolMap = { USD: '$', INR: '₹', JPY: '¥', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$' };
+    return `${symbolMap[code] || '$'}0`;
+  }
 
-  // For very small numbers when using compact, allow two decimals for readability
+  // For very small numbers when using compact, allow one decimal for readability
   const maxFrac = maximumFractionDigits != null ? maximumFractionDigits : (compact ? 1 : 0);
+  
   try {
     const nf = getNumberFormatter(code, { compact, maximumFractionDigits: maxFrac });
     return nf.format(num);
   } catch (e) {
-    // Fallback simple formatting
+    // Fallback simple formatting with explicit thresholds
     const symbolMap = { USD: '$', INR: '₹', JPY: '¥', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$' };
-    const symbol = symbolMap[code] || symbolMap[defaultCurrency] || '$';
+    const symbol = symbolMap[code] || '$';
+    const absNum = Math.abs(num);
+    const sign = num < 0 ? '-' : '';
+    
     if (compact) {
-      if (Math.abs(num) >= 1_000_000) return `${symbol}${(num / 1_000_000).toFixed(1)}M`;
-      if (Math.abs(num) >= 1000) return `${symbol}${(num / 1000).toFixed(1)}k`;
+      // Billions (1,000,000,000+)
+      if (absNum >= 1_000_000_000) {
+        return `${sign}${symbol}${(absNum / 1_000_000_000).toFixed(1)}B`;
+      }
+      // Millions (1,000,000+)
+      if (absNum >= 1_000_000) {
+        return `${sign}${symbol}${(absNum / 1_000_000).toFixed(1)}M`;
+      }
+      // Thousands (1,000+)
+      if (absNum >= 1_000) {
+        return `${sign}${symbol}${(absNum / 1_000).toFixed(1)}K`;
+      }
     }
-    return `${symbol}${Math.round(num).toLocaleString()}`;
+    return `${sign}${symbol}${Math.round(absNum).toLocaleString()}`;
   }
 }
 

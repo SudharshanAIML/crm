@@ -341,7 +341,11 @@ const AdminDashboard = () => {
   };
 
   // Get unique departments for filter
-  const departments = [...new Set(employees.map(e => e.department).filter(Boolean))];
+  const departments = [...new Set(employees.map(e => e.department).filter(Boolean))].sort((a, b) => {
+    if (a.toLowerCase() === 'other') return 1;
+    if (b.toLowerCase() === 'other') return -1;
+    return a.localeCompare(b);
+  });
 
   // Optimized sorting handler using useCallback
   const handleEmployeeSort = useCallback((column) => {
@@ -1088,7 +1092,10 @@ const AdminDashboard = () => {
                         <p className="text-sm font-bold text-emerald-600">{parseInt(employee.dealsClosed) || 0}</p>
                       </td>
                       <td className="py-4 px-6 text-center">
-                        <p className="text-sm font-bold text-amber-600">
+                        <p 
+                          className="text-sm font-bold text-amber-600 cursor-help"
+                          title={formatCurrency(parseFloat(employee.totalRevenue) || 0, { compact: false })}
+                        >
                           {formatCompact(parseFloat(employee.totalRevenue) || 0)}
                         </p>
                       </td>
@@ -1847,7 +1854,7 @@ const AdminDashboard = () => {
                       </h3>
                       {analytics.employeeLeaderboard.length > 7 && (
                         <span className="text-xs text-gray-400">
-                          {analytics.employeeLeaderboard.length} employees • Scroll for more
+                          {analytics.employeeLeaderboard.length} employees
                         </span>
                       )}
                     </div>
@@ -1911,7 +1918,10 @@ const AdminDashboard = () => {
                                 <span className="text-sm font-semibold text-purple-600">{emp.dealsClosed}</span>
                               </td>
                               <td className="py-3 px-4 text-right">
-                                <span className="text-sm font-bold text-gray-900">
+                                <span 
+                                  className="text-sm font-bold text-gray-900 cursor-help"
+                                  title={formatCurrency(emp.totalRevenue || 0, { compact: false })}
+                                >
                                   {formatCompact(emp.totalRevenue || 0)}
                                 </span>
                               </td>
