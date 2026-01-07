@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Grid3X3, List } from 'lucide-react';
+import { Plus, Search, Filter, Grid3X3, List, TableProperties } from 'lucide-react';
 import ContactCard from './ContactCard';
+import ContactTable from './ContactTable';
 
 const ContactGrid = ({ 
   contacts = [], 
@@ -135,6 +136,7 @@ const ContactGrid = ({
                   ? 'bg-white shadow-sm text-sky-600' 
                   : 'text-gray-500 hover:text-gray-700'
               }`}
+              title="Grid View"
             >
               <Grid3X3 className="w-5 h-5" />
             </button>
@@ -145,8 +147,20 @@ const ContactGrid = ({
                   ? 'bg-white shadow-sm text-sky-600' 
                   : 'text-gray-500 hover:text-gray-700'
               }`}
+              title="List View"
             >
               <List className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`p-2.5 rounded-lg transition-all ${
+                viewMode === 'table' 
+                  ? 'bg-white shadow-sm text-sky-600' 
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+              title="Table View (Sortable)"
+            >
+              <TableProperties className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -204,24 +218,33 @@ const ContactGrid = ({
         </div>
       )}
 
-      {/* Contact Grid */}
+      {/* Contact Grid/List/Table */}
       {!loading && filteredContacts.length > 0 && (
-        <div className={`${
-          viewMode === 'grid' 
-            ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5' 
-            : 'flex flex-col gap-3'
-        }`}>
-          {filteredContacts.map((contact) => (
-            <ContactCard
-              key={contact.contact_id}
-              contact={contact}
-              onSelect={onContactSelect}
-              onEmailClick={onEmailClick}
-              onFollowupsClick={onFollowupsClick}
-              viewMode={viewMode}
-            />
-          ))}
-        </div>
+        viewMode === 'table' ? (
+          <ContactTable
+            contacts={filteredContacts}
+            onContactSelect={onContactSelect}
+            onEmailClick={onEmailClick}
+            onFollowupsClick={onFollowupsClick}
+          />
+        ) : (
+          <div className={`${
+            viewMode === 'grid' 
+              ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5' 
+              : 'flex flex-col gap-3'
+          }`}>
+            {filteredContacts.map((contact) => (
+              <ContactCard
+                key={contact.contact_id}
+                contact={contact}
+                onSelect={onContactSelect}
+                onEmailClick={onEmailClick}
+                onFollowupsClick={onFollowupsClick}
+                viewMode={viewMode}
+              />
+            ))}
+          </div>
+        )
       )}
     </div>
   );
