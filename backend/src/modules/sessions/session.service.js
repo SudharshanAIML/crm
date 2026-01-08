@@ -60,19 +60,9 @@ export const createSession = async ({
     throw new Error("Contact not found");
   }
 
-  // Determine the stage - default to MQL for LEAD contacts
-  // Sessions can only be MQL or SQL
-  let sessionStage = stage;
-  if (!sessionStage) {
-    if (contact.status === 'LEAD' || contact.status === 'MQL') {
-      sessionStage = 'MQL';
-    } else if (contact.status === 'SQL') {
-      sessionStage = 'SQL';
-    } else {
-      // For OPPORTUNITY, CUSTOMER, EVANGELIST, DORMANT - default to SQL
-      sessionStage = 'SQL';
-    }
-  }
+  // Use the contact's current status as the session stage
+  // This captures the exact stage the contact was in when the session was logged
+  const sessionStage = stage || contact.status;
 
   // Insert session
   const sessionId = await sessionRepo.createSession({
@@ -184,4 +174,25 @@ export const getAverageRating = async (contactId, stage) => {
 
 export const getOverallAverageRating = async (contactId) => {
   return await sessionRepo.getOverallAverageRating(contactId);
+};
+
+/* ---------------------------------------------------
+   GET ALL SESSIONS BY STAGE (COMPANY-WIDE)
+--------------------------------------------------- */
+export const getAllSessionsByStage = async (companyId, stage, limit = 100, offset = 0) => {
+  // Validate stage
+  const validStages = ['LEAD', 'MQL', 'SQL', 'OPPORTUNITY', 'CUSTOMER', 'EVANGELIST'];
+  if (!validStages.includes(stage?.toUpperCase())) {
+    throw new Error('Invalid stage');
+  }
+  
+  const sessions = await sessionRepo.getAllByStage(companyId, stage.toUpperCase(), limit, offset);
+  const total = await sessionRepo.countAllByStage(companyId, stage.toUpperCase());
+  
+  return {
+    sessions,
+    total,
+    limit,
+    offset
+  };
 };

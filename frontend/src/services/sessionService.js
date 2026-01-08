@@ -11,9 +11,16 @@ export const getSessionsByContact = async (contactId) => {
   return response.data;
 };
 
-// Get sessions by stage
+// Get sessions by stage for a specific contact
 export const getSessionsByStage = async (contactId, stage) => {
   const response = await api.get(`/sessions/contact/${contactId}/${stage}`);
+  return response.data;
+};
+
+// Get all sessions by stage (company-wide)
+export const getAllSessionsByStage = async (stage, options = {}) => {
+  const { limit = 100, offset = 0 } = options;
+  const response = await api.get(`/sessions/stage/${stage}?limit=${limit}&offset=${offset}`);
   return response.data;
 };
 

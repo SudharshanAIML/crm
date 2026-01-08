@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mail, Star, MessageSquare } from 'lucide-react';
+import { Mail, Star, MessageSquare, Sparkles } from 'lucide-react';
 
 const ContactCard = ({ contact, onSelect, onEmailClick, onFollowupsClick }) => {
   const [imageError, setImageError] = useState(false);
@@ -28,6 +28,51 @@ const ContactCard = ({ contact, onSelect, onEmailClick, onFollowupsClick }) => {
       default:
         return 'border-l-blue-500';
     }
+  };
+
+  /**
+   * Get interest level badge based on latest session rating
+   * Grey: No sessions (never contacted) - latest_rating is null
+   * Red: Low interest (rating 1-4)
+   * Yellow: Moderate interest (rating 5-7)
+   * Green: High interest (rating 8-10)
+   */
+  const getInterestBadge = () => {
+    // Never contacted - grey badge (null means no sessions)
+    if (contact.latest_rating === null || contact.latest_rating === undefined) {
+      return {
+        label: 'No Contact',
+        className: 'bg-gray-100 text-gray-500 border-gray-200',
+        icon: null
+      };
+    }
+    
+    const rating = parseFloat(contact.latest_rating) || 0;
+    
+    // High interest (8-10)
+    if (rating >= 8) {
+      return {
+        label: 'Very Interested',
+        className: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+        icon: <Sparkles className="w-3 h-3" />
+      };
+    }
+    
+    // Moderate interest (5-7)
+    if (rating >= 5) {
+      return {
+        label: 'Moderate',
+        className: 'bg-amber-100 text-amber-700 border-amber-200',
+        icon: null
+      };
+    }
+    
+    // Low interest (1-4)
+    return {
+      label: 'Low Interest',
+      className: 'bg-red-100 text-red-700 border-red-200',
+      icon: null
+    };
   };
 
   // Render star rating
@@ -90,9 +135,18 @@ const ContactCard = ({ contact, onSelect, onEmailClick, onFollowupsClick }) => {
             <p className="text-sm text-gray-500 truncate mt-0.5">
               {formatPhone(contact.phone)}
             </p>
-            {/* Star Rating */}
-            <div className="mt-2">
+            {/* Star Rating & Interest Badge */}
+            <div className="mt-2 flex items-center gap-2">
               {renderStars()}
+              {(() => {
+                const badge = getInterestBadge();
+                return (
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${badge.className}`}>
+                    {badge.icon}
+                    {badge.label}
+                  </span>
+                );
+              })()}
             </div>
           </div>
         </div>

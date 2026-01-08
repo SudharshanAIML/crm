@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronUp, ChevronDown, Mail, Star, MessageSquare } from 'lucide-react';
+import { ChevronUp, ChevronDown, Mail, Star, MessageSquare, Sparkles } from 'lucide-react';
 
 const ContactTable = ({ contacts = [], onContactSelect, onEmailClick, onFollowupsClick }) => {
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
@@ -9,8 +9,7 @@ const ContactTable = ({ contacts = [], onContactSelect, onEmailClick, onFollowup
     { key: 'name', label: 'Name', sortable: true },
     { key: 'email', label: 'Email', sortable: true },
     { key: 'phone', label: 'Phone', sortable: true },
-    { key: 'company_name', label: 'Company', sortable: true },
-    { key: 'temperature', label: 'Temperature', sortable: true },
+    { key: 'latest_rating', label: 'Interest', sortable: true },
     { key: 'average_rating', label: 'Rating', sortable: true },
     { key: 'created_at', label: 'Created', sortable: true },
     { key: 'actions', label: 'Actions', sortable: false },
@@ -37,8 +36,8 @@ const ContactTable = ({ contacts = [], onContactSelect, onEmailClick, onFollowup
     if (aValue == null) aValue = '';
     if (bValue == null) bValue = '';
 
-    // Handle numeric sorting for rating
-    if (sortConfig.key === 'average_rating') {
+    // Handle numeric sorting for rating and latest_rating
+    if (sortConfig.key === 'average_rating' || sortConfig.key === 'latest_rating') {
       aValue = parseFloat(aValue) || 0;
       bValue = parseFloat(bValue) || 0;
     }
@@ -68,6 +67,51 @@ const ContactTable = ({ contacts = [], onContactSelect, onEmailClick, onFollowup
       COLD: 'bg-blue-100 text-blue-700 border-blue-200',
     };
     return styles[temp] || styles.COLD;
+  };
+
+  /**
+   * Get interest level badge based on latest session rating
+   * Grey: No sessions (never contacted) - latest_rating is null
+   * Red: Low interest (rating 1-4)
+   * Yellow: Moderate interest (rating 5-7)
+   * Green: High interest (rating 8-10)
+   */
+  const getInterestBadge = (latestRating) => {
+    // Never contacted - grey badge (null means no sessions)
+    if (latestRating === null || latestRating === undefined) {
+      return {
+        label: 'No Contact',
+        className: 'bg-gray-100 text-gray-600 border-gray-200',
+        icon: null
+      };
+    }
+    
+    const rating = parseFloat(latestRating) || 0;
+    
+    // High interest (8-10)
+    if (rating >= 8) {
+      return {
+        label: 'Very Interested',
+        className: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+        icon: <Sparkles className="w-3 h-3" />
+      };
+    }
+    
+    // Moderate interest (5-7)
+    if (rating >= 5) {
+      return {
+        label: 'Moderate',
+        className: 'bg-amber-100 text-amber-700 border-amber-200',
+        icon: null
+      };
+    }
+    
+    // Low interest (1-4)
+    return {
+      label: 'Low Interest',
+      className: 'bg-red-100 text-red-700 border-red-200',
+      icon: null
+    };
   };
 
   // Render star rating
@@ -197,22 +241,19 @@ const ContactTable = ({ contacts = [], onContactSelect, onEmailClick, onFollowup
                   </span>
                 </td>
 
-                {/* Company */}
+                {/* Interest Level */}
                 <td className="px-4 py-3">
-                  <span className="text-gray-600 text-sm truncate max-w-[150px] block">
-                    {contact.company_name || '—'}
-                  </span>
-                </td>
-
-                {/* Temperature */}
-                <td className="px-4 py-3">
-                  <span
-                    className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium border ${getTemperatureBadge(
-                      contact.temperature
-                    )}`}
-                  >
-                    {contact.temperature || 'COLD'}
-                  </span>
+                  {(() => {
+                    const badge = getInterestBadge(contact.latest_rating);
+                    return (
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${badge.className}`}
+                      >
+                        {badge.icon}
+                        {badge.label}
+                      </span>
+                    );
+                  })()}
                 </td>
 
                 {/* Rating */}

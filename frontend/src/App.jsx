@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import SettingsPage from './pages/SettingsPage';
 import FollowupsPage from './pages/FollowupsPage';
+import StageFollowupsPage from './pages/StageFollowupsPage';
 
 // Loading Spinner Component
 const LoadingSpinner = () => (
@@ -133,6 +134,14 @@ function App() {
                 element={
                   <AuthenticatedRoute>
                     <FollowupsPage />
+                  </AuthenticatedRoute>
+                }
+              />
+              <Route
+                path="/:stage/followups"
+                element={
+                  <AuthenticatedRoute>
+                    <StageFollowupsPage />
                   </AuthenticatedRoute>
                 }
               />

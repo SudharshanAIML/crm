@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Grid3X3, List, TableProperties } from 'lucide-react';
+import { Plus, Search, Filter, Grid3X3, List } from 'lucide-react';
 import ContactCard from './ContactCard';
 import ContactTable from './ContactTable';
 
@@ -15,7 +15,7 @@ const ContactGrid = ({
   const [activeTemperature, setActiveTemperature] = useState('COLD');
   const [filteredContacts, setFilteredContacts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState('grid');
+  const [viewMode, setViewMode] = useState('table');
 
   // Filter contacts by temperature and search
   useEffect(() => {
@@ -141,17 +141,6 @@ const ContactGrid = ({
               <Grid3X3 className="w-5 h-5" />
             </button>
             <button
-              onClick={() => setViewMode('list')}
-              className={`p-2.5 rounded-lg transition-all ${
-                viewMode === 'list' 
-                  ? 'bg-white shadow-sm text-sky-600' 
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-              title="List View"
-            >
-              <List className="w-5 h-5" />
-            </button>
-            <button
               onClick={() => setViewMode('table')}
               className={`p-2.5 rounded-lg transition-all ${
                 viewMode === 'table' 
@@ -160,7 +149,7 @@ const ContactGrid = ({
               }`}
               title="Table View (Sortable)"
             >
-              <TableProperties className="w-5 h-5" />
+              <List className="w-5 h-5" />
             </button>
           </div>
         </div>

@@ -29,6 +29,20 @@ router.post(
 );
 
 /* ---------------------------------------------------
+   GET ALL SESSIONS BY STAGE (COMPANY-WIDE)
+--------------------------------------------------- */
+/**
+ * @route   GET /sessions/stage/:stage
+ * @desc    Get all sessions for a specific stage (LEAD, MQL, SQL, etc.)
+ * @access  Employee
+ */
+router.get(
+  "/stage/:stage",
+  authenticateEmployee,
+  sessionController.getAllSessionsByStage
+);
+
+/* ---------------------------------------------------
    GET SESSIONS FOR A CONTACT
 --------------------------------------------------- */
 /**

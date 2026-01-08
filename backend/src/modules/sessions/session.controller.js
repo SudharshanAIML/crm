@@ -107,3 +107,28 @@ export const deleteSession = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @desc   Get all sessions by stage (company-wide)
+ * @route  GET /sessions/stage/:stage
+ * @access Employee
+ */
+export const getAllSessionsByStage = async (req, res, next) => {
+  try {
+    const { stage } = req.params;
+    const { limit = 100, offset = 0 } = req.query;
+    const DEFAULT_COMPANY_ID = 1;
+    const companyId = req.user?.companyId || DEFAULT_COMPANY_ID;
+
+    const result = await sessionService.getAllSessionsByStage(
+      companyId,
+      stage,
+      parseInt(limit),
+      parseInt(offset)
+    );
+
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};

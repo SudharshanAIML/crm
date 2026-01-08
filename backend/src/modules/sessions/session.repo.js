@@ -123,6 +123,51 @@ export const getByStage = async (contactId, stage) => {
 };
 
 /* ---------------------------------------------------
+   GET ALL SESSIONS BY STAGE (COMPANY-WIDE)
+--------------------------------------------------- */
+export const getAllByStage = async (companyId, stage, limit = 100, offset = 0) => {
+  const [rows] = await db.query(
+    `
+    SELECT 
+      s.*,
+      e.name as employee_name,
+      c.name as contact_name,
+      c.email as contact_email,
+      c.temperature as contact_temperature,
+      c.status as contact_status
+    FROM sessions s
+    LEFT JOIN employees e ON s.emp_id = e.emp_id
+    JOIN contacts c ON s.contact_id = c.contact_id
+    WHERE c.company_id = ?
+      AND s.stage = ?
+    ORDER BY s.created_at DESC
+    LIMIT ? OFFSET ?
+    `,
+    [companyId, stage, limit, offset]
+  );
+
+  return rows;
+};
+
+/* ---------------------------------------------------
+   COUNT ALL SESSIONS BY STAGE (COMPANY-WIDE)
+--------------------------------------------------- */
+export const countAllByStage = async (companyId, stage) => {
+  const [rows] = await db.query(
+    `
+    SELECT COUNT(*) as total
+    FROM sessions s
+    JOIN contacts c ON s.contact_id = c.contact_id
+    WHERE c.company_id = ?
+      AND s.stage = ?
+    `,
+    [companyId, stage]
+  );
+
+  return rows[0].total;
+};
+
+/* ---------------------------------------------------
    UPDATE SESSION
 --------------------------------------------------- */
 export const updateSession = async (sessionId, updates) => {

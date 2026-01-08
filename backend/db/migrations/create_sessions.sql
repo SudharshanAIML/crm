@@ -2,7 +2,7 @@ CREATE TABLE "sessions" (
   "session_id" int NOT NULL AUTO_INCREMENT,
   "contact_id" int NOT NULL,
   "emp_id" int DEFAULT NULL,
-  "stage" enum('MQL','SQL') NOT NULL,
+  "stage" enum('LEAD','MQL','SQL','OPPORTUNITY','CUSTOMER','EVANGELIST') NOT NULL,
   "session_no" int NOT NULL,
   "rating" int DEFAULT NULL,
   "session_status" enum('CONNECTED','NOT_CONNECTED','BAD_TIMING') NOT NULL,
