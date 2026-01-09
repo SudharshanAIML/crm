@@ -55,15 +55,32 @@ export const getEmailsByContact = async (req, res, next) => {
  * @desc   Send custom email to contact
  * @route  POST /emails
  * @access Employee
+ * @body   {contactId, subject, body, cc?, bcc?, isHtml?, attachments?}
+ *         attachments: Array of {name: string, type: string, base64: string}
  */
 export const sendEmail = async (req, res, next) => {
   try {
-    const { contactId, subject, body, cc, bcc } = req.body;
+    const { contactId, subject, body, cc, bcc, isHtml, attachments } = req.body;
 
     if (!contactId || !subject || !body) {
       return res.status(400).json({
         message: "contactId, subject, and body are required",
       });
+    }
+
+    // Validate attachments if provided
+    if (attachments && Array.isArray(attachments)) {
+      const totalSize = attachments.reduce((sum, att) => {
+        // base64 is ~4/3 of original size
+        return sum + (att.base64?.length || 0) * 0.75;
+      }, 0);
+      
+      // Gmail limit is 25MB, we use 20MB to be safe
+      if (totalSize > 20 * 1024 * 1024) {
+        return res.status(400).json({
+          message: "Total attachment size exceeds 20MB limit",
+        });
+      }
     }
 
     const emailId = await emailService.sendCustomEmail({
@@ -73,6 +90,8 @@ export const sendEmail = async (req, res, next) => {
       body,
       cc,
       bcc,
+      isHtml: isHtml || false,
+      attachments: attachments || [],
     });
 
     res.status(201).json({

@@ -82,8 +82,13 @@ const parseFullMessage = (message) => {
 /* ---------------------------------------------------
    HELPER: Build raw RFC 2822 message
    Adds X-CRM-Sent header to identify emails sent from CRM
+   Supports attachments using MIME multipart/mixed format
 --------------------------------------------------- */
-const buildRawMessage = ({ from, to, subject, htmlBody, textBody, cc, bcc }) => {
+const buildRawMessage = ({ from, to, subject, htmlBody, textBody, cc, bcc, attachments = [] }) => {
+  const hasAttachments = attachments && attachments.length > 0;
+  const mixedBoundary = "mixed_boundary_" + Date.now();
+  const altBoundary = "alt_boundary_" + Date.now();
+
   const messageParts = [
     `From: ${from}`,
     `To: ${to}`,
@@ -91,26 +96,66 @@ const buildRawMessage = ({ from, to, subject, htmlBody, textBody, cc, bcc }) => 
     "X-CRM-Sent: true",
     `X-CRM-Timestamp: ${new Date().toISOString()}`,
     "MIME-Version: 1.0",
-    'Content-Type: multipart/alternative; boundary="boundary"',
-    "",
   ];
 
   if (cc) messageParts.splice(2, 0, `Cc: ${cc}`);
   if (bcc) messageParts.splice(cc ? 3 : 2, 0, `Bcc: ${bcc}`);
 
-  messageParts.push(
-    "--boundary",
-    "Content-Type: text/plain; charset=UTF-8",
-    "",
-    textBody || stripHtml(htmlBody),
-    "",
-    "--boundary",
-    "Content-Type: text/html; charset=UTF-8",
-    "",
-    htmlBody || "",
-    "",
-    "--boundary--"
-  );
+  if (hasAttachments) {
+    // Use multipart/mixed for attachments
+    messageParts.push(
+      `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
+      "",
+      `--${mixedBoundary}`,
+      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+      "",
+      `--${altBoundary}`,
+      "Content-Type: text/plain; charset=UTF-8",
+      "",
+      textBody || stripHtml(htmlBody),
+      "",
+      `--${altBoundary}`,
+      "Content-Type: text/html; charset=UTF-8",
+      "",
+      htmlBody || "",
+      "",
+      `--${altBoundary}--`
+    );
+
+    // Add each attachment
+    for (const attachment of attachments) {
+      const { name, type, base64 } = attachment;
+      const safeFilename = name.replace(/["\\]/g, '_');
+      messageParts.push(
+        "",
+        `--${mixedBoundary}`,
+        `Content-Type: ${type || 'application/octet-stream'}; name="${safeFilename}"`,
+        "Content-Transfer-Encoding: base64",
+        `Content-Disposition: attachment; filename="${safeFilename}"`,
+        "",
+        base64
+      );
+    }
+
+    messageParts.push("", `--${mixedBoundary}--`);
+  } else {
+    // No attachments - use simple multipart/alternative
+    messageParts.push(
+      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+      "",
+      `--${altBoundary}`,
+      "Content-Type: text/plain; charset=UTF-8",
+      "",
+      textBody || stripHtml(htmlBody),
+      "",
+      `--${altBoundary}`,
+      "Content-Type: text/html; charset=UTF-8",
+      "",
+      htmlBody || "",
+      "",
+      `--${altBoundary}--`
+    );
+  }
 
   const rawMessage = messageParts.join("\r\n");
   return Buffer.from(rawMessage)
@@ -473,6 +518,16 @@ export const searchMessages = async (empId, query, options = {}) => {
 /**
  * Send email via Gmail API
  * Uses the employee's connected Gmail account
+ * @param {Object} options - Email options
+ * @param {number} options.empId - Employee ID
+ * @param {string} options.to - Recipient email
+ * @param {string} options.subject - Email subject
+ * @param {string} options.htmlBody - HTML body content
+ * @param {string} [options.textBody] - Plain text body
+ * @param {string} [options.cc] - CC recipients
+ * @param {string} [options.bcc] - BCC recipients
+ * @param {string} [options.replyTo] - Reply-to address
+ * @param {Array} [options.attachments] - Array of {name, type, base64} objects
  */
 export const sendEmailViaGmail = async ({
   empId,
@@ -483,6 +538,7 @@ export const sendEmailViaGmail = async ({
   cc,
   bcc,
   replyTo,
+  attachments = [],
 }) => {
   // Get Gmail client with valid tokens
   const gmail = await googleOAuth.getGmailClient(empId);
@@ -501,6 +557,7 @@ export const sendEmailViaGmail = async ({
     textBody,
     cc,
     bcc,
+    attachments,
   });
 
   // Send email via Gmail API

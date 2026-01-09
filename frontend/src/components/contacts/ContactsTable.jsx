@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Eye, ArrowRight, Contact } from 'lucide-react';
-import { Pagination, SortIcon, getContactStatusBadge, getTemperatureIcon } from './index';
+import { Pagination, SortIcon, getContactStatusBadge, getTemperatureIcon } from '../admin';
 
 /**
  * ContactsTable - Displays paginated, sortable contacts with filters

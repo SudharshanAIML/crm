@@ -4,7 +4,7 @@ import {
   CheckCircle2, Clock, Ban, Send, UserCheck, UserX,
   Trash2, RefreshCw
 } from 'lucide-react';
-import { getStatusIcon } from './index';
+import { getStatusIcon } from '../index';
 
 /**
  * Utility function to get initials from name

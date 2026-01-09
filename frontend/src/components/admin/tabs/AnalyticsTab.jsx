@@ -13,7 +13,7 @@ import {
   TopSources,
   AnalyticsLoading,
   AnalyticsError
-} from './AnalyticsComponents';
+} from '../AnalyticsComponents';
 
 /**
  * AnalyticsTab - Main analytics dashboard component

@@ -7,6 +7,41 @@ const EMOJI_LIST = [
   '🤔', '😎', '👍', '👋', '🎉', '✨', '💯', '🔥',
   '❤️', '💪', '🙏', '👏', '🤝', '📧', '📞', '💼',
 ];
+
+/**
+ * Convert markdown-style links and formatting to HTML for email
+ * [text](url) -> <a href="url">text</a>
+ * Also converts line breaks to <br> tags
+ */
+const convertToHtml = (text) => {
+  if (!text) return '';
+  
+  // Escape HTML entities first to prevent XSS
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  
+  // Convert markdown links [text](url) to HTML anchors
+  // Regex: \[([^\]]+)\]\(([^)]+)\)
+  html = html.replace(
+    /\[([^\]]+)\]\(([^)]+)\)/g,
+    '<a href="$2" style="color: #0284c7; text-decoration: underline;">$1</a>'
+  );
+  
+  // Convert plain URLs to clickable links (if not already in anchor)
+  // Match URLs that aren't already inside href=""
+  html = html.replace(
+    /(?<!href="|">)(https?:\/\/[^\s<]+)/g,
+    '<a href="$1" style="color: #0284c7; text-decoration: underline;">$1</a>'
+  );
+  
+  // Convert line breaks to <br> tags
+  html = html.replace(/\n/g, '<br>');
+  
+  return html;
+};
+
 //emailuuuuu
 const EmailComposer = ({ 
   isOpen, 
@@ -97,10 +132,19 @@ const EmailComposer = ({
       setLoading(true);
       setError(null);
 
+      // Convert markdown-style content to HTML for proper email rendering
+      const htmlBody = convertToHtml(formData.body);
+
       await sendEmail({
         contactId: contact?.contact_id,
         subject: formData.subject,
-        body: formData.body,
+        body: htmlBody,
+        isHtml: true,
+        attachments: attachments.map(({ name, type, base64 }) => ({
+          name,
+          type,
+          base64,
+        })),
       });
 
       onSuccess?.();
@@ -363,7 +407,7 @@ const EmailComposer = ({
 
         {/* Subject Field */}
         <div className="flex items-center border-b border-gray-200 px-4 py-2">
-          <label className="text-gray-500 text-sm w-16">Subject</label>
+          <label className="text-gray-500 text-sm w-16">Subject </label>
           <input
             type="text"
             value={formData.subject}

@@ -2,13 +2,22 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CurrencyProvider } from './context/CurrencyContext';
+import { AdminProvider } from './context/AdminContext';
+import { lazy, Suspense } from 'react';
+
+// Eagerly loaded pages (critical path)
 import LoginPage from './pages/LoginPage';
 import OnboardingPage from './pages/OnboardingPage';
 import Dashboard from './pages/Dashboard';
-import AdminDashboard from './pages/AdminDashboard';
-import SettingsPage from './pages/SettingsPage';
-import FollowupsPage from './pages/FollowupsPage';
-import StageFollowupsPage from './pages/StageFollowupsPage';
+
+// Lazy loaded pages (code splitting)
+const AdminLayout = lazy(() => import('./components/admin/AdminLayout'));
+const AdminTeamPage = lazy(() => import('./pages/AdminTeamPage'));
+const AdminContactsPage = lazy(() => import('./pages/AdminContactsPage'));
+const AdminAnalyticsPage = lazy(() => import('./pages/AdminAnalyticsPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const FollowupsPage = lazy(() => import('./pages/FollowupsPage'));
+const StageFollowupsPage = lazy(() => import('./pages/StageFollowupsPage'));
 
 // Loading Spinner Component
 const LoadingSpinner = () => (
@@ -73,12 +82,19 @@ const PublicRoute = ({ children }) => {
 
   if (isAuthenticated) {
     if (needsOnboarding) return <Navigate to="/onboarding" />;
-    // Admins go to admin dashboard, employees go to regular dashboard
-    return <Navigate to={isAdmin ? "/admin" : "/dashboard"} />;
+    // Admins go to admin team page, employees go to regular dashboard
+    return <Navigate to={isAdmin ? "/admin/team" : "/dashboard"} />;
   }
 
   return children;
 };
+
+// Suspense wrapper for lazy loaded components
+const SuspenseWrapper = ({ children }) => (
+  <Suspense fallback={<LoadingSpinner />}>
+    {children}
+  </Suspense>
+);
 
 function App() {
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -87,8 +103,9 @@ function App() {
     <GoogleOAuthProvider clientId={googleClientId}>
       <AuthProvider>
         <CurrencyProvider>
-          <BrowserRouter>
-            <Routes>
+          <AdminProvider>
+            <BrowserRouter>
+              <Routes>
               <Route
                 path="/login"
                 element={
@@ -113,19 +130,31 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              
+              {/* Admin routes with nested layout */}
               <Route
                 path="/admin"
                 element={
                   <AdminRoute>
-                    <AdminDashboard />
+                    <SuspenseWrapper>
+                      <AdminLayout />
+                    </SuspenseWrapper>
                   </AdminRoute>
                 }
-              />
+              >
+                <Route index element={<Navigate to="/admin/team" replace />} />
+                <Route path="team" element={<AdminTeamPage />} />
+                <Route path="contacts" element={<AdminContactsPage />} />
+                <Route path="analytics" element={<AdminAnalyticsPage />} />
+              </Route>
+              
               <Route
                 path="/settings"
                 element={
                   <AuthenticatedRoute>
-                    <SettingsPage />
+                    <SuspenseWrapper>
+                      <SettingsPage />
+                    </SuspenseWrapper>
                   </AuthenticatedRoute>
                 }
               />
@@ -133,7 +162,9 @@ function App() {
                 path="/followups/:contactId"
                 element={
                   <AuthenticatedRoute>
-                    <FollowupsPage />
+                    <SuspenseWrapper>
+                      <FollowupsPage />
+                    </SuspenseWrapper>
                   </AuthenticatedRoute>
                 }
               />
@@ -141,14 +172,17 @@ function App() {
                 path="/:stage/followups"
                 element={
                   <AuthenticatedRoute>
-                    <StageFollowupsPage />
+                    <SuspenseWrapper>
+                      <StageFollowupsPage />
+                    </SuspenseWrapper>
                   </AuthenticatedRoute>
                 }
               />
-              <Route path="/" element={<Navigate to="/login" />} />
-              <Route path="*" element={<Navigate to="/login" />} />
-            </Routes>
-          </BrowserRouter>
+                <Route path="/" element={<Navigate to="/login" />} />
+                <Route path="*" element={<Navigate to="/login" />} />
+              </Routes>
+            </BrowserRouter>
+          </AdminProvider>
         </CurrencyProvider>
       </AuthProvider>
     </GoogleOAuthProvider>

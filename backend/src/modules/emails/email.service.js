@@ -240,6 +240,16 @@ export const getEmailsByContact = async (contactId) => {
 /* ---------------------------------------------------
    SEND CUSTOM EMAIL VIA EMPLOYEE'S GMAIL
    Uses OAuth to send from employee's own account
+   @param {Object} options - Email options
+   @param {number} options.contactId - Contact ID
+   @param {number} options.empId - Employee ID
+   @param {string} options.subject - Email subject
+   @param {string} options.body - Email body (HTML or plain text)
+   @param {string} [options.recipientEmail] - Override recipient email
+   @param {string} [options.cc] - CC recipients
+   @param {string} [options.bcc] - BCC recipients
+   @param {boolean} [options.isHtml=false] - Whether body is already HTML
+   @param {Array} [options.attachments] - Array of {name, type, base64} objects
 --------------------------------------------------- */
 export const sendCustomEmail = async ({
   contactId,
@@ -249,6 +259,8 @@ export const sendCustomEmail = async ({
   recipientEmail,
   cc,
   bcc,
+  isHtml = false,
+  attachments = [],
 }) => {
   // Verify contact exists
   const contact = await contactRepo.getById(contactId);
@@ -267,10 +279,12 @@ export const sendCustomEmail = async ({
   const trackingUrl = `${process.env.APP_URL || "http://localhost:3000"}/api/track/${token}`;
 
   // Build HTML body with tracking pixel
+  // If body is already HTML, use it directly; otherwise convert line breaks
+  const processedBody = isHtml ? body : body.replace(/\n/g, "<br>");
   const htmlBody = `
     <html>
-      <body>
-        ${body.replace(/\n/g, "<br>")}
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">
+        ${processedBody}
         <br><br>
         <img src="${trackingUrl}?type=pixel" width="1" height="1" style="display:none" alt="" />
       </body>
@@ -296,6 +310,7 @@ export const sendCustomEmail = async ({
       htmlBody,
       cc,
       bcc,
+      attachments,
     });
     
     // Update email record with Gmail message ID

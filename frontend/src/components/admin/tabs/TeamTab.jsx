@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Search, ChevronDown, UserPlus } from 'lucide-react';
-import EmployeesTable from './EmployeesTable';
+import { EmployeesTable } from '../index';
 
 /**
  * TeamTab - Team management tab with search, filters, and employee table

@@ -20,7 +20,7 @@ const FollowupsPage = () => {
   const { isAdmin } = useAuth();
   
   // Dynamic back navigation based on user role
-  const backPath = isAdmin ? '/admin' : '/dashboard';
+  const backPath = isAdmin ? '/admin/contacts' : '/dashboard';
   
   // Get contact from navigation state or fetch it
   const [contact, setContact] = useState(location.state?.contact || null);

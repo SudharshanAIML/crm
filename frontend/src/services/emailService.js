@@ -6,13 +6,16 @@ import api from './api';
  */
 
 // Send email to contact via connected Gmail
-export const sendEmail = async ({ contactId, subject, body, cc, bcc }) => {
+// Supports attachments: Array of {name, type, base64}
+export const sendEmail = async ({ contactId, subject, body, cc, bcc, isHtml = false, attachments = [] }) => {
   const response = await api.post('/emails', {
     contactId,
     subject,
     body,
     cc,
     bcc,
+    isHtml,
+    attachments,
   });
   return response.data;
 };

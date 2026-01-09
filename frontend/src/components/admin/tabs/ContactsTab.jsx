@@ -1,9 +1,7 @@
 import { memo } from 'react';
 import { Search, ChevronDown, Eye, ArrowRight, Contact } from 'lucide-react';
-import Pagination from './Pagination';
-import SortIcon from './icons/SortIcon';
-import getContactStatusBadge from './status/ContactStatusBadge';
-import getTemperatureIcon from './icons/TemperatureIcon';
+import { Pagination, SortIcon, getContactStatusBadge, getTemperatureIcon } from '../index';
+import { ContactsTable } from '../../contacts';
 
 /**
  * Utility function to get initials from name
@@ -224,54 +222,21 @@ const ContactsTab = memo(({
       </div>
 
       {/* Contacts Table */}
-      <div className="overflow-x-auto">
-        {contactsLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
-          </div>
-        ) : filteredSortedContacts.length === 0 ? (
-          <div className="text-center py-12">
-            <Contact className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500">No contacts found</p>
-          </div>
-        ) : (
-          <>
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50">
-                  <SortableHeader column="name" label="Contact" currentSort={contactSort} onSort={handleContactSort} />
-                  <SortableHeader column="status" label="Status" currentSort={contactSort} onSort={handleContactSort} />
-                  <SortableHeader column="temperature" label="Temp" currentSort={contactSort} onSort={handleContactSort} align="center" />
-                  <SortableHeader column="assigned_emp_name" label="Assigned To" currentSort={contactSort} onSort={handleContactSort} />
-                  <SortableHeader column="total_sessions" label="Sessions" currentSort={contactSort} onSort={handleContactSort} align="center" />
-                  <SortableHeader column="last_contacted" label="Last Contact" currentSort={contactSort} onSort={handleContactSort} />
-                  <th className="text-center py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {paginatedContacts.map((contact) => (
-                  <ContactRow 
-                    key={contact.contact_id}
-                    contact={contact}
-                    onView={handleViewContact}
-                    onFollowups={handleFollowupsClick}
-                  />
-                ))}
-              </tbody>
-            </table>
-            
-            {/* Pagination */}
-            <Pagination
-              currentPage={contactPage}
-              totalPages={contactTotalPages}
-              totalItems={filteredSortedContacts.length}
-              onPageChange={setContactPage}
-              itemName="contacts"
-              ROWS_PER_PAGE={ROWS_PER_PAGE}
-            />
-          </>
-        )}
-      </div>
+      <ContactsTable 
+        contactsLoading={contactsLoading}
+        filteredSortedContacts={filteredSortedContacts}
+        paginatedContacts={paginatedContacts}
+        contactSort={contactSort}
+        contactPage={contactPage}
+        contactTotalPages={contactTotalPages}
+        setContactPage={setContactPage}
+        ROWS_PER_PAGE={ROWS_PER_PAGE}
+        handleContactSort={handleContactSort}
+        handleViewContact={handleViewContact}
+        handleFollowupsClick={handleFollowupsClick}
+        getInitials={getInitials}
+        formatTimeAgo={formatTimeAgo}
+      />
     </div>
   );
 });
