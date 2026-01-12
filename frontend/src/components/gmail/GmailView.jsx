@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     Inbox,
     Send,
@@ -20,6 +20,7 @@ import {
     getGmailDrafts,
     searchGmail,
 } from '../../services/emailService';
+import { useEmailCache } from '../../context/EmailCacheContext';
 import EmailList from './EmailList';
 import EmailDetail from './EmailDetail';
 import ComposeEmail from './ComposeEmail';
@@ -31,6 +32,14 @@ const TABS = [
 ];
 
 const GmailView = () => {
+    const { 
+        getCachedData, 
+        setCachedData, 
+        invalidateCache,
+        getCachedConnectionStatus,
+        setCachedConnectionStatus,
+    } = useEmailCache();
+    
     const [activeTab, setActiveTab] = useState('inbox');
     const [emails, setEmails] = useState([]);
     const [drafts, setDrafts] = useState([]);
@@ -51,16 +60,38 @@ const GmailView = () => {
     // Compose modal
     const [showCompose, setShowCompose] = useState(false);
     const [editingDraft, setEditingDraft] = useState(null);
+    
+    // Track if initial fetch has been done
+    const initialFetchDone = useRef(false);
 
-    // Check connection on mount
+    // Check connection on mount - use cached value if available
     useEffect(() => {
-        checkConnection();
+        const cachedStatus = getCachedConnectionStatus();
+        if (cachedStatus !== null) {
+            setEmailConnected(cachedStatus);
+            setCheckingConnection(false);
+        } else {
+            checkConnection();
+        }
     }, []);
 
     // Fetch data when tab changes or connection is established
     useEffect(() => {
         if (emailConnected) {
-            fetchData();
+            // Try to use cached data first
+            const cachedData = getCachedData(activeTab);
+            if (cachedData && !initialFetchDone.current) {
+                if (activeTab === 'drafts') {
+                    setDrafts(cachedData.items);
+                } else {
+                    setEmails(cachedData.items);
+                }
+                setNextPageToken(cachedData.nextPageToken);
+                setLoading(false);
+                initialFetchDone.current = true;
+            } else if (!cachedData) {
+                fetchData();
+            }
         }
     }, [activeTab, emailConnected]);
 
@@ -69,8 +100,10 @@ const GmailView = () => {
             setCheckingConnection(true);
             const status = await getConnectionStatus();
             setEmailConnected(status.connected);
+            setCachedConnectionStatus(status.connected);
         } catch (err) {
             setEmailConnected(false);
+            setCachedConnectionStatus(false);
         } finally {
             setCheckingConnection(false);
         }
@@ -85,7 +118,22 @@ const GmailView = () => {
         }
     };
 
-    const fetchData = useCallback(async (pageToken = null) => {
+    const fetchData = useCallback(async (pageToken = null, forceRefresh = false) => {
+        // Check cache first if not paginating and not forcing refresh
+        if (!pageToken && !forceRefresh) {
+            const cachedData = getCachedData(activeTab);
+            if (cachedData) {
+                if (activeTab === 'drafts') {
+                    setDrafts(cachedData.items);
+                } else {
+                    setEmails(cachedData.items);
+                }
+                setNextPageToken(cachedData.nextPageToken);
+                setLoading(false);
+                return;
+            }
+        }
+        
         try {
             if (!pageToken) {
                 setLoading(true);
@@ -95,19 +143,32 @@ const GmailView = () => {
             let result;
             if (activeTab === 'inbox') {
                 result = await getGmailInbox({ pageToken });
-                setEmails(pageToken ? [...emails, ...result.messages] : result.messages);
+                const newEmails = pageToken ? [...emails, ...result.messages] : result.messages;
+                setEmails(newEmails);
+                if (!pageToken) {
+                    setCachedData('inbox', { items: newEmails, nextPageToken: result.nextPageToken });
+                }
             } else if (activeTab === 'crm-sent') {
                 result = await getGmailCRMSent({ pageToken });
-                setEmails(pageToken ? [...emails, ...result.messages] : result.messages);
+                const newEmails = pageToken ? [...emails, ...result.messages] : result.messages;
+                setEmails(newEmails);
+                if (!pageToken) {
+                    setCachedData('crm-sent', { items: newEmails, nextPageToken: result.nextPageToken });
+                }
             } else if (activeTab === 'drafts') {
                 result = await getGmailDrafts({ pageToken });
-                setDrafts(pageToken ? [...drafts, ...result.drafts] : result.drafts);
+                const newDrafts = pageToken ? [...drafts, ...result.drafts] : result.drafts;
+                setDrafts(newDrafts);
+                if (!pageToken) {
+                    setCachedData('drafts', { items: newDrafts, nextPageToken: result.nextPageToken });
+                }
             }
 
             setNextPageToken(result.nextPageToken);
         } catch (err) {
             if (err.response?.data?.code === 'EMAIL_NOT_CONNECTED') {
                 setEmailConnected(false);
+                setCachedConnectionStatus(false);
             } else {
                 setError('Failed to load emails. Please try again.');
             }
@@ -115,12 +176,13 @@ const GmailView = () => {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [activeTab, emails, drafts]);
+    }, [activeTab, emails, drafts, getCachedData, setCachedData, setCachedConnectionStatus]);
 
     const handleRefresh = () => {
         setRefreshing(true);
         setSelectedEmail(null);
-        fetchData();
+        invalidateCache(activeTab);
+        fetchData(null, true);
     };
 
     const handleSearch = async (e) => {

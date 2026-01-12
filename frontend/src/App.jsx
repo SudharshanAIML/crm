@@ -3,26 +3,45 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CurrencyProvider } from './context/CurrencyContext';
 import { AdminProvider } from './context/AdminContext';
+import { EmailCacheProvider } from './context/EmailCacheContext';
+import { ContactsCacheProvider } from './context/ContactsCacheContext';
 import { lazy, Suspense } from 'react';
 
 // Eagerly loaded pages (critical path)
 import LoginPage from './pages/LoginPage';
 import OnboardingPage from './pages/OnboardingPage';
-import Dashboard from './pages/Dashboard';
 
-// Lazy loaded pages (code splitting)
+// Lazy loaded layouts
+const DashboardLayout = lazy(() => import('./components/layout/DashboardLayout'));
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout'));
+
+// Lazy loaded dashboard pages
+const ContactsPage = lazy(() => import('./pages/ContactsPage'));
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
+const CalendarPage = lazy(() => import('./pages/CalendarPage'));
+const GmailPage = lazy(() => import('./pages/GmailPage'));
+
+// Lazy loaded admin pages
 const AdminTeamPage = lazy(() => import('./pages/AdminTeamPage'));
 const AdminContactsPage = lazy(() => import('./pages/AdminContactsPage'));
 const AdminAnalyticsPage = lazy(() => import('./pages/AdminAnalyticsPage'));
+
+// Lazy loaded shared pages
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const FollowupsPage = lazy(() => import('./pages/FollowupsPage'));
 const StageFollowupsPage = lazy(() => import('./pages/StageFollowupsPage'));
 
-// Loading Spinner Component
+// Loading Spinner Component - Full page
 const LoadingSpinner = () => (
   <div className="min-h-screen bg-gradient-to-br from-sky-100 via-blue-50 to-cyan-100 flex items-center justify-center">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500"></div>
+  </div>
+);
+
+// Inline loading indicator for nested routes (doesn't cause layout shift)
+const InlineLoader = () => (
+  <div className="flex items-center justify-center py-12">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
   </div>
 );
 
@@ -58,7 +77,7 @@ const AdminRoute = ({ children }) => {
   if (loading) return <LoadingSpinner />;
   if (!isAuthenticated) return <Navigate to="/login" />;
   if (needsOnboarding) return <Navigate to="/onboarding" />;
-  if (!isAdmin) return <Navigate to="/dashboard" />;
+  if (!isAdmin) return <Navigate to="/contacts/lead" />;
 
   return children;
 };
@@ -69,7 +88,7 @@ const OnboardingRoute = ({ children }) => {
 
   if (loading) return <LoadingSpinner />;
   if (!isAuthenticated) return <Navigate to="/login" />;
-  if (!needsOnboarding) return <Navigate to="/dashboard" />;
+  if (!needsOnboarding) return <Navigate to="/contacts/lead" />;
 
   return children;
 };
@@ -82,16 +101,23 @@ const PublicRoute = ({ children }) => {
 
   if (isAuthenticated) {
     if (needsOnboarding) return <Navigate to="/onboarding" />;
-    // Admins go to admin team page, employees go to regular dashboard
-    return <Navigate to={isAdmin ? "/admin/team" : "/dashboard"} />;
+    // Admins go to admin team page, employees go to contacts
+    return <Navigate to={isAdmin ? "/admin/team" : "/contacts/lead"} />;
   }
 
   return children;
 };
 
-// Suspense wrapper for lazy loaded components
+// Suspense wrapper for lazy loaded components (full page)
 const SuspenseWrapper = ({ children }) => (
   <Suspense fallback={<LoadingSpinner />}>
+    {children}
+  </Suspense>
+);
+
+// Suspense wrapper for nested routes (inline, no layout shift)
+const NestedSuspense = ({ children }) => (
+  <Suspense fallback={<InlineLoader />}>
     {children}
   </Suspense>
 );
@@ -104,84 +130,107 @@ function App() {
       <AuthProvider>
         <CurrencyProvider>
           <AdminProvider>
-            <BrowserRouter>
-              <Routes>
-              <Route
-                path="/login"
-                element={
-                  <PublicRoute>
-                    <LoginPage />
-                  </PublicRoute>
-                }
-              />
-              <Route
-                path="/onboarding"
-                element={
-                  <OnboardingRoute>
-                    <OnboardingPage />
-                  </OnboardingRoute>
-                }
-              />
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                }
-              />
-              
-              {/* Admin routes with nested layout */}
-              <Route
-                path="/admin"
-                element={
-                  <AdminRoute>
-                    <SuspenseWrapper>
-                      <AdminLayout />
-                    </SuspenseWrapper>
-                  </AdminRoute>
-                }
-              >
-                <Route index element={<Navigate to="/admin/team" replace />} />
-                <Route path="team" element={<AdminTeamPage />} />
-                <Route path="contacts" element={<AdminContactsPage />} />
-                <Route path="analytics" element={<AdminAnalyticsPage />} />
-              </Route>
-              
-              <Route
-                path="/settings"
-                element={
-                  <AuthenticatedRoute>
-                    <SuspenseWrapper>
-                      <SettingsPage />
-                    </SuspenseWrapper>
-                  </AuthenticatedRoute>
-                }
-              />
-              <Route
-                path="/followups/:contactId"
-                element={
-                  <AuthenticatedRoute>
-                    <SuspenseWrapper>
-                      <FollowupsPage />
-                    </SuspenseWrapper>
-                  </AuthenticatedRoute>
-                }
-              />
-              <Route
-                path="/:stage/followups"
-                element={
-                  <AuthenticatedRoute>
-                    <SuspenseWrapper>
-                      <StageFollowupsPage />
-                    </SuspenseWrapper>
-                  </AuthenticatedRoute>
-                }
-              />
+            <EmailCacheProvider>
+              <ContactsCacheProvider>
+                <BrowserRouter>
+                  <Routes>
+                  {/* Public Routes */}
+                  <Route
+                    path="/login"
+                    element={
+                      <PublicRoute>
+                        <LoginPage />
+                      </PublicRoute>
+                    }
+                  />
+                  <Route
+                  path="/onboarding"
+                  element={
+                    <OnboardingRoute>
+                      <OnboardingPage />
+                    </OnboardingRoute>
+                  }
+                />
+
+                {/* Dashboard Layout with nested routes */}
+                <Route
+                  element={
+                    <ProtectedRoute>
+                      <SuspenseWrapper>
+                        <DashboardLayout />
+                      </SuspenseWrapper>
+                    </ProtectedRoute>
+                  }
+                >
+                  {/* Contact Stage Routes */}
+                  <Route path="/contacts/:stage" element={<NestedSuspense><ContactsPage /></NestedSuspense>} />
+                  
+                  {/* Workspace View Routes */}
+                  <Route path="/analytics" element={<NestedSuspense><AnalyticsPage /></NestedSuspense>} />
+                  <Route path="/calendar" element={<NestedSuspense><CalendarPage /></NestedSuspense>} />
+                  <Route path="/gmail" element={<NestedSuspense><GmailPage /></NestedSuspense>} />
+                </Route>
+
+                {/* Admin routes with nested layout */}
+                <Route
+                  path="/admin"
+                  element={
+                    <AdminRoute>
+                      <SuspenseWrapper>
+                        <AdminLayout />
+                      </SuspenseWrapper>
+                    </AdminRoute>
+                  }
+                >
+                  <Route index element={<Navigate to="/admin/team" replace />} />
+                  <Route path="team" element={<NestedSuspense><AdminTeamPage /></NestedSuspense>} />
+                  <Route path="contacts" element={<NestedSuspense><AdminContactsPage /></NestedSuspense>} />
+                  <Route path="analytics" element={<NestedSuspense><AdminAnalyticsPage /></NestedSuspense>} />
+                </Route>
+
+                {/* Settings - Accessible by all authenticated users */}
+                <Route
+                  path="/settings"
+                  element={
+                    <AuthenticatedRoute>
+                      <SuspenseWrapper>
+                        <SettingsPage />
+                      </SuspenseWrapper>
+                    </AuthenticatedRoute>
+                  }
+                />
+
+                {/* Followups routes */}
+                <Route
+                  path="/followups/:contactId"
+                  element={
+                    <AuthenticatedRoute>
+                      <SuspenseWrapper>
+                        <FollowupsPage />
+                      </SuspenseWrapper>
+                    </AuthenticatedRoute>
+                  }
+                />
+                <Route
+                  path="/:stage/followups"
+                  element={
+                    <AuthenticatedRoute>
+                      <SuspenseWrapper>
+                        <StageFollowupsPage />
+                      </SuspenseWrapper>
+                    </AuthenticatedRoute>
+                  }
+                />
+
+                {/* Redirects */}
+                <Route path="/dashboard" element={<Navigate to="/contacts/lead" replace />} />
+                <Route path="/contacts" element={<Navigate to="/contacts/lead" replace />} />
                 <Route path="/" element={<Navigate to="/login" />} />
                 <Route path="*" element={<Navigate to="/login" />} />
-              </Routes>
-            </BrowserRouter>
+                </Routes>
+                </BrowserRouter>
+              </ContactsCacheProvider>
+            </EmailCacheProvider>
           </AdminProvider>
         </CurrencyProvider>
       </AuthProvider>

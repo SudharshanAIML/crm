@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import Sidebar from '../layout/Sidebar';
 
 /**
@@ -10,21 +10,19 @@ const MobileSidebar = memo(({
   onClose,
   activeStage,
   onStageChange,
-  contactCounts,
   activeView,
   onViewChange,
 }) => {
   if (!isOpen) return null;
 
-  const handleStageChange = (stage) => {
-    onStageChange(stage);
-    onClose();
-  };
+  // Wrap handlers to close mobile menu after navigation
+  const handleStageChange = useCallback((stage) => {
+    onStageChange?.(stage);
+  }, [onStageChange]);
 
-  const handleViewChange = (view) => {
-    onViewChange(view);
-    onClose();
-  };
+  const handleViewChange = useCallback((view) => {
+    onViewChange?.(view);
+  }, [onViewChange]);
 
   return (
     <div className="lg:hidden fixed inset-0 z-50">
@@ -40,7 +38,6 @@ const MobileSidebar = memo(({
         <Sidebar
           activeStage={activeStage}
           onStageChange={handleStageChange}
-          contactCounts={contactCounts}
           collapsed={false}
           onToggle={onClose}
           onViewChange={handleViewChange}
