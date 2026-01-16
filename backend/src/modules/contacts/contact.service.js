@@ -87,6 +87,16 @@ export const getContactsByStatus = async (companyId, status, limit = 50, offset 
 };
 
 /* ---------------------------------------------------
+   SEARCH CONTACTS GLOBALLY (ALL STAGES)
+--------------------------------------------------- */
+export const searchContacts = async (companyId, searchTerm, limit = 20) => {
+  if (!searchTerm || searchTerm.trim().length < 2) {
+    return [];
+  }
+  return await contactRepo.searchContacts(companyId, searchTerm.trim(), limit);
+};
+
+/* ---------------------------------------------------
    GET ALL CONTACTS WITH EMPLOYEE INFO (ADMIN)
 --------------------------------------------------- */
 export const getAllContactsWithEmployeeInfo = async (companyId, filters = {}) => {

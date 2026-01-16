@@ -53,6 +53,29 @@ export const getContactsByStatus = async (req, res, next) => {
 };
 
 /**
+ * @desc   Search contacts globally across all stages
+ * @route  GET /contacts/search?q=searchterm&limit=20
+ * @access Employee
+ */
+export const searchContacts = async (req, res, next) => {
+  try {
+    const { q, limit = 20 } = req.query;
+    const DEFAULT_COMPANY_ID = 1;
+    const companyId = req.user?.companyId || DEFAULT_COMPANY_ID;
+
+    const contacts = await contactService.searchContacts(
+      companyId,
+      q,
+      parseInt(limit)
+    );
+    
+    res.json(contacts);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * @desc   Get contact by ID
  * @route  GET /contacts/:id
  * @access Employee

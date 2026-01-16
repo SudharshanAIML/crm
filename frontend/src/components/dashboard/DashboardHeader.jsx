@@ -1,7 +1,35 @@
 import { memo, useRef, useEffect, useState, useCallback } from 'react';
-import { Bell, Menu, ChevronDown } from 'lucide-react';
+import { Bell, Menu, ChevronDown, Search } from 'lucide-react';
 import Profile from '../layout/Profile';
+import GlobalSearch from '../layout/GlobalSearch';
 import { getInitials, getPageTitle } from './utils/dashboardHelpers';
+
+/**
+ * Mobile Search Modal
+ */
+const MobileSearchModal = memo(({ isOpen, onClose }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 sm:hidden">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      
+      {/* Search Panel */}
+      <div className="absolute top-0 left-0 right-0 bg-white p-4 shadow-xl">
+        <GlobalSearch className="w-full" />
+        <button
+          onClick={onClose}
+          className="mt-3 w-full py-2 text-sm text-gray-500 hover:text-gray-700"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+});
+
+MobileSearchModal.displayName = 'MobileSearchModal';
 
 /**
  * Notification bell component
@@ -51,6 +79,7 @@ const DashboardHeader = memo(({
   onMobileMenuOpen,
 }) => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const userMenuRef = useRef(null);
 
   // Close menu when clicking outside
@@ -68,7 +97,17 @@ const DashboardHeader = memo(({
     setUserMenuOpen(prev => !prev);
   }, []);
 
+  const openMobileSearch = useCallback(() => {
+    setMobileSearchOpen(true);
+  }, []);
+
+  const closeMobileSearch = useCallback(() => {
+    setMobileSearchOpen(false);
+  }, []);
+
   return (
+    <>
+    <MobileSearchModal isOpen={mobileSearchOpen} onClose={closeMobileSearch} />
     <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-100">
       <div className="flex items-center justify-between h-14 px-4 lg:px-6">
         {/* Left - Mobile Menu & Title */}
@@ -89,8 +128,22 @@ const DashboardHeader = memo(({
           </div>
         </div>
 
-        {/* Right - Notifications & User Menu */}
-        <div className="flex items-center gap-3">
+        {/* Center - Global Search (Desktop) */}
+        <div className="hidden sm:block flex-1 max-w-md mx-4 lg:mx-8">
+          <GlobalSearch />
+        </div>
+
+        {/* Right - Search (Mobile), Notifications & User Menu */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Mobile Search Button */}
+          <button
+            onClick={openMobileSearch}
+            className="sm:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            aria-label="Search contacts"
+          >
+            <Search className="w-5 h-5 text-gray-600" />
+          </button>
+
           <NotificationBell />
 
           {/* User Profile Dropdown */}
@@ -113,6 +166,7 @@ const DashboardHeader = memo(({
         </div>
       </div>
     </header>
+    </>
   );
 });
 

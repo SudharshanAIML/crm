@@ -221,6 +221,35 @@ export const getAll = async (companyId, limit = 50, offset = 0) => {
 };
 
 /* ---------------------------------------------------
+   SEARCH CONTACTS GLOBALLY (ALL STAGES)
+--------------------------------------------------- */
+export const searchContacts = async (companyId, searchTerm, limit = 20) => {
+  const term = `%${searchTerm}%`;
+  const [rows] = await db.query(
+    `
+    SELECT 
+      c.contact_id,
+      c.name,
+      c.email,
+      c.phone,
+      c.status,
+      c.temperature,
+      c.job_title
+    FROM contacts c
+    WHERE c.company_id = ?
+      AND (c.name LIKE ? OR c.email LIKE ? OR c.phone LIKE ?)
+    ORDER BY 
+      CASE WHEN c.name LIKE ? THEN 0 ELSE 1 END,
+      c.name ASC
+    LIMIT ?
+    `,
+    [companyId, term, term, term, term, limit]
+  );
+
+  return rows;
+};
+
+/* ---------------------------------------------------
    GET ALL CONTACTS WITH EMPLOYEE INFO (ADMIN)
 --------------------------------------------------- */
 export const getAllWithEmployeeInfo = async (companyId, filters = {}) => {

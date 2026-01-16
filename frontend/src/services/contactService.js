@@ -51,6 +51,15 @@ export const updateContact = async (contactId, updates) => {
   return response.data;
 };
 
+// Global search across all stages
+export const searchContacts = async (query, limit = 20) => {
+  if (!query || query.trim().length < 2) {
+    return [];
+  }
+  const response = await api.get(`/contacts/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+  return response.data;
+};
+
 // Promote LEAD to MQL
 export const promoteToMQL = async (contactId) => {
   const response = await api.patch(`/contacts/${contactId}/promote-mql`);

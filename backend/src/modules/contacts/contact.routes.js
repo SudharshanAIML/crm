@@ -18,6 +18,17 @@ router.get(
 );
 
 /* ---------------------------------------------------
+   SEARCH ROUTE (Place before :id routes)
+--------------------------------------------------- */
+
+// Global search across all stages
+router.get(
+  "/search",
+  authenticateEmployee,
+  contactController.searchContacts
+);
+
+/* ---------------------------------------------------
    LEAD CREATION & VIEW
 --------------------------------------------------- */
 
