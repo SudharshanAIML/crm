@@ -1,6 +1,7 @@
 import * as emailService from "./email.service.js";
 import * as contactService from "../contacts/contact.service.js";
 import * as gmailService from "../../services/gmail.service.js";
+import * as emailQueue from "../../services/emailQueue.service.js";
 
 /**
  * @desc   Track email click (LEAD → MQL conversion trigger)
@@ -57,6 +58,7 @@ export const getEmailsByContact = async (req, res, next) => {
  * @access Employee
  * @body   {contactId, subject, body, cc?, bcc?, isHtml?, attachments?}
  *         attachments: Array of {name: string, type: string, base64: string}
+ * @response {emailId, jobId, queued} - Email is queued for background sending
  */
 export const sendEmail = async (req, res, next) => {
   try {
@@ -83,7 +85,7 @@ export const sendEmail = async (req, res, next) => {
       }
     }
 
-    const emailId = await emailService.sendCustomEmail({
+    const result = await emailService.sendCustomEmail({
       contactId,
       empId: req.user?.empId,
       subject,
@@ -94,9 +96,12 @@ export const sendEmail = async (req, res, next) => {
       attachments: attachments || [],
     });
 
-    res.status(201).json({
-      message: "Email sent successfully",
-      emailId,
+    // Return immediately - email will be sent in background
+    res.status(202).json({
+      message: "Email queued for sending",
+      emailId: result.emailId,
+      jobId: result.jobId,
+      queued: true,
     });
   } catch (error) {
     // Handle specific errors
@@ -106,6 +111,42 @@ export const sendEmail = async (req, res, next) => {
         code: "EMAIL_NOT_CONNECTED",
       });
     }
+    next(error);
+  }
+};
+
+/**
+ * @desc   Get email job status
+ * @route  GET /emails/job/:jobId
+ * @access Employee
+ */
+export const getJobStatus = async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+    const status = emailQueue.getJobStatus(jobId);
+    
+    if (!status) {
+      return res.status(404).json({
+        message: "Job not found",
+      });
+    }
+    
+    res.json(status);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc   Get email queue statistics
+ * @route  GET /emails/queue/stats
+ * @access Employee
+ */
+export const getQueueStats = async (req, res, next) => {
+  try {
+    const stats = emailQueue.getQueueStats();
+    res.json(stats);
+  } catch (error) {
     next(error);
   }
 };

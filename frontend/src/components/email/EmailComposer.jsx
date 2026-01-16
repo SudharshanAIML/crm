@@ -135,7 +135,7 @@ const EmailComposer = ({
       // Convert markdown-style content to HTML for proper email rendering
       const htmlBody = convertToHtml(formData.body);
 
-      await sendEmail({
+      const result = await sendEmail({
         contactId: contact?.contact_id,
         subject: formData.subject,
         body: htmlBody,
@@ -147,6 +147,8 @@ const EmailComposer = ({
         })),
       });
 
+      // Email is now queued for background sending
+      // Close immediately for better UX - email sends in background
       onSuccess?.();
       onClose();
       setFormData({ to: contact?.email || '', subject: '', body: '' });

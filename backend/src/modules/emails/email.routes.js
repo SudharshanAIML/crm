@@ -19,6 +19,31 @@ router.get(
 );
 
 /* ---------------------------------------------------
+   EMAIL QUEUE STATUS
+--------------------------------------------------- */
+/**
+ * @route   GET /emails/queue/stats
+ * @desc    Get email queue statistics
+ * @access  Employee
+ */
+router.get(
+  "/queue/stats",
+  authenticateEmployee,
+  emailController.getQueueStats
+);
+
+/**
+ * @route   GET /emails/job/:jobId
+ * @desc    Get email job status
+ * @access  Employee
+ */
+router.get(
+  "/job/:jobId",
+  authenticateEmployee,
+  emailController.getJobStatus
+);
+
+/* ---------------------------------------------------
    EMAIL CONNECTION STATUS
 --------------------------------------------------- */
 /**

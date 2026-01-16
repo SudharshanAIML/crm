@@ -164,11 +164,20 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 /* =====================================================
+   IMPORT EMAIL QUEUE FOR GRACEFUL SHUTDOWN
+===================================================== */
+
+import * as emailQueue from "./services/emailQueue.service.js";
+
+/* =====================================================
    GRACEFUL SHUTDOWN
 ===================================================== */
 
-const gracefulShutdown = (signal) => {
+const gracefulShutdown = async (signal) => {
   console.log(`\n🛑 Received ${signal}. Shutting down gracefully...`);
+  
+  // Wait for email queue to finish
+  await emailQueue.shutdown();
   
   // Close server
   server.close(() => {
@@ -176,11 +185,11 @@ const gracefulShutdown = (signal) => {
     process.exit(0);
   });
 
-  // Force close after 10s
+  // Force close after 30s (increased for email queue)
   setTimeout(() => {
     console.error("⚠️ Forcing shutdown after timeout");
     process.exit(1);
-  }, 10000);
+  }, 30000);
 };
 
 /* =====================================================

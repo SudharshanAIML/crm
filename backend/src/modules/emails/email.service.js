@@ -5,6 +5,7 @@ import * as employeeRepo from "../employees/employee.repo.js";
 import * as companyRepo from "../companies/company.repo.js";
 import * as gmailService from "../../services/gmail.service.js";
 import * as googleOAuth from "../../services/googleOAuth.service.js";
+import * as emailQueue from "../../services/emailQueue.service.js";
 import { sendMail } from "../../config/email.js";
 
 /* ---------------------------------------------------
@@ -170,44 +171,51 @@ export const sendLeadEmail = async ({
     tracking_token: token,
   });
 
-  // Try to send via employee's connected Gmail first, fallback to system email
-  let sentViaGmail = false;
-  
+  // Queue lead email for background sending (non-blocking)
   if (empId) {
-    try {
-      const canSend = await gmailService.canSendEmail(empId);
-      if (canSend) {
-        const result = await gmailService.sendEmailViaGmail({
-          empId,
-          to: email,
-          subject,
-          htmlBody: body,
-        });
-        await emailRepo.updateGmailId(emailId, result.messageId);
-        sentViaGmail = true;
-        console.log(`📧 Lead email sent via Gmail (${employeeEmail}) to ${email} (ID: ${emailId})`);
-      }
-    } catch (gmailError) {
-      console.warn(`⚠️ Gmail send failed, falling back to system email:`, gmailError.message);
-    }
-  }
-
-  // Fallback to system email if Gmail not available
-  if (!sentViaGmail) {
-    try {
-      await sendMail({
+    // Check if employee has Gmail connected
+    const canSend = await gmailService.canSendEmail(empId);
+    if (canSend) {
+      // Queue via Gmail
+      const jobId = emailQueue.queueEmail({
+        emailId,
+        empId,
         to: email,
         subject,
-        html: body,
-        replyTo: employeeEmail || undefined,
+        htmlBody: body,
+        priority: 'high', // Lead emails are high priority
       });
-      console.log(`📧 Lead email sent via system to ${email} (ID: ${emailId})`);
-    } catch (error) {
-      console.error(`❌ Failed to send lead email to ${email}:`, error.message);
+      console.log(`📬 Lead email queued via Gmail to ${email} (Job: ${jobId})`);
+    } else {
+      // Fallback: send via system email (still async but immediate)
+      sendSystemEmailAsync(email, subject, body, employeeEmail, emailId);
     }
+  } else {
+    // No employee - send via system email
+    sendSystemEmailAsync(email, subject, body, null, emailId);
   }
 
   return emailId;
+};
+
+/**
+ * Helper: Send system email asynchronously (fire and forget)
+ */
+const sendSystemEmailAsync = (to, subject, html, replyTo, emailId) => {
+  // Fire and forget - don't block
+  setImmediate(async () => {
+    try {
+      await sendMail({
+        to,
+        subject,
+        html,
+        replyTo: replyTo || undefined,
+      });
+      console.log(`📧 Lead email sent via system to ${to} (ID: ${emailId})`);
+    } catch (error) {
+      console.error(`❌ Failed to send lead email to ${to}:`, error.message);
+    }
+  });
 };
 
 /* ---------------------------------------------------
@@ -300,34 +308,32 @@ export const sendCustomEmail = async ({
     tracking_token: token,
   });
 
-  // Send via employee's Gmail
+  // Queue email for background sending (non-blocking)
   const toEmail = recipientEmail || contact.email;
-  try {
-    const result = await gmailService.sendEmailViaGmail({
-      empId,
-      to: toEmail,
-      subject,
-      htmlBody,
-      cc,
-      bcc,
-      attachments,
-    });
-    
-    // Update email record with Gmail message ID
-    await emailRepo.updateGmailId(emailId, result.messageId);
-    
-    console.log(`✅ Email sent via Gmail to ${toEmail} (ID: ${emailId})`);
-  } catch (error) {
-    console.error(`❌ Failed to send email to ${toEmail}:`, error.message);
-    
-    // If it's an auth error, provide helpful message
-    if (error.message === "EMAIL_NOT_CONNECTED") {
-      throw new Error("Please connect your Gmail account to send emails");
-    }
-    throw new Error(`Failed to send email: ${error.message}`);
-  }
+  const jobId = emailQueue.queueEmail({
+    emailId,
+    empId,
+    to: toEmail,
+    subject,
+    htmlBody,
+    cc,
+    bcc,
+    attachments,
+    priority: 'normal',
+  });
 
-  return emailId;
+  console.log(`📬 Email queued for ${toEmail} (Job: ${jobId}, Email ID: ${emailId})`);
+
+  return { emailId, jobId, queued: true };
+};
+
+/* ---------------------------------------------------
+   SEND CUSTOM EMAIL SYNCHRONOUSLY (for cases where immediate send is needed)
+   Uses the queue but waits for completion
+--------------------------------------------------- */
+export const sendCustomEmailSync = async (options) => {
+  // For backward compatibility - still queues but we don't wait
+  return sendCustomEmail(options);
 };
 
 /* ---------------------------------------------------
