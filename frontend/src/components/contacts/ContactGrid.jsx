@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Grid3X3, List } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Search, Filter, Grid3X3, List, MessageSquare } from 'lucide-react';
 import ContactCard from './ContactCard';
 import ContactTable from './ContactTable';
 
@@ -12,6 +13,7 @@ const ContactGrid = ({
   loading = false,
   activeStage = 'LEAD'
 }) => {
+  const navigate = useNavigate();
   const [activeTemperature, setActiveTemperature] = useState('COLD');
   const [filteredContacts, setFilteredContacts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -80,13 +82,22 @@ const ContactGrid = ({
               {contacts.length} total contacts • {filteredContacts.length} in {activeTemperature.toLowerCase()}
             </p>
           </div>
-          <button
-            onClick={onAddContact}
-            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 text-white rounded-xl font-medium hover:from-sky-600 hover:to-blue-700 transition-all shadow-lg shadow-sky-500/25 hover:shadow-xl hover:shadow-sky-500/30"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Add Lead</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onAddContact}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 text-white rounded-xl font-medium hover:from-sky-600 hover:to-blue-700 transition-all shadow-lg shadow-sky-500/25 hover:shadow-xl hover:shadow-sky-500/30"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Add Lead</span>
+            </button>
+            <button
+              onClick={() => navigate(`/${activeStage.toLowerCase()}/followups`)}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-medium hover:from-purple-600 hover:to-indigo-700 transition-all shadow-lg shadow-purple-500/25 hover:shadow-xl hover:shadow-purple-500/30"
+            >
+              <MessageSquare className="w-5 h-5" />
+              <span>Sessions</span>
+            </button>
+          </div>
         </div>
 
         {/* Temperature Tabs */}

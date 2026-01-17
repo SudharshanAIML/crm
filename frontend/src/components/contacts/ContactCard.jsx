@@ -52,7 +52,7 @@ const ContactCard = ({ contact, onSelect, onEmailClick, onFollowupsClick }) => {
     // High interest (8-10)
     if (rating >= 8) {
       return {
-        label: 'Very Interested',
+        label: 'Interested',
         className: 'bg-emerald-100 text-emerald-700 border-emerald-200',
         icon: <Sparkles className="w-3 h-3" />
       };
