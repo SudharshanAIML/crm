@@ -5,9 +5,13 @@ import {
   ArrowLeft, Phone, Mail, Users, Video, Star, Search,
   Clock, Calendar, ChevronDown, ChevronUp, MessageSquare,
   FileText, CheckCircle2, XCircle, AlertCircle, Filter,
-  ArrowUpDown, User, RefreshCw
+  ArrowUpDown, User, RefreshCw, ChevronLeft, ChevronRight,
+  ChevronsLeft, ChevronsRight
 } from 'lucide-react';
 import { getAllSessionsByStage } from '../services/sessionService';
+
+/** Rows per page for pagination */
+const PAGE_SIZE = 20;
 
 // Stage configuration with colors and labels
 const STAGE_CONFIG = {
@@ -178,6 +182,7 @@ const StageFollowupsPage = () => {
   const [modeFilter, setModeFilter] = useState('all');
   const [sortConfig, setSortConfig] = useState({ column: 'created_at', direction: 'desc' });
   const [total, setTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Fetch sessions
   const fetchSessions = useCallback(async () => {
@@ -251,6 +256,18 @@ const StageFollowupsPage = () => {
     });
   }, [sessions, searchQuery, statusFilter, modeFilter, sortConfig]);
 
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredSortedSessions.length / PAGE_SIZE);
+  const paginatedSessions = useMemo(() => {
+    const startIndex = (currentPage - 1) * PAGE_SIZE;
+    return filteredSortedSessions.slice(startIndex, startIndex + PAGE_SIZE);
+  }, [filteredSortedSessions, currentPage]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, modeFilter]);
+
   // Stats
   const stats = useMemo(() => {
     const connected = sessions.filter(s => s.session_status === 'CONNECTED').length;
@@ -283,7 +300,7 @@ const StageFollowupsPage = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className={`bg-gradient-to-r ${stageConfig.gradient} text-white`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
@@ -327,7 +344,7 @@ const StageFollowupsPage = () => {
       </div>
 
       {/* Filters */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
           <div className="flex flex-wrap items-center gap-4">
             {/* Search */}
@@ -384,7 +401,7 @@ const StageFollowupsPage = () => {
       </div>
 
       {/* Table */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 pb-8">
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -405,7 +422,7 @@ const StageFollowupsPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredSortedSessions.map((session) => (
+                {paginatedSessions.map((session) => (
                   <SessionRow 
                     key={session.session_id} 
                     session={session} 
@@ -415,6 +432,46 @@ const StageFollowupsPage = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+              <div className="text-sm text-gray-600">
+                Showing <span className="font-semibold text-gray-900">{(currentPage - 1) * PAGE_SIZE + 1}</span> to{' '}
+                <span className="font-semibold text-gray-900">{Math.min(currentPage * PAGE_SIZE, filteredSortedSessions.length)}</span> of{' '}
+                <span className="font-semibold text-gray-900">{filteredSortedSessions.length}</span> sessions
+              </div>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" title="First page"><ChevronsLeft className="w-4 h-4" /></button>
+                <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" title="Previous"><ChevronLeft className="w-4 h-4" /></button>
+                <div className="flex items-center gap-1 mx-2">
+                  {(() => {
+                    const pages = [];
+                    let start = Math.max(1, currentPage - 2);
+                    let end = Math.min(totalPages, start + 4);
+                    if (end - start < 4) start = Math.max(1, end - 4);
+                    
+                    if (start > 1) {
+                      pages.push(<button key={1} onClick={() => setCurrentPage(1)} className="min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-200 transition-colors">1</button>);
+                      if (start > 2) pages.push(<span key="start-ellipsis" className="px-1 text-gray-400">...</span>);
+                    }
+                    for (let i = start; i <= end; i++) {
+                      pages.push(
+                        <button key={i} onClick={() => setCurrentPage(i)} className={`min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium transition-colors ${currentPage === i ? 'bg-sky-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}>{i}</button>
+                      );
+                    }
+                    if (end < totalPages) {
+                      if (end < totalPages - 1) pages.push(<span key="end-ellipsis" className="px-1 text-gray-400">...</span>);
+                      pages.push(<button key={totalPages} onClick={() => setCurrentPage(totalPages)} className="min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-200 transition-colors">{totalPages}</button>);
+                    }
+                    return pages;
+                  })()}
+                </div>
+                <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" title="Next"><ChevronRight className="w-4 h-4" /></button>
+                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" title="Last page"><ChevronsRight className="w-4 h-4" /></button>
+              </div>
+            </div>
+          )}
 
           {filteredSortedSessions.length === 0 && (
             <div className="py-16 text-center">
