@@ -1,24 +1,11 @@
 import { useState, useEffect } from 'react';
 import Header from './Header';
 import Sidebar from './Sidebar';
-import { CONTACT_STATUS } from '../../utils/constants';
 
 const AppLayout = ({ children }) => {
-  const [activeStage, setActiveStage] = useState(CONTACT_STATUS.LEAD);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
-  // Mock contact counts - will be replaced with real data from API
-  const [contactCounts] = useState({
-    [CONTACT_STATUS.LEAD]: 12,
-    [CONTACT_STATUS.MQL]: 8,
-    [CONTACT_STATUS.SQL]: 5,
-    [CONTACT_STATUS.OPPORTUNITY]: 3,
-    [CONTACT_STATUS.CUSTOMER]: 15,
-    [CONTACT_STATUS.EVANGELIST]: 4,
-    [CONTACT_STATUS.DORMANT]: 2,
-  });
 
   // Check for mobile screen size
   useEffect(() => {
@@ -34,14 +21,6 @@ const AppLayout = ({ children }) => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const handleStageChange = (stage) => {
-    setActiveStage(stage);
-    if (isMobile) {
-      setMobileMenuOpen(false);
-    }
-    console.log('Stage changed to:', stage);
-  };
-
   const toggleSidebar = () => {
     if (isMobile) {
       setMobileMenuOpen(!mobileMenuOpen);
@@ -50,8 +29,8 @@ const AppLayout = ({ children }) => {
     }
   };
 
-  // Calculate sidebar width for main content margin
-  const sidebarWidth = isMobile ? 0 : (sidebarCollapsed ? 64 : 256);
+  // Calculate sidebar width for main content margin (narrower now without pipeline)
+  const sidebarWidth = isMobile ? 0 : (sidebarCollapsed ? 64 : 224);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50">
@@ -70,15 +49,12 @@ const AppLayout = ({ children }) => {
       <div 
         className={`fixed top-16 h-[calc(100vh-4rem)] z-40 transition-all duration-300 ease-in-out ${
           isMobile 
-            ? mobileMenuOpen ? 'left-0' : '-left-64'
+            ? mobileMenuOpen ? 'left-0' : '-left-56'
             : 'left-0'
         }`}
-        style={{ width: isMobile ? 256 : (sidebarCollapsed ? 64 : 256) }}
+        style={{ width: isMobile ? 224 : (sidebarCollapsed ? 64 : 224) }}
       >
         <Sidebar 
-          activeStage={activeStage}
-          onStageChange={handleStageChange}
-          contactCounts={contactCounts}
           collapsed={isMobile ? false : sidebarCollapsed}
           onToggle={toggleSidebar}
         />
@@ -91,7 +67,7 @@ const AppLayout = ({ children }) => {
       >
         <div className="p-4 md:p-6">
           {typeof children === 'function' 
-            ? children({ activeStage, contactCounts, sidebarCollapsed }) 
+            ? children({ sidebarCollapsed }) 
             : children
           }
         </div>

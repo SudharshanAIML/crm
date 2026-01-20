@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Filter, Grid3X3, List, MessageSquare } from 'lucide-react';
+import { Plus, Search, Grid3X3, List, MessageSquare } from 'lucide-react';
 import ContactCard from './ContactCard';
 import ContactTable from './ContactTable';
 

@@ -63,11 +63,6 @@ const DashboardLayout = memo(() => {
   }, []);
 
   // Navigation handlers using URL routing
-  const handleStageChange = useCallback((stage) => {
-    const stagePath = stage.toLowerCase();
-    navigate(`/contacts/${stagePath}`);
-  }, [navigate]);
-
   const handleViewChange = useCallback((view) => {
     if (view === 'contacts') {
       // Navigate to current stage or default to lead
@@ -76,11 +71,6 @@ const DashboardLayout = memo(() => {
       navigate(`/${view}`);
     }
   }, [navigate, activeStage]);
-
-  const handleMobileStageChange = useCallback((stage) => {
-    handleStageChange(stage);
-    setMobileMenuOpen(false);
-  }, [handleStageChange]);
 
   const handleMobileViewChange = useCallback((view) => {
     handleViewChange(view);
@@ -118,12 +108,10 @@ const DashboardLayout = memo(() => {
       {/* Sidebar - Desktop */}
       <div
         className={`hidden lg:block fixed left-0 top-0 h-screen z-30 transition-all duration-300 ${
-          sidebarCollapsed ? 'w-16' : 'w-64'
+          sidebarCollapsed ? 'w-16' : 'w-56'
         }`}
       >
         <Sidebar
-          activeStage={activeStage}
-          onStageChange={handleStageChange}
           collapsed={sidebarCollapsed}
           onToggle={handleToggleSidebar}
           onViewChange={handleViewChange}
@@ -135,8 +123,6 @@ const DashboardLayout = memo(() => {
       <MobileSidebar
         isOpen={mobileMenuOpen}
         onClose={handleCloseMobileMenu}
-        activeStage={activeStage}
-        onStageChange={handleMobileStageChange}
         onViewChange={handleMobileViewChange}
         activeView={activeView}
       />
@@ -144,7 +130,7 @@ const DashboardLayout = memo(() => {
       {/* Main Content Area */}
       <div
         className={`transition-all duration-300 ${
-          sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
+          sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-56'
         }`}
       >
         {/* Top Header */}
