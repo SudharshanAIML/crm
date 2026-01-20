@@ -64,6 +64,8 @@ const TakeActionModal = ({
         return 'Converted customer - Deal closed successfully';
       case 'EVANGELIST':
         return 'Brand advocate - Highly satisfied customer';
+      case 'DORMANT':
+        return 'Inactive contact - No longer actively engaged';
       default:
         return '';
     }
@@ -83,6 +85,8 @@ const TakeActionModal = ({
         return 'bg-green-100 text-green-700';
       case 'EVANGELIST':
         return 'bg-pink-100 text-pink-700';
+      case 'DORMANT':
+        return 'bg-slate-100 text-slate-700';
       default:
         return 'bg-gray-100 text-gray-700';
     }
@@ -93,7 +97,9 @@ const TakeActionModal = ({
       <div className="bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl w-full max-w-md border border-gray-200/50">
         {/* Header */}
         <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900">Promote Contact</h2>
+          <h2 className="text-xl font-bold text-gray-900">
+            {targetStatus === 'DORMANT' ? 'Move to Dormant' : 'Promote Contact'}
+          </h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -215,7 +221,11 @@ const TakeActionModal = ({
             <button
               onClick={handleConfirm}
               disabled={loading}
-              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 text-white rounded-lg font-medium hover:from-sky-600 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`flex-1 px-4 py-2.5 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                targetStatus === 'DORMANT' 
+                  ? 'bg-gradient-to-r from-slate-500 to-slate-600 hover:from-slate-600 hover:to-slate-700'
+                  : 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700'
+              }`}
             >
               {loading ? (
                 <div className="flex items-center justify-center">
@@ -223,7 +233,7 @@ const TakeActionModal = ({
                   Processing...
                 </div>
               ) : (
-                'Confirm Promotion'
+                targetStatus === 'DORMANT' ? 'Move to Dormant' : 'Confirm Promotion'
               )}
             </button>
           </div>

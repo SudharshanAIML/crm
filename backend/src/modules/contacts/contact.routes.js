@@ -124,4 +124,11 @@ router.post(
   contactController.convertToEvangelist
 );
 
+// Move contact to DORMANT
+router.patch(
+  "/:id/dormant",
+  authenticateEmployee,
+  contactController.moveToDormant
+);
+
 export default router;

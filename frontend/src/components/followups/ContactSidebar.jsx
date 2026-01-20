@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { 
   Star, Clock, Calendar, Flame, Target, Activity, 
-  Mail, Phone, Plus, ArrowRight, Building2 
+  Mail, Phone, Plus, ArrowRight, Building2, Moon 
 } from 'lucide-react';
 import {
   formatRating,
@@ -324,20 +324,42 @@ const QuickActions = memo(({ onAddSession, onAddTask }) => (
 QuickActions.displayName = 'QuickActions';
 
 /**
- * Promote button for advancing contact to next stage
+ * Move to Dormant button
  */
-const PromoteButton = memo(({ nextStage, onPromote }) => {
-  if (!nextStage) return null;
+const DormantButton = memo(({ onMoveToDormant, currentStatus }) => {
+  // Don't show if already dormant
+  if (currentStatus === 'DORMANT') return null;
   
   return (
-    <div className="px-5 pb-5 mt-auto flex-shrink-0">
-      <button
-        onClick={onPromote}
-        className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg font-medium hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2"
-      >
-        <ArrowRight className="w-4 h-4" />
-        Promote to {nextStage}
-      </button>
+    <button
+      onClick={onMoveToDormant}
+      className="w-full py-2.5 bg-gradient-to-r from-slate-500 to-slate-600 text-white rounded-lg font-medium hover:from-slate-600 hover:to-slate-700 transition-all shadow-md shadow-slate-500/20 flex items-center justify-center gap-2"
+      title="Mark this contact as dormant"
+    >
+      <Moon className="w-4 h-4" />
+      Move to Dormant
+    </button>
+  );
+});
+
+DormantButton.displayName = 'DormantButton';
+
+/**
+ * Promote button for advancing contact to next stage
+ */
+const PromoteButton = memo(({ nextStage, onPromote, onMoveToDormant, currentStatus }) => {
+  return (
+    <div className="px-5 pb-5 mt-auto flex-shrink-0 space-y-2">
+      <DormantButton onMoveToDormant={onMoveToDormant} currentStatus={currentStatus} />
+      {nextStage && (
+        <button
+          onClick={onPromote}
+          className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg font-medium hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2"
+        >
+          <ArrowRight className="w-4 h-4" />
+          Promote to {nextStage}
+        </button>
+      )}
     </div>
   );
 });
@@ -374,7 +396,12 @@ const ContactSidebar = memo(({
       <SessionBreakdown sessionStats={sessionStats} />
       <ContactInfo contact={contact} />
       <QuickActions onAddSession={onAddSession} onAddTask={onAddTask} />
-      <PromoteButton nextStage={nextStage} onPromote={() => onPromote(nextStage)} />
+      <PromoteButton 
+        nextStage={nextStage} 
+        onPromote={() => onPromote(nextStage)} 
+        onMoveToDormant={() => onPromote('DORMANT')}
+        currentStatus={contact?.status}
+      />
     </div>
   );
 });

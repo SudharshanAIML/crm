@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getSessionsByContact, createSession } from '../services/sessionService';
-import { getContactById, promoteToMQL, promoteToSQL, convertToOpportunity, closeDeal, convertToEvangelist } from '../services/contactService';
+import { getContactById, promoteToMQL, promoteToSQL, convertToOpportunity, closeDeal, convertToEvangelist, moveToDormant } from '../services/contactService';
 import { createTask, getTasksByContact } from '../services/taskService';
 import { AddSessionModal, TakeActionModal } from '../components/sessions';
 import { TaskModal } from '../components/calendar';
@@ -145,6 +145,7 @@ const FollowupsPage = () => {
         OPPORTUNITY: () => convertToOpportunity(contact.contact_id, additionalData.value),
         CUSTOMER: () => closeDeal(contact.contact_id, additionalData.value, additionalData.productName),
         EVANGELIST: () => convertToEvangelist(contact.contact_id),
+        DORMANT: () => moveToDormant(contact.contact_id),
       };
 
       const action = promotionActions[targetStatus];

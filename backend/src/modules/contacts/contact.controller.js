@@ -282,3 +282,24 @@ export const getContactFinancials = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @desc   Move contact to DORMANT status
+ * @route  PATCH /contacts/:id/dormant
+ * @access Employee
+ */
+export const moveToDormant = async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+    
+    await contactService.moveToDormant(
+      req.params.id,
+      req.user.empId,
+      reason
+    );
+
+    res.json({ message: "Contact moved to DORMANT successfully" });
+  } catch (error) {
+    next(error);
+  }
+};

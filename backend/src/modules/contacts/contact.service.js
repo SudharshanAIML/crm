@@ -308,3 +308,28 @@ export const getContactFinancials = async (contactId) => {
     },
   };
 };
+
+/* ---------------------------------------------------
+   EMPLOYEE: ANY STATUS → DORMANT
+--------------------------------------------------- */
+export const moveToDormant = async (contactId, empId, reason = null) => {
+  const contact = await contactRepo.getById(contactId);
+
+  if (!contact) {
+    throw new Error("Contact not found");
+  }
+
+  if (contact.status === "DORMANT") {
+    throw new Error("Contact is already DORMANT");
+  }
+
+  const previousStatus = contact.status;
+
+  await contactRepo.updateStatus(contactId, "DORMANT");
+  await contactRepo.insertStatusHistory(
+    contactId,
+    previousStatus,
+    "DORMANT",
+    empId
+  );
+};

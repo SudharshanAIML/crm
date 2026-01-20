@@ -100,3 +100,11 @@ export const getContactFinancials = async (contactId) => {
   const response = await api.get(`/contacts/${contactId}/financials`);
   return response.data;
 };
+
+// Move contact to DORMANT status
+export const moveToDormant = async (contactId, reason = null) => {
+  const response = await api.patch(`/contacts/${contactId}/dormant`, {
+    reason,
+  });
+  return response.data;
+};
