@@ -91,7 +91,7 @@ const ContactGrid = ({
               <span>Add Lead</span>
             </button>
             <button
-              onClick={() => navigate(`/${activeStage.toLowerCase()}/followups`)}
+              onClick={() => navigate(`/sessions/${activeStage.toLowerCase()}`)}
               className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-medium hover:from-purple-600 hover:to-indigo-700 transition-all shadow-lg shadow-purple-500/25 hover:shadow-xl hover:shadow-purple-500/30"
             >
               <MessageSquare className="w-5 h-5" />

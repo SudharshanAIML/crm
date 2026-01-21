@@ -197,8 +197,8 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle }) => {
   const { currentViewMode, currentStage, currentWorkspaceView } = useMemo(() => {
     const path = location.pathname;
     
-    // Check if we're in sessions mode (/:stage/followups)
-    const sessionsMatch = path.match(/^\/(\w+)\/followups$/);
+    // Check if we're in sessions mode (/sessions/:stage)
+    const sessionsMatch = path.match(/^\/sessions\/([\w]+)$/);
     if (sessionsMatch) {
       const stageSlug = sessionsMatch[1];
       const stage = STAGES.find(s => s.slug === stageSlug);
@@ -239,7 +239,7 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle }) => {
     const viewMode = currentViewMode || VIEW_MODES.CONTACTS;
     
     if (viewMode === VIEW_MODES.SESSIONS) {
-      navigate(`/${stage.slug}/followups`);
+      navigate(`/sessions/${stage.slug}`);
     } else {
       navigate(`/contacts/${stage.slug}`);
     }
@@ -255,7 +255,7 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle }) => {
     const stageSlug = STAGES.find(s => s.id === (currentStage || 'LEAD'))?.slug || 'lead';
     
     if (viewItem.id === VIEW_MODES.SESSIONS) {
-      navigate(`/${stageSlug}/followups`);
+      navigate(`/sessions/${stageSlug}`);
     } else {
       navigate(`/contacts/${stageSlug}`);
     }
@@ -318,7 +318,7 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle }) => {
         <div className="p-4 pb-2">
           {!collapsed && (
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-              View
+              WORKSPACE
             </h3>
           )}
           <nav className="space-y-1">
@@ -332,18 +332,6 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle }) => {
               />
             ))}
           </nav>
-        </div>
-
-        {/* Divider */}
-        <div className={`border-t border-gray-100 my-2 ${collapsed ? 'mx-2' : 'mx-4'}`} />
-
-        {/* Workspace Section */}
-        <div className="p-4">
-          {!collapsed && (
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-              Workspace
-            </h3>
-          )}
           <nav className="space-y-1">
             {WORKSPACE_ITEMS.map((item) => (
               <WorkspaceButton

@@ -1,11 +1,12 @@
-import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useSessionsCache } from '../context/SessionsCacheContext';
 import {
   ArrowLeft, Phone, Mail, Users, Video, Star, Search,
   Clock, Calendar, ChevronDown, ChevronUp, MessageSquare,
   FileText, CheckCircle2, XCircle, AlertCircle, Filter,
-  ArrowUpDown, User, RefreshCw, ChevronLeft, ChevronRight,
+  ArrowUpDown, RefreshCw, ChevronLeft, ChevronRight,
   ChevronsLeft, ChevronsRight
 } from 'lucide-react';
 import { getAllSessionsByStage } from '../services/sessionService';
@@ -167,11 +168,13 @@ const StageFollowupsPage = () => {
   const { stage } = useParams();
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
+  const { getCachedSessions, setCachedSessions, isCacheValid } = useSessionsCache();
   
   const normalizedStage = stage?.toUpperCase();
   const stageConfig = STAGE_CONFIG[normalizedStage] || STAGE_CONFIG.LEAD;
   
-  const backPath = isAdmin ? '/admin' : '/dashboard';
+  // Track if initial load from cache
+  const initialLoadRef = useRef(true);
 
   // State
   const [sessions, setSessions] = useState([]);
@@ -183,31 +186,64 @@ const StageFollowupsPage = () => {
   const [sortConfig, setSortConfig] = useState({ column: 'created_at', direction: 'desc' });
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Fetch sessions
-  const fetchSessions = useCallback(async () => {
+  // Fetch sessions with cache support
+  const fetchSessions = useCallback(async (forceRefresh = false) => {
     if (!normalizedStage || !STAGE_CONFIG[normalizedStage]) {
       setError('Invalid stage');
       setLoading(false);
       return;
     }
+
+    // Check cache first (unless force refresh)
+    if (!forceRefresh && initialLoadRef.current) {
+      const cached = getCachedSessions(normalizedStage);
+      if (cached) {
+        setSessions(cached.sessions || []);
+        setTotal(cached.total || 0);
+        setLoading(false);
+        initialLoadRef.current = false;
+        return;
+      }
+    }
     
     try {
-      setLoading(true);
+      if (forceRefresh) {
+        setIsRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
+      
       const data = await getAllSessionsByStage(normalizedStage);
-      setSessions(data.sessions || []);
-      setTotal(data.total || 0);
+      const sessionsData = data.sessions || [];
+      const totalCount = data.total || 0;
+      
+      setSessions(sessionsData);
+      setTotal(totalCount);
+      
+      // Update cache
+      setCachedSessions(normalizedStage, sessionsData, totalCount);
     } catch (err) {
       console.error('Error fetching sessions:', err);
       setError(err.response?.data?.message || 'Failed to load sessions');
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
+      initialLoadRef.current = false;
     }
-  }, [normalizedStage]);
+  }, [normalizedStage, getCachedSessions, setCachedSessions]);
 
+  // Initial load - check cache or fetch
   useEffect(() => {
+    initialLoadRef.current = true;
     fetchSessions();
+  }, [normalizedStage]); // Only re-run when stage changes
+
+  // Manual refresh handler
+  const handleRefresh = useCallback(() => {
+    fetchSessions(true);
   }, [fetchSessions]);
 
   // Handlers
@@ -317,11 +353,12 @@ const StageFollowupsPage = () => {
               </div>
             </div>
             <button
-              onClick={fetchSessions}
-              className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors disabled:opacity-50"
             >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh'}
             </button>
           </div>
 
