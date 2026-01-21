@@ -165,6 +165,9 @@ function App() {
                   {/* Contact Stage Routes */}
                   <Route path="/contacts/:stage" element={<NestedSuspense><ContactsPage /></NestedSuspense>} />
                   
+                  {/* Session/Followup Stage Routes */}
+                  <Route path="/:stage/followups" element={<NestedSuspense><StageFollowupsPage /></NestedSuspense>} />
+                  
                   {/* Workspace View Routes */}
                   <Route path="/analytics" element={<NestedSuspense><AnalyticsPage /></NestedSuspense>} />
                   <Route path="/calendar" element={<NestedSuspense><CalendarPage /></NestedSuspense>} />
@@ -200,23 +203,13 @@ function App() {
                   }
                 />
 
-                {/* Followups routes */}
+                {/* Followups for individual contact */}
                 <Route
                   path="/followups/:contactId"
                   element={
                     <AuthenticatedRoute>
                       <SuspenseWrapper>
                         <FollowupsPage />
-                      </SuspenseWrapper>
-                    </AuthenticatedRoute>
-                  }
-                />
-                <Route
-                  path="/:stage/followups"
-                  element={
-                    <AuthenticatedRoute>
-                      <SuspenseWrapper>
-                        <StageFollowupsPage />
                       </SuspenseWrapper>
                     </AuthenticatedRoute>
                   }

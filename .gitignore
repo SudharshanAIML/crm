@@ -6,8 +6,8 @@ backend/scripts/
 *.md
 .backup
 crm_google_oauth.json
-*.md
 venv/ 
 backend/db/migrations/alter_sessions_stage.sql
 backend/db/migrations/run_alter_sessions_stage.js
 dist/
+*.json

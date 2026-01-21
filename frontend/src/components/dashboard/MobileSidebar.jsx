@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo } from 'react';
 import Sidebar from '../layout/Sidebar';
 
 /**
@@ -8,15 +8,8 @@ import Sidebar from '../layout/Sidebar';
 const MobileSidebar = memo(({
   isOpen,
   onClose,
-  activeView,
-  onViewChange,
 }) => {
   if (!isOpen) return null;
-
-  const handleViewChange = useCallback((view) => {
-    onViewChange?.(view);
-    onClose?.();
-  }, [onViewChange, onClose]);
 
   return (
     <div className="lg:hidden fixed inset-0 z-50">
@@ -28,12 +21,10 @@ const MobileSidebar = memo(({
       />
       
       {/* Sidebar Panel */}
-      <div className="absolute left-0 top-0 h-full w-56 bg-white shadow-xl">
+      <div className="absolute left-0 top-0 h-full w-64 bg-white shadow-xl">
         <Sidebar
           collapsed={false}
           onToggle={onClose}
-          onViewChange={handleViewChange}
-          activeView={activeView}
         />
       </div>
     </div>

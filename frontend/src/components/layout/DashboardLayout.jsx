@@ -20,7 +20,7 @@ const DashboardLayout = memo(() => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [error, setError] = useState(null);
 
-  // Derive active stage and view from URL
+  // Derive active stage and view from URL for header display
   const getActiveState = useCallback(() => {
     const path = location.pathname;
     
@@ -28,6 +28,22 @@ const DashboardLayout = memo(() => {
     if (path === '/analytics') return { view: 'analytics', stage: null };
     if (path === '/calendar') return { view: 'calendar', stage: null };
     if (path === '/gmail') return { view: 'gmail', stage: null };
+    
+    // Check sessions routes (/:stage/followups)
+    const sessionsMatch = path.match(/^\/(\w+)\/followups$/);
+    if (sessionsMatch) {
+      const stageMap = {
+        lead: 'LEAD',
+        mql: 'MQL',
+        sql: 'SQL',
+        opportunity: 'OPPORTUNITY',
+        customer: 'CUSTOMER',
+        evangelist: 'EVANGELIST',
+        dormant: 'DORMANT',
+      };
+      const stage = stageMap[sessionsMatch[1].toLowerCase()];
+      if (stage) return { view: 'sessions', stage };
+    }
     
     // Check contact stages
     const stageMatch = path.match(/^\/contacts\/(\w+)$/);
@@ -62,21 +78,6 @@ const DashboardLayout = memo(() => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Navigation handlers using URL routing
-  const handleViewChange = useCallback((view) => {
-    if (view === 'contacts') {
-      // Navigate to current stage or default to lead
-      navigate(`/contacts/${(activeStage || 'LEAD').toLowerCase()}`);
-    } else {
-      navigate(`/${view}`);
-    }
-  }, [navigate, activeStage]);
-
-  const handleMobileViewChange = useCallback((view) => {
-    handleViewChange(view);
-    setMobileMenuOpen(false);
-  }, [handleViewChange]);
-
   const handleToggleSidebar = useCallback(() => {
     setSidebarCollapsed((prev) => !prev);
   }, []);
@@ -108,14 +109,12 @@ const DashboardLayout = memo(() => {
       {/* Sidebar - Desktop */}
       <div
         className={`hidden lg:block fixed left-0 top-0 h-screen z-30 transition-all duration-300 ${
-          sidebarCollapsed ? 'w-16' : 'w-56'
+          sidebarCollapsed ? 'w-16' : 'w-64'
         }`}
       >
         <Sidebar
           collapsed={sidebarCollapsed}
           onToggle={handleToggleSidebar}
-          onViewChange={handleViewChange}
-          activeView={activeView}
         />
       </div>
 
@@ -123,14 +122,12 @@ const DashboardLayout = memo(() => {
       <MobileSidebar
         isOpen={mobileMenuOpen}
         onClose={handleCloseMobileMenu}
-        onViewChange={handleMobileViewChange}
-        activeView={activeView}
       />
 
       {/* Main Content Area */}
       <div
         className={`transition-all duration-300 ${
-          sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-56'
+          sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
         }`}
       >
         {/* Top Header */}

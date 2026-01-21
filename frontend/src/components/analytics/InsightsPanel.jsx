@@ -34,6 +34,8 @@ import {
   getInsights,
   getInsightFilters,
 } from "../../services/analyticsService";
+import { useAuth } from "../../context/AuthContext";
+import { formatCurrency } from "../../utils/currency";
 
 // =============================================================================
 // CACHE CONFIGURATION
@@ -91,6 +93,7 @@ const INSIGHT_TABS = [
 // MAIN COMPONENT
 // =============================================================================
 export default function InsightsPanel() {
+  const { isAdmin, company } = useAuth();
   const [activeTab, setActiveTab] = useState("performance");
   const [data, setData] = useState(null);
   const [filterOptions, setFilterOptions] = useState(null);
@@ -343,6 +346,7 @@ export default function InsightsPanel() {
           filters={filters}
           setFilters={setFilters}
           filterOptions={filterOptions}
+          isAdmin={isAdmin}
         />
       )}
 
@@ -376,10 +380,10 @@ export default function InsightsPanel() {
 
       {/* Tab Content */}
       <div className="min-h-[400px]">
-        {activeTab === "performance" && <PerformanceTab data={data?.performance} trends={data?.trends} />}
-        {activeTab === "customers" && <CustomersTab data={data?.customers} />}
+        {activeTab === "performance" && <PerformanceTab data={data?.performance} trends={data?.trends} country={company?.country} />}
+        {activeTab === "customers" && <CustomersTab data={data?.customers} country={company?.country} />}
         {activeTab === "bottlenecks" && <BottlenecksTab data={data?.bottlenecks} />}
-        {activeTab === "recommendations" && <RecommendationsTab data={data?.recommendations} />}
+        {activeTab === "recommendations" && <RecommendationsTab data={data?.recommendations} country={company?.country} />}
       </div>
     </div>
   );
@@ -388,7 +392,7 @@ export default function InsightsPanel() {
 // =============================================================================
 // FILTER PANEL
 // =============================================================================
-const FilterPanel = memo(function FilterPanel({ filters, setFilters, filterOptions }) {
+const FilterPanel = memo(function FilterPanel({ filters, setFilters, filterOptions, isAdmin }) {
   return (
     <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -467,27 +471,29 @@ const FilterPanel = memo(function FilterPanel({ filters, setFilters, filterOptio
           </select>
         </div>
 
-        {/* Assigned To Filter */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            <UserCheck className="w-4 h-4 inline mr-1" />
-            Assigned To
-          </label>
-          <select
-            value={filters.assignedTo}
-            onChange={(e) =>
-              setFilters((f) => ({ ...f, assignedTo: e.target.value }))
-            }
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-          >
-            <option value="">All Team Members</option>
-            {filterOptions?.employees?.map((emp) => (
-              <option key={emp.empId} value={emp.empId}>
-                {emp.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Assigned To Filter - Admin Only */}
+        {isAdmin && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              <UserCheck className="w-4 h-4 inline mr-1" />
+              Assigned To
+            </label>
+            <select
+              value={filters.assignedTo}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, assignedTo: e.target.value }))
+              }
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+            >
+              <option value="">All Team Members</option>
+              {filterOptions?.employees?.map((emp) => (
+                <option key={emp.empId} value={emp.empId}>
+                  {emp.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -496,7 +502,7 @@ const FilterPanel = memo(function FilterPanel({ filters, setFilters, filterOptio
 // =============================================================================
 // PERFORMANCE TAB
 // =============================================================================
-const PerformanceTab = memo(function PerformanceTab({ data, trends }) {
+const PerformanceTab = memo(function PerformanceTab({ data, trends, country }) {
   if (!data) {
     return <TabPlaceholder message="No performance data available" />;
   }
@@ -510,7 +516,7 @@ const PerformanceTab = memo(function PerformanceTab({ data, trends }) {
         {/* Total Revenue */}
         <MetricCard
           title="Total Revenue"
-          value={formatCurrency(revenue?.totalRevenue || 0)}
+          value={formatCurrency(revenue?.totalRevenue || 0, country)}
           change={revenue?.revenueGrowth}
           subtitle="Closed deals value"
           icon={<DollarSign className="w-5 h-5" />}
@@ -520,7 +526,7 @@ const PerformanceTab = memo(function PerformanceTab({ data, trends }) {
         {/* Pipeline Value */}
         <MetricCard
           title="Pipeline Value"
-          value={formatCurrency(pipeline?.totalPipelineValue || 0)}
+          value={formatCurrency(pipeline?.totalPipelineValue || 0, country)}
           subtitle={`${pipeline?.activeOpportunities || 0} active opportunities`}
           icon={<Target className="w-5 h-5" />}
           color="sky"
@@ -578,7 +584,7 @@ const PerformanceTab = memo(function PerformanceTab({ data, trends }) {
               </div>
               <div className="text-sm text-gray-700">In Progress</div>
               <div className="text-xs text-gray-500 mt-1">
-                {formatCurrency(winLoss.pendingValue || 0)} pipeline
+                {formatCurrency(winLoss.pendingValue || 0, country)} pipeline
               </div>
             </div>
           </div>
@@ -602,7 +608,7 @@ const PerformanceTab = memo(function PerformanceTab({ data, trends }) {
 // =============================================================================
 // CUSTOMERS TAB
 // =============================================================================
-const CustomersTab = memo(function CustomersTab({ data }) {
+const CustomersTab = memo(function CustomersTab({ data, country }) {
   if (!data) {
     return <TabPlaceholder message="No customer data available" />;
   }
@@ -620,7 +626,7 @@ const CustomersTab = memo(function CustomersTab({ data }) {
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {segments.map((seg) => (
-              <SegmentCard key={seg.segment} segment={seg} />
+              <SegmentCard key={seg.segment} segment={seg} country={country} />
             ))}
           </div>
         </div>
@@ -663,11 +669,11 @@ const CustomersTab = memo(function CustomersTab({ data }) {
                       </div>
                     </td>
                     <td className="py-3 font-semibold text-emerald-600">
-                      {formatCurrency(customer.totalRevenue)}
+                      {formatCurrency(customer.totalRevenue, country)}
                     </td>
                     <td className="py-3 text-gray-700">{customer.dealCount}</td>
                     <td className="py-3 text-gray-700">
-                      {formatCurrency(customer.avgDealSize)}
+                      {formatCurrency(customer.avgDealSize, country)}
                     </td>
                     <td className="py-3 text-sm text-gray-500">
                       {customer.lastActivity
@@ -704,7 +710,7 @@ const CustomersTab = memo(function CustomersTab({ data }) {
             </div>
             <div className="text-center p-4 bg-emerald-50 rounded-lg">
               <div className="text-3xl font-bold text-emerald-600">
-                {formatCurrency(repeatCustomers.avgLifetimeValue || 0)}
+                {formatCurrency(repeatCustomers.avgLifetimeValue || 0, country)}
               </div>
               <div className="text-sm text-emerald-700">Avg. LTV</div>
             </div>
@@ -928,7 +934,7 @@ const MetricCard = memo(function MetricCard({
   );
 });
 
-const SegmentCard = memo(function SegmentCard({ segment }) {
+const SegmentCard = memo(function SegmentCard({ segment, country }) {
   const colors = {
     Enterprise: { bg: "bg-purple-100", text: "text-purple-700" },
     "Mid-Market": { bg: "bg-sky-100", text: "text-sky-700" },
@@ -945,7 +951,7 @@ const SegmentCard = memo(function SegmentCard({ segment }) {
       </div>
       <div className={`text-sm ${style.text}`}>{segment.segment}</div>
       <div className="text-xs opacity-70 mt-1">
-        {formatCurrency(segment.totalRevenue || 0)}
+        {formatCurrency(segment.totalRevenue || 0, country)}
       </div>
     </div>
   );
@@ -1140,16 +1146,6 @@ const InsightsSkeleton = memo(function InsightsSkeleton() {
 // =============================================================================
 // UTILITY FUNCTIONS
 // =============================================================================
-
-function formatCurrency(amount) {
-  if (!amount && amount !== 0) return "$0";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
 
 function formatDate(dateStr) {
   if (!dateStr) return "";
