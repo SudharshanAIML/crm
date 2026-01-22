@@ -11,6 +11,7 @@ import { lazy, Suspense } from 'react';
 // Eagerly loaded pages (critical path)
 import LoginPage from './pages/LoginPage';
 import OnboardingPage from './pages/OnboardingPage';
+import LandingPage from './pages/LandingPage';
 
 // Lazy loaded layouts
 const DashboardLayout = lazy(() => import('./components/layout/DashboardLayout'));
@@ -220,8 +221,8 @@ function App() {
                 {/* Redirects */}
                 <Route path="/dashboard" element={<Navigate to="/contacts/lead" replace />} />
                 <Route path="/contacts" element={<Navigate to="/contacts/lead" replace />} />
-                <Route path="/" element={<Navigate to="/login" />} />
-                <Route path="*" element={<Navigate to="/login" />} />
+                <Route path="/" element={<LandingPage />} />
+                <Route path="*" element={<Navigate to="/" />} />
                 </Routes>
                 </BrowserRouter>
                 </SessionsCacheProvider>
