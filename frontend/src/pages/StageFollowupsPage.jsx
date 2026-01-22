@@ -349,7 +349,7 @@ const StageFollowupsPage = () => {
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header with colored banner */}
-      <div className={`bg-gradient-to-r ${stageConfig.gradient} px-4 sm:px-6 lg:px-8 pt-6 pb-16 rounded-xl`}>
+      <div className={`bg-gradient-to-r ${stageConfig.gradient} px-4 sm:px-6 lg:px-8 pt-6 pb-42 rounded-xl`}>
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-white tracking-tight">{stageConfig.label} Sessions</h1>
@@ -370,9 +370,9 @@ const StageFollowupsPage = () => {
       </div>
 
       {/* Stats Cards - Overlapping the header */}
-      <div className="px-4 sm:px-6 lg:px-8 -mt-10">
+      <div className="px-4 sm:px-6 lg:px-8 -mt-38 relative z-10">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200/60">
+          <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-200/60">
             <div className="flex items-center justify-between mb-2">
               <p className="text-gray-500 text-sm font-medium">Total Sessions</p>
               <div className={`p-2 rounded-lg ${stageConfig.lightBg} ${stageConfig.accent}`}>
@@ -384,7 +384,7 @@ const StageFollowupsPage = () => {
               <div className={`h-full ${stageConfig.color} rounded-full`} style={{ width: '100%' }} />
             </div>
           </div>
-          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200/60">
+          <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-200/60">
             <div className="flex items-center justify-between mb-2">
               <p className="text-gray-500 text-sm font-medium">Connected</p>
               <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
@@ -401,7 +401,7 @@ const StageFollowupsPage = () => {
               <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${stats.total > 0 ? (stats.connected / stats.total) * 100 : 0}%` }} />
             </div>
           </div>
-          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200/60">
+          <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-200/60">
             <div className="flex items-center justify-between mb-2">
               <p className="text-gray-500 text-sm font-medium">Avg Rating</p>
               <div className="p-2 rounded-lg bg-amber-50 text-amber-600">
@@ -420,6 +420,7 @@ const StageFollowupsPage = () => {
       </div>
 
       {/* Filters */}
+      <div className="h-10"></div>
       <div className="w-full px-4 sm:px-6 lg:px-8 py-5">
         <div className="bg-white rounded-xl border border-gray-200/60 p-4 shadow-sm">
           <div className="flex flex-wrap items-center gap-4">

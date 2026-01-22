@@ -139,6 +139,34 @@ router.get(
 );
 
 /* ---------------------------------------------------
+   EMPLOYEE: GET ENHANCED ANALYTICS
+--------------------------------------------------- */
+/**
+ * @route   GET /analytics/enhanced
+ * @desc    Get enhanced analytics (historical, forecast, funnel visualization)
+ * @access  Employee
+ */
+router.get(
+  "/enhanced",
+  authenticateEmployee,
+  analyticsController.getEnhancedAnalytics
+);
+
+/* ---------------------------------------------------
+   EMPLOYEE: GET YEARLY ACTIVITY HEATMAP
+--------------------------------------------------- */
+/**
+ * @route   GET /analytics/activity-heatmap
+ * @desc    Get yearly activity heatmap (LeetCode-style)
+ * @access  Employee
+ */
+router.get(
+  "/activity-heatmap",
+  authenticateEmployee,
+  analyticsController.getYearlyActivityHeatmap
+);
+
+/* ---------------------------------------------------
    ADMIN: GET COMPANY-WIDE ANALYTICS
 --------------------------------------------------- */
 /**

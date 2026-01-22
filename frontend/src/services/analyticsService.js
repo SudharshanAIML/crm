@@ -10,6 +10,21 @@ export const getComprehensiveAnalytics = async () => {
   return response.data;
 };
 
+// Get enhanced analytics (historical, forecast, funnel viz, win probability)
+export const getEnhancedAnalytics = async (period = 'month') => {
+  const response = await api.get(`/analytics/enhanced?period=${period}`);
+  return response.data;
+};
+
+// Get yearly activity heatmap (LeetCode-style)
+export const getYearlyActivityHeatmap = async (year = null) => {
+  const url = year 
+    ? `/analytics/activity-heatmap?year=${year}` 
+    : '/analytics/activity-heatmap';
+  const response = await api.get(url);
+  return response.data;
+};
+
 // Get basic dashboard data
 export const getDashboard = async () => {
   const response = await api.get("/analytics/dashboard");
@@ -120,6 +135,8 @@ export const getInsightTrends = async (filters = {}) => {
 
 export default {
   getComprehensiveAnalytics,
+  getEnhancedAnalytics,
+  getYearlyActivityHeatmap,
   getDashboard,
   getPipelineFunnel,
   getRecentActivities,

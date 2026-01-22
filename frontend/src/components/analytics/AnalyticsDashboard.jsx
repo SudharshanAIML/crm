@@ -18,13 +18,17 @@ import {
   RefreshCw,
   Package,
   Lightbulb,
+  Sparkles,
 } from "lucide-react";
-import { getComprehensiveAnalytics } from "../../services/analyticsService";
+import { getComprehensiveAnalytics, getEnhancedAnalytics } from "../../services/analyticsService";
 import ProductAnalytics from "./ProductAnalytics";
+import YearlyActivityHeatmap from "./YearlyActivityHeatmap";
 import { lazy, Suspense } from "react";
+import { DollarSign } from "lucide-react";
 
-// Lazy load InsightsPanel for better performance
+// Lazy load InsightsPanel and EnhancedAnalytics for better performance
 const InsightsPanel = lazy(() => import("./InsightsPanel"));
+const EnhancedAnalytics = lazy(() => import("./EnhancedAnalytics"));
 
 // =============================================================================
 // CACHE CONFIGURATION - Inspired by SWR/React Query patterns used in Salesforce/HubSpot
@@ -344,7 +348,11 @@ export default function AnalyticsDashboard() {
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'insights' ? (
+      {activeTab === 'enhanced' ? (
+        <Suspense fallback={<EnhancedSuspenseFallback />}>
+          <EnhancedAnalytics />
+        </Suspense>
+      ) : activeTab === 'insights' ? (
         <Suspense fallback={<InsightsSuspenseFallback />}>
           <InsightsPanel />
         </Suspense>
@@ -433,6 +441,14 @@ export default function AnalyticsDashboard() {
         {/* Source Performance */}
         <div>
           <SourcePerformance data={sourcePerformance} maxLeads={sourceMaxLeads} />
+        </div>
+      </div>
+
+      {/* Forecast vs Actual & Activity Heatmap */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <OverviewForecastVsActual />
+        <div className="lg:col-span-2 h-full">
+          <YearlyActivityHeatmap />
         </div>
       </div>
 
@@ -877,6 +893,53 @@ function InsightsSuspenseFallback() {
 }
 
 // =============================================================================
+// SUSPENSE FALLBACK - For lazy-loaded EnhancedAnalytics
+// =============================================================================
+function EnhancedSuspenseFallback() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="h-6 w-48 bg-gray-200 rounded mb-2" />
+          <div className="h-4 w-64 bg-gray-100 rounded" />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-40 bg-gray-100 rounded-lg" />
+          <div className="h-10 w-10 bg-gray-100 rounded-lg" />
+        </div>
+      </div>
+      {/* Historical Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="p-5 rounded-xl bg-gray-50">
+            <div className="flex justify-between mb-3">
+              <div className="h-10 w-10 bg-gray-200 rounded-lg" />
+              <div className="h-5 w-16 bg-gray-200 rounded" />
+            </div>
+            <div className="h-8 w-16 bg-gray-200 rounded mb-2" />
+            <div className="h-4 w-24 bg-gray-100 rounded" />
+          </div>
+        ))}
+      </div>
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="h-6 w-40 bg-gray-200 rounded mb-5" />
+            <div className="space-y-3">
+              {[1, 2, 3].map(j => (
+                <div key={j} className="h-12 bg-gray-100 rounded-lg" />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
 // SKELETON LOADER - Shows content structure while loading (better UX than spinner)
 // =============================================================================
 function AnalyticsSkeleton() {
@@ -952,6 +1015,209 @@ function AnalyticsSkeleton() {
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// OVERVIEW FORECAST VS ACTUAL COMPONENT
+// =============================================================================
+const forecastCache = { data: null, timestamp: null, promise: null };
+const FORECAST_STALE_TIME = 5 * 60 * 1000;
+
+function OverviewForecastVsActual() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const formatCurrency = useCallback((value) => {
+    if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`;
+    return `$${value.toFixed(0)}`;
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchData = async () => {
+      // Check cache
+      if (forecastCache.data && forecastCache.timestamp && 
+          Date.now() - forecastCache.timestamp < FORECAST_STALE_TIME) {
+        setData(forecastCache.data);
+        setLoading(false);
+        return;
+      }
+
+      // Deduplicate requests
+      if (forecastCache.promise) {
+        try {
+          const result = await forecastCache.promise;
+          if (isMounted) {
+            setData(result.forecastVsActual);
+            setLoading(false);
+          }
+        } catch (err) {
+          if (isMounted) setError('Failed to load data');
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        forecastCache.promise = getEnhancedAnalytics('month');
+        const result = await forecastCache.promise;
+        
+        forecastCache.data = result.forecastVsActual;
+        forecastCache.timestamp = Date.now();
+        forecastCache.promise = null;
+
+        if (isMounted) {
+          setData(result.forecastVsActual);
+          setLoading(false);
+        }
+      } catch (err) {
+        forecastCache.promise = null;
+        if (isMounted) {
+          setError('Failed to load data');
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchData();
+    return () => { isMounted = false; };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="animate-pulse">
+          <div className="flex items-center gap-2 mb-5">
+            <div className="w-5 h-5 bg-gray-200 rounded" />
+            <div className="h-5 w-32 bg-gray-200 rounded" />
+          </div>
+          <div className="grid grid-cols-3 gap-3 mb-5">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="p-3 bg-gray-50 rounded-lg">
+                <div className="h-5 w-12 bg-gray-200 rounded mx-auto mb-1" />
+                <div className="h-3 w-16 bg-gray-100 rounded mx-auto" />
+              </div>
+            ))}
+          </div>
+          <div className="space-y-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-12 bg-gray-100 rounded" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="flex items-center gap-2 mb-5">
+          <DollarSign className="w-5 h-5 text-sky-500" />
+          <h3 className="text-lg font-semibold text-gray-800">Forecast vs Actual</h3>
+        </div>
+        <div className="text-center py-8 text-gray-400">
+          <DollarSign className="w-10 h-10 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">{error || 'No data available'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const { monthly, pipeline } = data;
+  const maxValue = Math.max(...monthly.map(m => Math.max(m.actual, m.forecast)), 1);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="flex items-center gap-2 mb-5">
+        <DollarSign className="w-5 h-5 text-sky-500" />
+        <h3 className="text-lg font-semibold text-gray-800">Forecast vs Actual</h3>
+      </div>
+
+      {/* Pipeline Summary */}
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        <div className="p-3 bg-purple-50 rounded-lg text-center">
+          <p className="text-lg font-bold text-purple-600">{formatCurrency(pipeline.total)}</p>
+          <p className="text-xs text-purple-500">Pipeline Value</p>
+        </div>
+        <div className="p-3 bg-amber-50 rounded-lg text-center">
+          <p className="text-lg font-bold text-amber-600">{pipeline.opportunities}</p>
+          <p className="text-xs text-amber-500">Open Opps</p>
+        </div>
+        <div className="p-3 bg-emerald-50 rounded-lg text-center">
+          <p className="text-lg font-bold text-emerald-600">{formatCurrency(pipeline.avgDealSize)}</p>
+          <p className="text-xs text-emerald-500">Avg Deal</p>
+        </div>
+      </div>
+
+      {/* Monthly Chart */}
+      {monthly.length > 0 ? (
+        <div className="space-y-3">
+          {monthly.map((month) => {
+            const actualWidth = (month.actual / maxValue) * 100;
+            const forecastWidth = (month.forecast / maxValue) * 100;
+            const variance = month.variance;
+            const isPositive = variance >= 0;
+
+            return (
+              <div key={month.month}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-medium text-gray-700">{month.label}</span>
+                  <span className={`text-xs ${isPositive ? 'text-emerald-600' : 'text-red-500'}`}>
+                    {isPositive ? '+' : ''}{formatCurrency(variance)}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400 w-14">Actual</span>
+                    <div className="flex-1 h-4 bg-gray-100 rounded overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 rounded transition-all"
+                        style={{ width: `${Math.max(actualWidth, 2)}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-medium text-gray-600 w-16 text-right">
+                      {formatCurrency(month.actual)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400 w-14">Forecast</span>
+                    <div className="flex-1 h-4 bg-gray-100 rounded overflow-hidden">
+                      <div
+                        className="h-full bg-purple-400 rounded transition-all"
+                        style={{ width: `${Math.max(forecastWidth, 2)}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-medium text-gray-600 w-16 text-right">
+                      {formatCurrency(month.forecast)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="text-center py-8 text-gray-400">
+          <DollarSign className="w-10 h-10 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">No revenue data yet</p>
+        </div>
+      )}
+
+      {/* Legend */}
+      <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-gray-100">
+        <span className="flex items-center gap-1 text-xs text-gray-500">
+          <div className="w-3 h-3 bg-emerald-500 rounded" /> Actual
+        </span>
+        <span className="flex items-center gap-1 text-xs text-gray-500">
+          <div className="w-3 h-3 bg-purple-400 rounded" /> Forecast
+        </span>
       </div>
     </div>
   );

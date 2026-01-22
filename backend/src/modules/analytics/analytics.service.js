@@ -123,6 +123,20 @@ export const getComprehensiveAnalytics = async (companyId, empId) => {
 };
 
 /* ---------------------------------------------------
+   EMPLOYEE: GET ENHANCED ANALYTICS (Historical, Forecast, etc.)
+--------------------------------------------------- */
+export const getEnhancedAnalytics = async (companyId, empId, period = 'month') => {
+  return await analyticsRepo.getEnhancedEmployeeAnalytics(companyId, empId, period);
+};
+
+/* ---------------------------------------------------
+   EMPLOYEE: GET YEARLY ACTIVITY HEATMAP
+--------------------------------------------------- */
+export const getYearlyActivityHeatmap = async (companyId, empId, year = null) => {
+  return await analyticsRepo.getYearlyActivityHeatmap(companyId, empId, year);
+};
+
+/* ---------------------------------------------------
    ADMIN: GET COMPANY-WIDE ANALYTICS
 --------------------------------------------------- */
 export const getAdminAnalytics = async (companyId) => {

@@ -232,6 +232,60 @@ export const getComprehensiveAnalytics = async (req, res, next) => {
 };
 
 /**
+ * @desc   Get enhanced analytics (historical, forecast, funnel viz)
+ * @route  GET /analytics/enhanced
+ * @access Employee
+ */
+export const getEnhancedAnalytics = async (req, res, next) => {
+  try {
+    const companyId = req.user.companyId;
+    const empId = req.user.empId;
+    const { period = 'month' } = req.query;
+
+    if (!companyId) {
+      return res.status(400).json({
+        message: "Company ID is required",
+      });
+    }
+
+    const data = await analyticsService.getEnhancedAnalytics(companyId, empId, period);
+
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc   Get yearly activity heatmap (LeetCode-style)
+ * @route  GET /analytics/activity-heatmap
+ * @access Employee
+ */
+export const getYearlyActivityHeatmap = async (req, res, next) => {
+  try {
+    const companyId = req.user.companyId;
+    const empId = req.user.empId;
+    const { year } = req.query;
+
+    if (!companyId) {
+      return res.status(400).json({
+        message: "Company ID is required",
+      });
+    }
+
+    const data = await analyticsService.getYearlyActivityHeatmap(
+      companyId, 
+      empId, 
+      year ? parseInt(year) : null
+    );
+
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * @desc   Get company-wide analytics for admin dashboard
  * @route  GET /analytics/admin
  * @access Admin

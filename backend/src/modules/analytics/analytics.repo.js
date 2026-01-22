@@ -888,3 +888,456 @@ export const getAdminAnalytics = async (companyId) => {
     topSources,
   };
 };
+
+/* ---------------------------------------------------
+   EMPLOYEE: GET ENHANCED ANALYTICS (Historical, Forecast, etc.)
+--------------------------------------------------- */
+export const getEnhancedEmployeeAnalytics = async (companyId, empId, period = 'month') => {
+  // Determine date ranges based on period
+  const periodDays = period === 'week' ? 7 : period === 'quarter' ? 90 : 30;
+  
+  // 1. Historical Comparison - Current vs Previous Period
+  const [currentPeriod] = await db.query(
+    `SELECT 
+       COUNT(*) as newLeads,
+       SUM(CASE WHEN status IN ('CUSTOMER', 'EVANGELIST') THEN 1 ELSE 0 END) as conversions,
+       (SELECT COUNT(*) FROM sessions s2 
+        JOIN contacts c2 ON c2.contact_id = s2.contact_id 
+        WHERE c2.company_id = ? AND s2.emp_id = ? 
+        AND s2.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)) as sessions
+     FROM contacts
+     WHERE company_id = ? AND assigned_emp_id = ?
+     AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`,
+    [companyId, empId, periodDays, companyId, empId, periodDays]
+  );
+
+  const [previousPeriod] = await db.query(
+    `SELECT 
+       COUNT(*) as newLeads,
+       SUM(CASE WHEN status IN ('CUSTOMER', 'EVANGELIST') THEN 1 ELSE 0 END) as conversions,
+       (SELECT COUNT(*) FROM sessions s2 
+        JOIN contacts c2 ON c2.contact_id = s2.contact_id 
+        WHERE c2.company_id = ? AND s2.emp_id = ? 
+        AND s2.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+        AND s2.created_at < DATE_SUB(NOW(), INTERVAL ? DAY)) as sessions
+     FROM contacts
+     WHERE company_id = ? AND assigned_emp_id = ?
+     AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+     AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
+    [companyId, empId, periodDays * 2, periodDays, companyId, empId, periodDays * 2, periodDays]
+  );
+
+  // 2. Stage Time Analysis - Detailed time tracking per stage
+  const [stageTimeDetails] = await db.query(
+    `SELECT 
+       csh.new_status as stage,
+       COUNT(DISTINCT csh.contact_id) as totalContacts,
+       MIN(DATEDIFF(
+         COALESCE(
+           (SELECT MIN(csh2.changed_at) FROM contact_status_history csh2 
+            WHERE csh2.contact_id = csh.contact_id AND csh2.changed_at > csh.changed_at),
+           NOW()
+         ), csh.changed_at
+       )) as minDays,
+       MAX(DATEDIFF(
+         COALESCE(
+           (SELECT MIN(csh2.changed_at) FROM contact_status_history csh2 
+            WHERE csh2.contact_id = csh.contact_id AND csh2.changed_at > csh.changed_at),
+           NOW()
+         ), csh.changed_at
+       )) as maxDays,
+       AVG(DATEDIFF(
+         COALESCE(
+           (SELECT MIN(csh2.changed_at) FROM contact_status_history csh2 
+            WHERE csh2.contact_id = csh.contact_id AND csh2.changed_at > csh.changed_at),
+           NOW()
+         ), csh.changed_at
+       )) as avgDays,
+       STDDEV(DATEDIFF(
+         COALESCE(
+           (SELECT MIN(csh2.changed_at) FROM contact_status_history csh2 
+            WHERE csh2.contact_id = csh.contact_id AND csh2.changed_at > csh.changed_at),
+           NOW()
+         ), csh.changed_at
+       )) as stdDevDays
+     FROM contact_status_history csh
+     JOIN contacts c ON c.contact_id = csh.contact_id
+     WHERE c.company_id = ? AND c.assigned_emp_id = ?
+     AND csh.new_status IN ('LEAD', 'MQL', 'SQL', 'OPPORTUNITY', 'CUSTOMER')
+     GROUP BY csh.new_status
+     ORDER BY FIELD(csh.new_status, 'LEAD', 'MQL', 'SQL', 'OPPORTUNITY', 'CUSTOMER')`,
+    [companyId, empId]
+  );
+
+  // 3. Win Probability Per Stage - Historical conversion rates
+  const [stageProbability] = await db.query(
+    `SELECT 
+       stage,
+       total,
+       converted,
+       ROUND((converted / total) * 100, 1) as winProbability
+     FROM (
+       SELECT 
+         'LEAD' as stage,
+         COUNT(*) as total,
+         SUM(CASE WHEN status IN ('CUSTOMER', 'EVANGELIST') THEN 1 ELSE 0 END) as converted
+       FROM contacts WHERE company_id = ? AND assigned_emp_id = ?
+       UNION ALL
+       SELECT 
+         'MQL' as stage,
+         COUNT(*) as total,
+         SUM(CASE WHEN status IN ('CUSTOMER', 'EVANGELIST') THEN 1 ELSE 0 END) as converted
+       FROM contacts WHERE company_id = ? AND assigned_emp_id = ? AND status IN ('MQL', 'SQL', 'OPPORTUNITY', 'CUSTOMER', 'EVANGELIST')
+       UNION ALL
+       SELECT 
+         'SQL' as stage,
+         COUNT(*) as total,
+         SUM(CASE WHEN status IN ('CUSTOMER', 'EVANGELIST') THEN 1 ELSE 0 END) as converted
+       FROM contacts WHERE company_id = ? AND assigned_emp_id = ? AND status IN ('SQL', 'OPPORTUNITY', 'CUSTOMER', 'EVANGELIST')
+       UNION ALL
+       SELECT 
+         'OPPORTUNITY' as stage,
+         COUNT(*) as total,
+         SUM(CASE WHEN status IN ('CUSTOMER', 'EVANGELIST') THEN 1 ELSE 0 END) as converted
+       FROM contacts WHERE company_id = ? AND assigned_emp_id = ? AND status IN ('OPPORTUNITY', 'CUSTOMER', 'EVANGELIST')
+     ) as stages`,
+    [companyId, empId, companyId, empId, companyId, empId, companyId, empId]
+  );
+
+  // 4. Forecast vs Actual Revenue - Using a different approach to avoid GROUP BY issues
+  const [revenueData] = await db.query(
+    `SELECT 
+       rv.month,
+       rv.monthLabel,
+       rv.actualRevenue,
+       COALESCE(fc.forecastRevenue, 0) as forecastRevenue
+     FROM (
+       SELECT 
+         DATE_FORMAT(d.closed_at, '%Y-%m') as month,
+         DATE_FORMAT(MIN(d.closed_at), '%b') as monthLabel,
+         COALESCE(SUM(d.deal_value), 0) as actualRevenue
+       FROM deals d
+       JOIN opportunities o ON o.opportunity_id = d.opportunity_id
+       JOIN contacts c ON c.contact_id = o.contact_id
+       WHERE c.company_id = ? AND o.emp_id = ?
+       AND d.closed_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+       GROUP BY DATE_FORMAT(d.closed_at, '%Y-%m')
+     ) rv
+     LEFT JOIN (
+       SELECT 
+         DATE_FORMAT(o2.created_at, '%Y-%m') as month,
+         COALESCE(SUM(o2.expected_value), 0) as forecastRevenue
+       FROM opportunities o2 
+       JOIN contacts c2 ON c2.contact_id = o2.contact_id
+       WHERE c2.company_id = ? AND o2.emp_id = ?
+       GROUP BY DATE_FORMAT(o2.created_at, '%Y-%m')
+     ) fc ON rv.month = fc.month
+     ORDER BY rv.month`,
+    [companyId, empId, companyId, empId]
+  );
+
+  // Current pipeline value (forecast for next period)
+  const [pipelineForecast] = await db.query(
+    `SELECT 
+       COALESCE(SUM(o.expected_value), 0) as totalPipeline,
+       COUNT(*) as totalOpportunities,
+       COALESCE(AVG(o.expected_value), 0) as avgDealSize
+     FROM opportunities o
+     JOIN contacts c ON c.contact_id = o.contact_id
+     WHERE c.company_id = ? AND o.emp_id = ? AND o.status = 'OPEN'`,
+    [companyId, empId]
+  );
+
+  // 5. Funnel Visualization Data with detailed metrics
+  const [funnelDetails] = await db.query(
+    `SELECT 
+       status,
+       COUNT(*) as count,
+       SUM(CASE WHEN temperature = 'HOT' THEN 1 ELSE 0 END) as hotLeads,
+       SUM(CASE WHEN temperature = 'WARM' THEN 1 ELSE 0 END) as warmLeads,
+       SUM(CASE WHEN temperature = 'COLD' THEN 1 ELSE 0 END) as coldLeads,
+       AVG(interest_score) as avgInterestScore
+     FROM contacts
+     WHERE company_id = ? AND assigned_emp_id = ?
+     GROUP BY status
+     ORDER BY FIELD(status, 'LEAD', 'MQL', 'SQL', 'OPPORTUNITY', 'CUSTOMER', 'EVANGELIST')`,
+    [companyId, empId]
+  );
+
+  // 6. Velocity Metrics - Speed through pipeline
+  const [velocityMetrics] = await db.query(
+    `SELECT 
+       AVG(DATEDIFF(
+         (SELECT csh.changed_at FROM contact_status_history csh 
+          WHERE csh.contact_id = c.contact_id AND csh.new_status = 'MQL' LIMIT 1),
+         c.created_at
+       )) as leadToMqlDays,
+       AVG(DATEDIFF(
+         (SELECT csh.changed_at FROM contact_status_history csh 
+          WHERE csh.contact_id = c.contact_id AND csh.new_status = 'SQL' LIMIT 1),
+         (SELECT csh2.changed_at FROM contact_status_history csh2 
+          WHERE csh2.contact_id = c.contact_id AND csh2.new_status = 'MQL' LIMIT 1)
+       )) as mqlToSqlDays,
+       AVG(DATEDIFF(
+         (SELECT csh.changed_at FROM contact_status_history csh 
+          WHERE csh.contact_id = c.contact_id AND csh.new_status = 'OPPORTUNITY' LIMIT 1),
+         (SELECT csh2.changed_at FROM contact_status_history csh2 
+          WHERE csh2.contact_id = c.contact_id AND csh2.new_status = 'SQL' LIMIT 1)
+       )) as sqlToOppDays,
+       AVG(DATEDIFF(
+         (SELECT csh.changed_at FROM contact_status_history csh 
+          WHERE csh.contact_id = c.contact_id AND csh.new_status = 'CUSTOMER' LIMIT 1),
+         (SELECT csh2.changed_at FROM contact_status_history csh2 
+          WHERE csh2.contact_id = c.contact_id AND csh2.new_status = 'OPPORTUNITY' LIMIT 1)
+       )) as oppToCustomerDays
+     FROM contacts c
+     WHERE c.company_id = ? AND c.assigned_emp_id = ?
+     AND c.status IN ('CUSTOMER', 'EVANGELIST')`,
+    [companyId, empId]
+  );
+
+  // 7. Activity Heatmap Data (by day of week and hour)
+  const [activityHeatmap] = await db.query(
+    `SELECT 
+       DAYOFWEEK(s.created_at) as dayOfWeek,
+       HOUR(s.created_at) as hour,
+       COUNT(*) as sessionCount,
+       AVG(s.rating) as avgRating
+     FROM sessions s
+     JOIN contacts c ON c.contact_id = s.contact_id
+     WHERE c.company_id = ? AND s.emp_id = ?
+     AND s.created_at >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
+     GROUP BY DAYOFWEEK(s.created_at), HOUR(s.created_at)`,
+    [companyId, empId]
+  );
+
+  // Calculate growth rates
+  const calcGrowth = (current, previous) => {
+    if (!previous || previous === 0) return current > 0 ? 100 : 0;
+    return parseFloat((((current - previous) / previous) * 100).toFixed(1));
+  };
+
+  // Process funnel with conversion rates
+  const stages = ['LEAD', 'MQL', 'SQL', 'OPPORTUNITY', 'CUSTOMER', 'EVANGELIST'];
+  const funnelMap = {};
+  funnelDetails.forEach(f => { funnelMap[f.status] = f; });
+  
+  const processedFunnel = stages.map((stage, index) => {
+    const data = funnelMap[stage] || { count: 0, hotLeads: 0, warmLeads: 0, coldLeads: 0, avgInterestScore: 0 };
+    const prevStage = index > 0 ? funnelMap[stages[index - 1]] : null;
+    const conversionRate = prevStage && prevStage.count > 0 
+      ? parseFloat(((data.count / prevStage.count) * 100).toFixed(1)) 
+      : 100;
+    
+    // Find win probability for this stage
+    const probData = stageProbability.find(p => p.stage === stage);
+    
+    return {
+      stage,
+      count: data.count || 0,
+      hotLeads: data.hotLeads || 0,
+      warmLeads: data.warmLeads || 0,
+      coldLeads: data.coldLeads || 0,
+      avgInterestScore: parseFloat(data.avgInterestScore || 0).toFixed(1),
+      conversionRate,
+      winProbability: probData ? parseFloat(probData.winProbability || 0) : 0
+    };
+  });
+
+  return {
+    historicalComparison: {
+      current: {
+        newLeads: currentPeriod[0].newLeads || 0,
+        conversions: currentPeriod[0].conversions || 0,
+        sessions: currentPeriod[0].sessions || 0
+      },
+      previous: {
+        newLeads: previousPeriod[0].newLeads || 0,
+        conversions: previousPeriod[0].conversions || 0,
+        sessions: previousPeriod[0].sessions || 0
+      },
+      growth: {
+        newLeads: calcGrowth(currentPeriod[0].newLeads, previousPeriod[0].newLeads),
+        conversions: calcGrowth(currentPeriod[0].conversions, previousPeriod[0].conversions),
+        sessions: calcGrowth(currentPeriod[0].sessions, previousPeriod[0].sessions)
+      },
+      period: period
+    },
+    stageTimeAnalysis: stageTimeDetails.map(s => ({
+      stage: s.stage,
+      totalContacts: s.totalContacts || 0,
+      minDays: Math.round(s.minDays || 0),
+      maxDays: Math.round(s.maxDays || 0),
+      avgDays: Math.round(s.avgDays || 0),
+      stdDevDays: Math.round(s.stdDevDays || 0)
+    })),
+    winProbability: stageProbability.map(p => ({
+      stage: p.stage,
+      total: p.total || 0,
+      converted: p.converted || 0,
+      probability: parseFloat(p.winProbability || 0)
+    })),
+    forecastVsActual: {
+      monthly: revenueData.map(r => ({
+        month: r.month,
+        label: r.monthLabel,
+        actual: parseFloat(r.actualRevenue || 0),
+        forecast: parseFloat(r.forecastRevenue || 0),
+        variance: parseFloat(r.actualRevenue || 0) - parseFloat(r.forecastRevenue || 0)
+      })),
+      pipeline: {
+        total: parseFloat(pipelineForecast[0].totalPipeline || 0),
+        opportunities: pipelineForecast[0].totalOpportunities || 0,
+        avgDealSize: parseFloat(pipelineForecast[0].avgDealSize || 0)
+      }
+    },
+    funnelVisualization: processedFunnel,
+    velocityMetrics: {
+      leadToMql: Math.round(velocityMetrics[0]?.leadToMqlDays || 0),
+      mqlToSql: Math.round(velocityMetrics[0]?.mqlToSqlDays || 0),
+      sqlToOpp: Math.round(velocityMetrics[0]?.sqlToOppDays || 0),
+      oppToCustomer: Math.round(velocityMetrics[0]?.oppToCustomerDays || 0),
+      totalCycle: Math.round(
+        (velocityMetrics[0]?.leadToMqlDays || 0) + 
+        (velocityMetrics[0]?.mqlToSqlDays || 0) + 
+        (velocityMetrics[0]?.sqlToOppDays || 0) + 
+        (velocityMetrics[0]?.oppToCustomerDays || 0)
+      )
+    },
+    activityHeatmap: activityHeatmap.map(a => ({
+      day: a.dayOfWeek,
+      hour: a.hour,
+      count: a.sessionCount || 0,
+      avgRating: parseFloat(a.avgRating || 0).toFixed(1)
+    }))
+  };
+};
+
+/* ---------------------------------------------------
+   EMPLOYEE: GET YEARLY ACTIVITY HEATMAP (LeetCode-style)
+   - 'current' or null: Rolling 365 days (past one year)
+   - specific year number: Full calendar year
+--------------------------------------------------- */
+export const getYearlyActivityHeatmap = async (companyId, empId, year = null) => {
+  // Get employee's start date
+  const [empInfo] = await db.query(
+    `SELECT created_at FROM employees WHERE emp_id = ? AND company_id = ?`,
+    [empId, companyId]
+  );
+  
+  const empStartDate = empInfo[0]?.created_at || new Date();
+  const startYear = new Date(empStartDate).getFullYear();
+  const currentYear = new Date().getFullYear();
+  
+  // Build available years: "current" for rolling year + specific years from start
+  const availableYears = ['current'];
+  for (let y = currentYear; y >= startYear; y--) {
+    availableYears.push(y);
+  }
+  
+  // Determine date range based on selection
+  const isRollingYear = !year || year === 'current';
+  const today = new Date();
+  let startDate, endDate;
+  
+  if (isRollingYear) {
+    // Rolling 365 days: from today back one year
+    endDate = new Date(today);
+    startDate = new Date(today);
+    startDate.setFullYear(startDate.getFullYear() - 1);
+    startDate.setDate(startDate.getDate() + 1); // Start day after last year's today
+  } else {
+    // Specific calendar year
+    const targetYear = parseInt(year);
+    startDate = new Date(targetYear, 0, 1);
+    endDate = new Date(targetYear, 11, 31);
+  }
+  
+  const startDateStr = startDate.toISOString().split('T')[0];
+  const endDateStr = endDate.toISOString().split('T')[0];
+  
+  // Get daily activity counts for the date range
+  const [dailyActivity] = await db.query(
+    `SELECT 
+       DATE(s.created_at) as date,
+       COUNT(*) as sessionCount,
+       SUM(CASE WHEN s.session_status = 'CONNECTED' THEN 1 ELSE 0 END) as connected,
+       AVG(s.rating) as avgRating
+     FROM sessions s
+     JOIN contacts c ON c.contact_id = s.contact_id
+     WHERE c.company_id = ? AND s.emp_id = ?
+     AND DATE(s.created_at) BETWEEN ? AND ?
+     GROUP BY DATE(s.created_at)
+     ORDER BY date`,
+    [companyId, empId, startDateStr, endDateStr]
+  );
+  
+  // Get total stats for the period
+  const [periodStats] = await db.query(
+    `SELECT 
+       COUNT(*) as totalSessions,
+       SUM(CASE WHEN s.session_status = 'CONNECTED' THEN 1 ELSE 0 END) as totalConnected,
+       COUNT(DISTINCT DATE(s.created_at)) as activeDays,
+       AVG(s.rating) as avgRating
+     FROM sessions s
+     JOIN contacts c ON c.contact_id = s.contact_id
+     WHERE c.company_id = ? AND s.emp_id = ?
+     AND DATE(s.created_at) BETWEEN ? AND ?`,
+    [companyId, empId, startDateStr, endDateStr]
+  );
+  
+  // Convert to map for O(1) lookup and calculate max streak
+  const activityMap = {};
+  let maxCount = 0;
+  const sortedDates = [];
+  
+  dailyActivity.forEach(d => {
+    const dateStr = new Date(d.date).toISOString().split('T')[0];
+    activityMap[dateStr] = {
+      count: d.sessionCount,
+      connected: d.connected,
+      avgRating: parseFloat(d.avgRating || 0).toFixed(1)
+    };
+    if (d.sessionCount > maxCount) maxCount = d.sessionCount;
+    sortedDates.push(new Date(d.date));
+  });
+  
+  // Calculate max streak (consecutive days with activity)
+  let maxStreak = 0;
+  let currentStreak = 0;
+  
+  if (sortedDates.length > 0) {
+    sortedDates.sort((a, b) => a - b);
+    currentStreak = 1;
+    maxStreak = 1;
+    
+    for (let i = 1; i < sortedDates.length; i++) {
+      const prevDate = sortedDates[i - 1];
+      const currDate = sortedDates[i];
+      const diffDays = Math.round((currDate - prevDate) / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 1) {
+        currentStreak++;
+        maxStreak = Math.max(maxStreak, currentStreak);
+      } else {
+        currentStreak = 1;
+      }
+    }
+  }
+  
+  return {
+    year: isRollingYear ? 'current' : parseInt(year),
+    availableYears,
+    activityMap,
+    maxCount: maxCount || 1,
+    startDate: startDateStr,
+    endDate: endDateStr,
+    stats: {
+      totalSessions: periodStats[0]?.totalSessions || 0,
+      totalConnected: periodStats[0]?.totalConnected || 0,
+      activeDays: periodStats[0]?.activeDays || 0,
+      avgRating: parseFloat(periodStats[0]?.avgRating || 0).toFixed(1),
+      maxStreak
+    }
+  };
+};
