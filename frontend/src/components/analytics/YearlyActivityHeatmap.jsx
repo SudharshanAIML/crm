@@ -357,18 +357,13 @@ function YearlyActivityHeatmap() {
       {/* Hover Tooltip */}
       {activeDay && (
         <div className="mt-3 px-4 py-3 bg-slate-50 rounded-lg text-sm border border-slate-100">
-          <div className="flex items-center gap-2 font-medium text-gray-800">
+          <div className="font-medium text-gray-800">
             {activeDay.date.toLocaleDateString('en-US', { 
               weekday: 'long',
               month: 'long', 
               day: 'numeric',
               year: 'numeric'
             })}
-            {activeDay === today && (
-              <span className="text-xs px-2 py-0.5 rounded bg-sky-100 text-sky-700">
-                Today
-              </span>
-            )}
           </div>
           <div className="flex gap-4 mt-1 text-gray-600">
             {activeDay.count === 0 ? (
