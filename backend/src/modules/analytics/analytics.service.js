@@ -123,10 +123,10 @@ export const getComprehensiveAnalytics = async (companyId, empId) => {
 };
 
 /* ---------------------------------------------------
-   EMPLOYEE: GET ENHANCED ANALYTICS (Historical, Forecast, etc.)
+   EMPLOYEE: GET ENHANCED ANALYTICS (Forecast)
 --------------------------------------------------- */
-export const getEnhancedAnalytics = async (companyId, empId, period = 'month') => {
-  return await analyticsRepo.getEnhancedEmployeeAnalytics(companyId, empId, period);
+export const getEnhancedAnalytics = async (companyId, empId) => {
+  return await analyticsRepo.getEnhancedEmployeeAnalytics(companyId, empId);
 };
 
 /* ---------------------------------------------------
