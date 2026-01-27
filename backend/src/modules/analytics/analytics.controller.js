@@ -232,7 +232,7 @@ export const getComprehensiveAnalytics = async (req, res, next) => {
 };
 
 /**
- * @desc   Get enhanced analytics (historical, forecast, funnel viz)
+ * @desc   Get enhanced analytics (forecast)
  * @route  GET /analytics/enhanced
  * @access Employee
  */
@@ -240,7 +240,6 @@ export const getEnhancedAnalytics = async (req, res, next) => {
   try {
     const companyId = req.user.companyId;
     const empId = req.user.empId;
-    const { period = 'month' } = req.query;
 
     if (!companyId) {
       return res.status(400).json({
@@ -248,7 +247,7 @@ export const getEnhancedAnalytics = async (req, res, next) => {
       });
     }
 
-    const data = await analyticsService.getEnhancedAnalytics(companyId, empId, period);
+    const data = await analyticsService.getEnhancedAnalytics(companyId, empId);
 
     res.json(data);
   } catch (error) {

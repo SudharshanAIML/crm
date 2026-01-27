@@ -1087,31 +1087,88 @@ const RecommendationCard = memo(function RecommendationCard({ item }) {
 });
 
 const TrendsChart = memo(function TrendsChart({ data }) {
-  if (!data?.length) return null;
+  if (!data?.length) {
+    return (
+      <div className="text-center py-8 text-gray-400">
+        <Activity className="w-10 h-10 mx-auto mb-2 opacity-30" />
+        <p className="text-sm">No trend data available</p>
+      </div>
+    );
+  }
 
-  const maxValue = Math.max(...data.map((d) => Math.max(d.leads || 0, d.conversions || 0, d.revenue || 0)), 1);
+  // Find the maximum value across all metrics for scaling
+  const maxValue = Math.max(
+    ...data.map(d =>
+      Math.max(
+        Number(d.leadsCreated ?? d.leads ?? 0),
+        Number(d.conversions ?? d.converted ?? 0)
+      )
+    ),
+    1
+  );
+  
 
   return (
     <div className="space-y-4">
-      {/* Simple bar chart visualization */}
-      <div className="flex items-end gap-2 h-40">
-        {data.slice(-12).map((item, idx) => (
-          <div key={idx} className="flex-1 flex flex-col items-center gap-1">
-            <div
-              className="w-full bg-sky-500 rounded-t transition-all hover:bg-sky-600"
-              style={{ height: `${(item.leads / maxValue) * 100}%`, minHeight: "4px" }}
-              title={`${item.leads} leads`}
-            />
-            <span className="text-xs text-gray-500 truncate w-full text-center">
-              {item.label || idx + 1}
-            </span>
+      {/* Bar chart visualization */}
+      <div className="space-y-2">
+        <div className="flex items-end gap-1 h-48 border-b border-gray-200 pb-2">
+          {data.map((item, idx) => {
+            const leadsValue = Number(item.leadsCreated || item.leads || 0);
+            const conversionsValue = Number(item.conversions || item.converted || 0);
+            const leadsHeight = (leadsValue / maxValue) * 100;
+            const conversionsHeight = (conversionsValue / maxValue) * 100;
+
+            return (
+              <div key={idx} className="relative flex-1 flex flex-col items-center gap-1 group">
+                <div className="w-full flex flex-col items-center justify-end h-full gap-0.5">
+                  {/* Leads bar */}
+                  <div
+                    className="w-full bg-sky-500 rounded-t transition-all hover:bg-sky-600 cursor-pointer"
+                    style={{ height: `${leadsHeight}%`, minHeight: leadsValue > 0 ? "4px" : "0" }}
+                    title={`${leadsValue} new leads`}
+                  />
+                  {/* Conversions bar */}
+                  <div
+                    className="w-full bg-emerald-500 rounded-t transition-all hover:bg-emerald-600 cursor-pointer"
+                    style={{ height: `${conversionsHeight}%`, minHeight: conversionsValue > 0 ? "4px" : "0" }}
+                    title={`${conversionsValue} conversions`}
+                  />
+                </div>
+                {/* Label */}
+                <span className="text-[10px] text-gray-500 truncate w-full text-center mt-1">
+                  {item.label || item.week || item.month || `W${idx + 1}`}
+                </span>
+                {/* Tooltip on hover */}
+                <div className="hidden group-hover:block absolute bg-gray-800 text-white text-xs rounded px-2 py-1 mt-1 z-10 whitespace-nowrap">
+                  {item.label || `Period ${idx + 1}`}<br/>
+                  Leads: {leadsValue}<br/>
+                  Conversions: {conversionsValue}
+                  {Number(item.revenue) > 0 && <><br/>Revenue: ${Number(item.revenue).toFixed(0)}</>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {/* X-axis labels for longer datasets */}
+        {data.length > 12 && (
+          <div className="flex justify-between text-xs text-gray-400 px-1">
+            <span>{data[0]?.label || 'Start'}</span>
+            <span>{data[Math.floor(data.length / 2)]?.label || 'Mid'}</span>
+            <span>{data[data.length - 1]?.label || 'End'}</span>
           </div>
-        ))}
+        )}
       </div>
-      <div className="flex items-center justify-center gap-6 text-sm">
+
+      {/* Legend */}
+      <div className="flex items-center justify-center gap-6 text-sm pt-2 border-t border-gray-100">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-sky-500 rounded" />
           <span className="text-gray-600">New Leads</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-emerald-500 rounded" />
+          <span className="text-gray-600">Conversions</span>
         </div>
       </div>
     </div>

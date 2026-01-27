@@ -143,7 +143,7 @@ router.get(
 --------------------------------------------------- */
 /**
  * @route   GET /analytics/enhanced
- * @desc    Get enhanced analytics (historical, forecast, funnel visualization)
+ * @desc    Get enhanced analytics (forecast)
  * @access  Employee
  */
 router.get(

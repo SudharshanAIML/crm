@@ -10,9 +10,9 @@ export const getComprehensiveAnalytics = async () => {
   return response.data;
 };
 
-// Get enhanced analytics (historical, forecast, funnel viz, win probability)
-export const getEnhancedAnalytics = async (period = 'month') => {
-  const response = await api.get(`/analytics/enhanced?period=${period}`);
+// Get enhanced analytics (forecast)
+export const getEnhancedAnalytics = async () => {
+  const response = await api.get(`/analytics/enhanced`);
   return response.data;
 };
 
