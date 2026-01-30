@@ -30,7 +30,6 @@ const pool = mysql.createPool(DATABASE_URL, {
     connection.release();
   } catch (error) {
     console.error("❌ Failed to connect to MySQL:", error.message);
-    process.exit(1);
   }
 })();
 
