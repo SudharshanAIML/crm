@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense, memo } from 'react';
 import {
     Inbox,
     Send,
@@ -25,7 +25,18 @@ import {
 import EmailList from './EmailList';
 import EmailDetail from './EmailDetail';
 import ComposeEmail from './ComposeEmail';
-import { AIOutreach, AutoPilot } from '../outreach';
+
+// Lazy load heavy components for better initial load performance
+const AIOutreach = lazy(() => import('../outreach/AIOutreach'));
+const AutoPilot = lazy(() => import('../outreach/AutoPilot'));
+
+// Loading fallback component for lazy-loaded tabs
+const TabLoadingFallback = memo(() => (
+    <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-6 h-6 animate-spin text-sky-500" />
+        <span className="ml-2 text-gray-600">Loading...</span>
+    </div>
+));
 
 const TABS = [
     { id: 'inbox', label: 'Inbox', icon: Inbox },
@@ -37,14 +48,21 @@ const TABS = [
 
 const GmailView = () => {
     const [activeTab, setActiveTab] = useState('inbox');
-    const [emails, setEmails] = useState([]);
-    const [drafts, setDrafts] = useState([]);
+    
+    // Separate cached state for each email tab (prevents re-fetching on tab switch)
+    const [inboxData, setInboxData] = useState({ emails: [], nextPageToken: null, loaded: false });
+    const [sentData, setSentData] = useState({ emails: [], nextPageToken: null, loaded: false });
+    const [draftsData, setDraftsData] = useState({ drafts: [], nextPageToken: null, loaded: false });
+    
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState(null);
-    const [nextPageToken, setNextPageToken] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [isSearching, setIsSearching] = useState(false);
+    const [searchResults, setSearchResults] = useState({ emails: [], nextPageToken: null, active: false });
+
+    // Track which tabs have been visited (for keep-alive pattern)
+    const [visitedTabs, setVisitedTabs] = useState(new Set(['inbox']));
 
     // Connection state
     const [emailConnected, setEmailConnected] = useState(null);
@@ -62,12 +80,21 @@ const GmailView = () => {
         checkConnection();
     }, []);
 
-    // Fetch data when tab changes or connection is established
+    // Fetch data only when tab hasn't been loaded yet
     useEffect(() => {
         if (emailConnected) {
-            fetchData();
+            const needsFetch = 
+                (activeTab === 'inbox' && !inboxData.loaded) ||
+                (activeTab === 'sent' && !sentData.loaded) ||
+                (activeTab === 'drafts' && !draftsData.loaded);
+            
+            if (needsFetch) {
+                fetchData();
+            } else if (['inbox', 'sent', 'drafts'].includes(activeTab)) {
+                setLoading(false);
+            }
         }
-    }, [activeTab, emailConnected]);
+    }, [activeTab, emailConnected, inboxData.loaded, sentData.loaded, draftsData.loaded]);
 
     const checkConnection = async () => {
         try {
@@ -90,26 +117,37 @@ const GmailView = () => {
         }
     };
 
-    const fetchData = useCallback(async (pageToken = null) => {
+    const fetchData = useCallback(async (pageToken = null, forceRefresh = false) => {
         try {
             if (!pageToken) {
                 setLoading(true);
             }
             setError(null);
+            setSearchResults(prev => ({ ...prev, active: false }));
 
             let result;
             if (activeTab === 'inbox') {
                 result = await getGmailInbox({ pageToken });
-                setEmails(pageToken ? [...emails, ...result.messages] : result.messages);
+                setInboxData(prev => ({
+                    emails: pageToken ? [...prev.emails, ...result.messages] : result.messages,
+                    nextPageToken: result.nextPageToken,
+                    loaded: true
+                }));
             } else if (activeTab === 'sent') {
                 result = await getGmailSent({ pageToken });
-                setEmails(pageToken ? [...emails, ...result.messages] : result.messages);
+                setSentData(prev => ({
+                    emails: pageToken ? [...prev.emails, ...result.messages] : result.messages,
+                    nextPageToken: result.nextPageToken,
+                    loaded: true
+                }));
             } else if (activeTab === 'drafts') {
                 result = await getGmailDrafts({ pageToken });
-                setDrafts(pageToken ? [...drafts, ...result.drafts] : result.drafts);
+                setDraftsData(prev => ({
+                    drafts: pageToken ? [...prev.drafts, ...result.drafts] : result.drafts,
+                    nextPageToken: result.nextPageToken,
+                    loaded: true
+                }));
             }
-
-            setNextPageToken(result.nextPageToken);
         } catch (err) {
             if (err.response?.data?.code === 'EMAIL_NOT_CONNECTED') {
                 setEmailConnected(false);
@@ -120,18 +158,26 @@ const GmailView = () => {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [activeTab, emails, drafts]);
+    }, [activeTab]);
 
     const handleRefresh = () => {
         setRefreshing(true);
         setSelectedEmail(null);
-        fetchData();
+        // Reset loaded state for current tab to force refresh
+        if (activeTab === 'inbox') {
+            setInboxData(prev => ({ ...prev, loaded: false }));
+        } else if (activeTab === 'sent') {
+            setSentData(prev => ({ ...prev, loaded: false }));
+        } else if (activeTab === 'drafts') {
+            setDraftsData(prev => ({ ...prev, loaded: false }));
+        }
+        fetchData(null, true);
     };
 
     const handleSearch = async (e) => {
         e.preventDefault();
         if (!searchQuery.trim()) {
-            fetchData();
+            setSearchResults({ emails: [], nextPageToken: null, active: false });
             return;
         }
 
@@ -139,8 +185,11 @@ const GmailView = () => {
             setIsSearching(true);
             setLoading(true);
             const result = await searchGmail(searchQuery);
-            setEmails(result.messages);
-            setNextPageToken(result.nextPageToken);
+            setSearchResults({
+                emails: result.messages,
+                nextPageToken: result.nextPageToken,
+                active: true
+            });
         } catch (err) {
             setError('Search failed. Please try again.');
         } finally {
@@ -150,9 +199,35 @@ const GmailView = () => {
     };
 
     const handleLoadMore = () => {
-        if (nextPageToken) {
-            fetchData(nextPageToken);
+        const currentPageToken = searchResults.active 
+            ? searchResults.nextPageToken
+            : activeTab === 'inbox' 
+                ? inboxData.nextPageToken 
+                : activeTab === 'sent' 
+                    ? sentData.nextPageToken 
+                    : draftsData.nextPageToken;
+        
+        if (currentPageToken) {
+            fetchData(currentPageToken);
         }
+    };
+
+    // Get current tab's data
+    const getCurrentEmails = () => {
+        if (searchResults.active) return searchResults.emails;
+        if (activeTab === 'inbox') return inboxData.emails;
+        if (activeTab === 'sent') return sentData.emails;
+        return [];
+    };
+
+    const getCurrentDrafts = () => draftsData.drafts;
+
+    const hasMoreData = () => {
+        if (searchResults.active) return !!searchResults.nextPageToken;
+        if (activeTab === 'inbox') return !!inboxData.nextPageToken;
+        if (activeTab === 'sent') return !!sentData.nextPageToken;
+        if (activeTab === 'drafts') return !!draftsData.nextPageToken;
+        return false;
     };
 
     const handleEmailSelect = (email) => {
@@ -281,6 +356,10 @@ const GmailView = () => {
                                     setActiveTab(tab.id);
                                     setSelectedEmail(null);
                                     setSearchQuery('');
+                                    // Clear search results when switching tabs
+                                    setSearchResults({ emails: [], nextPageToken: null, active: false });
+                                    // Mark tab as visited for keep-alive
+                                    setVisitedTabs(prev => new Set([...prev, tab.id]));
                                 }}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === tab.id
                                     ? 'bg-sky-100 text-sky-700'
@@ -317,27 +396,38 @@ const GmailView = () => {
                 </div>
             )}
 
-            {/* Content */}
-            {activeTab === 'ai-outreach' ? (
-                <div className="p-4">
-                    <AIOutreach />
+            {/* Content - Keep-alive pattern: mount once and toggle visibility to preserve state */}
+            {/* AI Outreach Tab - stays mounted after first visit */}
+            {visitedTabs.has('ai-outreach') && (
+                <div className={`p-4 ${activeTab === 'ai-outreach' ? '' : 'hidden'}`}>
+                    <Suspense fallback={<TabLoadingFallback />}>
+                        <AIOutreach />
+                    </Suspense>
                 </div>
-            ) : activeTab === 'autopilot' ? (
-                <div className="p-4">
-                    <AutoPilot />
+            )}
+
+            {/* AutoPilot Tab - stays mounted after first visit */}
+            {visitedTabs.has('autopilot') && (
+                <div className={`p-4 ${activeTab === 'autopilot' ? '' : 'hidden'}`}>
+                    <Suspense fallback={<TabLoadingFallback />}>
+                        <AutoPilot />
+                    </Suspense>
                 </div>
-            ) : (
+            )}
+
+            {/* Email Tabs */}
+            <div className={`${activeTab !== 'ai-outreach' && activeTab !== 'autopilot' ? '' : 'hidden'}`}>
                 <div className="flex h-[calc(100vh-20rem)] min-h-[400px]">
                     {/* Email List */}
                     <div className={`${selectedEmail ? 'hidden lg:block' : ''} w-full lg:w-2/5 border-r border-gray-200 overflow-y-auto`}>
                         <EmailList
-                            emails={activeTab === 'drafts' ? drafts : emails}
+                            emails={activeTab === 'drafts' ? getCurrentDrafts() : getCurrentEmails()}
                             loading={loading}
                             isDrafts={activeTab === 'drafts'}
                             selectedId={selectedEmail?.id || selectedEmail?.draftId}
                             onSelect={activeTab === 'drafts' ? handleDraftEdit : handleEmailSelect}
                             onLoadMore={handleLoadMore}
-                            hasMore={!!nextPageToken}
+                            hasMore={hasMoreData()}
                         />
                     </div>
 
@@ -359,7 +449,7 @@ const GmailView = () => {
                         )}
                     </div>
                 </div>
-            )}
+            </div>
 
             {/* Compose Modal */}
             {showCompose && (
