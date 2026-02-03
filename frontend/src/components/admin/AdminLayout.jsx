@@ -1,87 +1,75 @@
-import { memo, useRef, useEffect, useState, Suspense } from 'react';
-import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { Building2, Users, Contact, BarChart3, ChevronDown } from 'lucide-react';
+import { memo, useState, useRef, useEffect, useCallback } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Profile } from '../layout';
+import Sidebar from '../layout/Sidebar';
+import { DashboardHeader, MobileSidebar, ErrorAlert } from '../dashboard';
 
 /**
- * Navigation tab configuration
+ * Admin Layout - Reuses the same structure as DashboardLayout
+ * Provides sidebar with Team tab, header, and common functionality
+ * Admins see the same interface as employees plus admin-specific sections
  */
-const TABS = [
-  { id: 'team', path: '/admin/team', label: 'Team', icon: Users },
-  { id: 'contacts', path: '/admin/contacts', label: 'Contacts', icon: Contact },
-  { id: 'analytics', path: '/admin/analytics', label: 'Analytics', icon: BarChart3 }
-];
-
-/**
- * TabLink - Navigation link with active state styling
- */
-const TabLink = memo(({ to, icon: Icon, label }) => (
-  <NavLink
-    to={to}
-    className={({ isActive }) =>
-      `flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-        isActive
-          ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
-          : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
-      }`
-    }
-  >
-    <Icon className="w-4 h-4" />
-    {label}
-  </NavLink>
-));
-TabLink.displayName = 'TabLink';
-
-/**
- * MobileTabLink - Mobile navigation link
- */
-const MobileTabLink = memo(({ to, icon: Icon, label }) => (
-  <NavLink
-    to={to}
-    className={({ isActive }) =>
-      `flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all ${
-        isActive
-          ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30'
-          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-      }`
-    }
-  >
-    <Icon className="w-4 h-4" />
-    {label}
-  </NavLink>
-));
-MobileTabLink.displayName = 'MobileTabLink';
-
-/**
- * Get initials from name
- */
-const getInitials = (name) => {
-  if (!name) return '?';
-  const parts = name.split(' ');
-  return parts.length >= 2 
-    ? `${parts[0][0]}${parts[1][0]}`.toUpperCase() 
-    : name.substring(0, 2).toUpperCase();
-};
-
-/**
- * Loading fallback component
- */
-const PageLoader = () => (
-  <div className="flex items-center justify-center min-h-[400px]">
-    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-sky-500" />
-  </div>
-);
-
-/**
- * AdminLayout - Main layout wrapper for admin pages
- * Uses React Router's Outlet for nested routes
- */
-const AdminLayout = () => {
+const AdminLayout = memo(() => {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
+
+  // UI State
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Derive active stage and view from URL for header display
+  const getActiveState = useCallback(() => {
+    const path = location.pathname;
+    
+    // Check admin routes
+    if (path === '/admin/team') return { view: 'team', stage: null };
+    if (path === '/admin/settings') return { view: 'settings', stage: null };
+    
+    // Check workspace views (admin prefixed)
+    if (path === '/admin/analytics') return { view: 'analytics', stage: null };
+    if (path === '/admin/calendar') return { view: 'calendar', stage: null };
+    if (path === '/admin/gmail') return { view: 'gmail', stage: null };
+    
+    // Check admin sessions routes (/admin/sessions/:stage)
+    const sessionsMatch = path.match(/^\/admin\/sessions\/([\w]+)$/);
+    if (sessionsMatch) {
+      const stageMap = {
+        lead: 'LEAD',
+        mql: 'MQL',
+        sql: 'SQL',
+        opportunity: 'OPPORTUNITY',
+        customer: 'CUSTOMER',
+        evangelist: 'EVANGELIST',
+        dormant: 'DORMANT',
+      };
+      const stage = stageMap[sessionsMatch[1].toLowerCase()];
+      if (stage) return { view: 'sessions', stage };
+    }
+    
+    // Check admin contact stages (/admin/contacts/:stage)
+    const stageMatch = path.match(/^\/admin\/contacts\/(\w+)$/);
+    if (stageMatch) {
+      const stageMap = {
+        lead: 'LEAD',
+        mql: 'MQL',
+        sql: 'SQL',
+        opportunity: 'OPPORTUNITY',
+        customer: 'CUSTOMER',
+        evangelist: 'EVANGELIST',
+        dormant: 'DORMANT',
+      };
+      const stage = stageMap[stageMatch[1].toLowerCase()];
+      if (stage) return { view: 'contacts', stage };
+    }
+    
+    // Default
+    return { view: 'contacts', stage: 'LEAD' };
+  }, [location.pathname]);
+
+  const { view: activeView, stage: activeStage } = getActiveState();
 
   // Close user menu when clicking outside
   useEffect(() => {
@@ -94,105 +82,74 @@ const AdminLayout = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Close menu on route change
-  useEffect(() => {
-    setUserMenuOpen(false);
-  }, [location.pathname]);
+  const handleToggleSidebar = useCallback(() => {
+    setSidebarCollapsed((prev) => !prev);
+  }, []);
+
+  const handleCloseMobileMenu = useCallback(() => {
+    setMobileMenuOpen(false);
+  }, []);
+
+  const handleOpenMobileMenu = useCallback(() => {
+    setMobileMenuOpen(true);
+  }, []);
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="px-6">
-          {/* Top Bar */}
-          <div className="flex items-center justify-between h-16">
-            {/* Logo & Title */}
-            <div className="flex items-center gap-4">
-              <div className="w-9 h-9 bg-gradient-to-br from-sky-500 to-blue-600 rounded-xl flex items-center justify-center">
-                <Building2 className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Admin Dashboard</h1>
-                <p className="text-sm text-gray-500">Manage your team & monitor performance</p>
-              </div>
-            </div>
+      {/* Sidebar - Desktop */}
+      <div
+        className={`hidden lg:block fixed left-0 top-0 h-screen z-30 transition-all duration-300 ${
+          sidebarCollapsed ? 'w-16' : 'w-64'
+        }`}
+      >
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onToggle={handleToggleSidebar}
+          isAdmin={true}
+        />
+      </div>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-2 ml-auto mr-6">
-              {TABS.map(tab => (
-                <TabLink
-                  key={tab.id}
-                  to={tab.path}
-                  icon={tab.icon}
-                  label={tab.label}
-                />
-              ))}
-            </nav>
+      {/* Mobile Sidebar Overlay */}
+      <MobileSidebar
+        isOpen={mobileMenuOpen}
+        onClose={handleCloseMobileMenu}
+        isAdmin={true}
+      />
 
-            {/* User Menu */}
-            <div className="flex items-center gap-4">
-              <div className="relative" ref={userMenuRef}>
-                <button
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center gap-3 hover:bg-gray-50 rounded-lg py-1.5 px-2 transition-colors"
-                >
-                  <div className="hidden sm:block text-right">
-                    <p className="text-sm font-semibold text-gray-900">{user?.name}</p>
-                    <p className="text-xs text-gray-500">{user?.department || user?.role}</p>
-                  </div>
-                  <div className="relative">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white font-semibold text-sm">
-                      {getInitials(user?.name)}
-                    </div>
-                    <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white" />
-                  </div>
-                  <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
-                </button>
+      {/* Main Content Area */}
+      <div
+        className={`transition-all duration-300 ${
+          sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
+        }`}
+      >
+        {/* Top Header */}
+        <DashboardHeader
+          user={user}
+          logout={logout}
+          activeView={activeView}
+          activeStage={activeStage}
+          userMenuOpen={userMenuOpen}
+          setUserMenuOpen={setUserMenuOpen}
+          userMenuRef={userMenuRef}
+          onMobileMenuOpen={handleOpenMobileMenu}
+        />
 
-                {userMenuOpen && (
-                  <Profile
-                    user={user}
-                    logout={logout}
-                    setUserMenuOpen={setUserMenuOpen}
-                  />
-                )}
-              </div>
-            </div>
-          </div>
+        {/* Error Message */}
+        <ErrorAlert error={error} onDismiss={clearError} />
 
-          {/* Mobile Navigation */}
-          <div className="flex md:hidden items-center gap-2 pb-3 overflow-x-auto scrollbar-hide">
-            {TABS.map(tab => (
-              <MobileTabLink
-                key={tab.id}
-                to={tab.path}
-                icon={tab.icon}
-                label={tab.label}
-              />
-            ))}
-          </div>
-
-          {/* Full-width divider */}
-          <div className="border-b border-gray-200 -mx-6" />
-        </div>
-      </header>
-
-      {/* Page Content with Suspense for lazy loading */}
-      <main className="p-6">
-        <Suspense fallback={<PageLoader />}>
-          <Outlet />
-        </Suspense>
-      </main>
-
-      <style>{`
-        @keyframes slideInRight {
-          from { transform: translateX(100%); }
-          to { transform: translateX(0); }
-        }
-        .animate-slide-in-right { animation: slideInRight 0.3s ease-out forwards; }
-      `}</style>
+        {/* Page Content - Rendered by nested routes */}
+        <main className="p-4 lg:p-6">
+          <Outlet context={{ setError, clearError }} />
+        </main>
+      </div>
     </div>
   );
-};
+});
+
+AdminLayout.displayName = 'AdminLayout';
 
 export default AdminLayout;

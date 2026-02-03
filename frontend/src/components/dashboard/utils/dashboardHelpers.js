@@ -14,7 +14,7 @@ export const getInitials = (name) => {
 
 /**
  * Get page title based on active view and stage
- * @param {string} activeView - Current view (contacts, analytics, calendar, gmail)
+ * @param {string} activeView - Current view (contacts, analytics, calendar, gmail, team, sessions, settings)
  * @param {string} activeStage - Current pipeline stage
  * @returns {string} Page title
  */
@@ -26,8 +26,17 @@ export const getPageTitle = (activeView, activeStage) => {
       return 'Calendar';
     case 'gmail':
       return 'Gmail';
+    case 'team':
+      return 'Team Management';
+    case 'settings':
+      return 'Settings';
+    case 'sessions':
+      return `${activeStage ? activeStage.charAt(0) + activeStage.slice(1).toLowerCase() : ''} Sessions`;
+    case 'contacts':
     default:
-      return `${activeStage.charAt(0) + activeStage.slice(1).toLowerCase()} Pipeline`;
+      return activeStage 
+        ? `${activeStage.charAt(0) + activeStage.slice(1).toLowerCase()} Pipeline`
+        : 'Pipeline';
   }
 };
 

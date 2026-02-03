@@ -15,8 +15,10 @@ import {
   LayoutGrid,
   CalendarDays,
   Mail,
-  ClipboardList
+  ClipboardList,
+  UsersRound
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 /**
  * View modes for pipeline navigation
@@ -113,6 +115,13 @@ const WORKSPACE_ITEMS = [
 ];
 
 /**
+ * Admin-only items
+ */
+const ADMIN_ITEMS = [
+  { id: 'team', path: '/admin/team', icon: UsersRound, label: 'Team' },
+];
+
+/**
  * Stage navigation button component
  */
 const StageButton = memo(({ stage, isActive, collapsed, onClick, viewMode }) => {
@@ -189,13 +198,62 @@ WorkspaceButton.displayName = 'WorkspaceButton';
 /**
  * Main Sidebar component
  */
-const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle }) => {
+const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle, isAdmin = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAdmin: authIsAdmin } = useAuth();
+  
+  // Use prop or auth context for admin status
+  const showAdminSection = isAdmin || authIsAdmin;
 
   // Derive view mode from URL - memoized for performance
-  const { currentViewMode, currentStage, currentWorkspaceView } = useMemo(() => {
+  const { currentViewMode, currentStage, currentWorkspaceView, currentAdminView, isAdminRoute } = useMemo(() => {
     const path = location.pathname;
+    const adminRoute = path.startsWith('/admin');
+    
+    // Check admin routes first
+    if (path === '/admin/team') {
+      return {
+        currentViewMode: null,
+        currentStage: null,
+        currentWorkspaceView: null,
+        currentAdminView: 'team',
+        isAdminRoute: true,
+      };
+    }
+    
+    // Check if we're in admin sessions mode (/admin/sessions/:stage)
+    const adminSessionsMatch = path.match(/^\/admin\/sessions\/([\w]+)$/);
+    if (adminSessionsMatch) {
+      const stageSlug = adminSessionsMatch[1];
+      const stage = STAGES.find(s => s.slug === stageSlug);
+      return {
+        currentViewMode: VIEW_MODES.SESSIONS,
+        currentStage: stage?.id || 'LEAD',
+        currentWorkspaceView: null,
+        currentAdminView: null,
+        isAdminRoute: true,
+      };
+    }
+    
+    // Check if we're in admin contacts mode (/admin/contacts/:stage)
+    const adminContactsMatch = path.match(/^\/admin\/contacts\/(\w+)$/);
+    if (adminContactsMatch) {
+      const stageSlug = adminContactsMatch[1];
+      const stage = STAGES.find(s => s.slug === stageSlug);
+      return {
+        currentViewMode: VIEW_MODES.CONTACTS,
+        currentStage: stage?.id || 'LEAD',
+        currentWorkspaceView: null,
+        currentAdminView: null,
+        isAdminRoute: true,
+      };
+    }
+    
+    // Check admin workspace views
+    if (path === '/admin/gmail') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'gmail', currentAdminView: null, isAdminRoute: true };
+    if (path === '/admin/calendar') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'calendar', currentAdminView: null, isAdminRoute: true };
+    if (path === '/admin/analytics') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'analytics', currentAdminView: null, isAdminRoute: true };
     
     // Check if we're in sessions mode (/sessions/:stage)
     const sessionsMatch = path.match(/^\/sessions\/([\w]+)$/);
@@ -206,6 +264,8 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle }) => {
         currentViewMode: VIEW_MODES.SESSIONS,
         currentStage: stage?.id || 'LEAD',
         currentWorkspaceView: null,
+        currentAdminView: null,
+        isAdminRoute: false,
       };
     }
     
@@ -218,53 +278,65 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle }) => {
         currentViewMode: VIEW_MODES.CONTACTS,
         currentStage: stage?.id || 'LEAD',
         currentWorkspaceView: null,
+        currentAdminView: null,
+        isAdminRoute: false,
       };
     }
     
     // Check workspace views
-    if (path === '/gmail') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'gmail' };
-    if (path === '/calendar') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'calendar' };
-    if (path === '/analytics') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'analytics' };
+    if (path === '/gmail') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'gmail', currentAdminView: null, isAdminRoute: false };
+    if (path === '/calendar') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'calendar', currentAdminView: null, isAdminRoute: false };
+    if (path === '/analytics') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'analytics', currentAdminView: null, isAdminRoute: false };
     
     // Default to contacts mode
     return {
       currentViewMode: VIEW_MODES.CONTACTS,
       currentStage: activeStage || 'LEAD',
       currentWorkspaceView: null,
+      currentAdminView: null,
+      isAdminRoute: adminRoute,
     };
   }, [location.pathname, activeStage]);
+
+  // Get route prefix based on admin status
+  const routePrefix = isAdminRoute || showAdminSection ? '/admin' : '';
 
   // Handle stage click - navigate based on current view mode
   const handleStageClick = useCallback((stage) => {
     const viewMode = currentViewMode || VIEW_MODES.CONTACTS;
     
     if (viewMode === VIEW_MODES.SESSIONS) {
-      navigate(`/sessions/${stage.slug}`);
+      navigate(`${routePrefix}/sessions/${stage.slug}`);
     } else {
-      navigate(`/contacts/${stage.slug}`);
+      navigate(`${routePrefix}/contacts/${stage.slug}`);
     }
     
     // Call optional prop callback
     if (onStageChange) {
       onStageChange(stage.id);
     }
-  }, [navigate, currentViewMode, onStageChange]);
+  }, [navigate, currentViewMode, onStageChange, routePrefix]);
 
   // Handle primary view click (Contacts / Sessions)
   const handlePrimaryViewClick = useCallback((viewItem) => {
     const stageSlug = STAGES.find(s => s.id === (currentStage || 'LEAD'))?.slug || 'lead';
     
     if (viewItem.id === VIEW_MODES.SESSIONS) {
-      navigate(`/sessions/${stageSlug}`);
+      navigate(`${routePrefix}/sessions/${stageSlug}`);
     } else {
-      navigate(`/contacts/${stageSlug}`);
+      navigate(`${routePrefix}/contacts/${stageSlug}`);
     }
-  }, [navigate, currentStage]);
+  }, [navigate, currentStage, routePrefix]);
 
   // Handle workspace item click
   const handleWorkspaceClick = useCallback((item) => {
-    navigate(item.path);
-  }, [navigate]);
+    // Admin items already have full paths
+    if (item.path.startsWith('/admin')) {
+      navigate(item.path);
+    } else {
+      navigate(`${routePrefix}${item.path}`);
+    }
+  }, [navigate, routePrefix]);
 
   return (
     <aside 
@@ -321,6 +393,23 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle }) => {
               WORKSPACE
             </h3>
           )}
+
+          {/* Admin Section - Only shown for admins */}
+          {showAdminSection && (
+            <>
+              <nav className="space-y-1">
+                {ADMIN_ITEMS.map((item) => (
+                  <WorkspaceButton
+                    key={item.id}
+                    item={item}
+                    isActive={currentAdminView === item.id}
+                    collapsed={collapsed}
+                    onClick={() => handleWorkspaceClick(item)}
+                  />
+                ))}
+              </nav>
+            </>
+          )}
           <nav className="space-y-1">
             {PRIMARY_VIEW_ITEMS.map((item) => (
               <PrimaryViewButton
@@ -332,7 +421,7 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle }) => {
               />
             ))}
           </nav>
-          <nav className="space-y-1">
+          <nav className="space-y-1 mt-1">
             {WORKSPACE_ITEMS.map((item) => (
               <WorkspaceButton
                 key={item.id}
@@ -343,7 +432,7 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle }) => {
               />
             ))}
             <button
-              onClick={() => navigate('/settings')}
+              onClick={() => navigate(`${routePrefix}/settings`)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-600 hover:bg-gray-50 transition-all ${
                 collapsed ? 'justify-center px-2' : ''
               }`}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSessionsCache } from '../context/SessionsCacheContext';
 import {
@@ -171,8 +171,13 @@ SessionRow.displayName = 'SessionRow';
 const StageFollowupsPage = () => {
   const { stage } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAdmin } = useAuth();
   const { getCachedSessions, setCachedSessions, isCacheValid } = useSessionsCache();
+  
+  // Determine if we're in admin routes
+  const isAdminRoute = location.pathname.startsWith('/admin');
+  const routePrefix = isAdminRoute ? '/admin' : '';
   
   const normalizedStage = stage?.toUpperCase();
   const stageConfig = STAGE_CONFIG[normalizedStage] || STAGE_CONFIG.LEAD;
@@ -259,8 +264,8 @@ const StageFollowupsPage = () => {
   }, []);
 
   const handleContactClick = useCallback((contactId) => {
-    navigate(`/followups/${contactId}`);
-  }, [navigate]);
+    navigate(`${routePrefix}/followups/${contactId}`);
+  }, [navigate, routePrefix]);
 
   // Filtered and sorted sessions
   const filteredSortedSessions = useMemo(() => {

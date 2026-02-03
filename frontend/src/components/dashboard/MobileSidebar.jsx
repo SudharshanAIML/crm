@@ -8,6 +8,7 @@ import Sidebar from '../layout/Sidebar';
 const MobileSidebar = memo(({
   isOpen,
   onClose,
+  isAdmin = false,
 }) => {
   if (!isOpen) return null;
 
@@ -25,6 +26,7 @@ const MobileSidebar = memo(({
         <Sidebar
           collapsed={false}
           onToggle={onClose}
+          isAdmin={isAdmin}
         />
       </div>
     </div>

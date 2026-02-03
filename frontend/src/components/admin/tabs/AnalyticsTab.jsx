@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Building2 } from 'lucide-react';
 import {
   KPICards,
   PeriodComparison,
@@ -16,7 +16,8 @@ import {
 } from '../AnalyticsComponents';
 
 /**
- * AnalyticsTab - Main analytics dashboard component
+ * AnalyticsTab - Company-wide analytics dashboard component
+ * Shows overall company performance metrics, employee leaderboards, and trends
  * Composes smaller, memoized components for optimal performance
  * Only re-renders when analytics data changes
  */
@@ -46,8 +47,16 @@ const AnalyticsTab = memo(({
   return (
     <div className="space-y-6">
       {/* Header with Refresh */}
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-lg font-bold text-gray-900">Company Analytics</h2>
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-gradient-to-br from-sky-500 to-blue-600 rounded-xl">
+            <Building2 className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Company Analytics</h2>
+            <p className="text-sm text-gray-500">Overview of all company performance metrics</p>
+          </div>
+        </div>
         <button
           onClick={onRetry}
           disabled={analyticsLoading}

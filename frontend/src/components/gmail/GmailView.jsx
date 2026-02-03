@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense, memo } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense, memo, useRef } from 'react';
 import {
     Inbox,
     Send,
@@ -22,6 +22,7 @@ import {
     getGmailDrafts,
     searchGmail,
 } from '../../services/emailService';
+import { useEmailCache } from '../../context/EmailCacheContext';
 import EmailList from './EmailList';
 import EmailDetail from './EmailDetail';
 import ComposeEmail from './ComposeEmail';
@@ -47,14 +48,30 @@ const TABS = [
 ];
 
 const GmailView = () => {
+    // Use context-based caching for persistence across navigation
+    const { 
+        getCachedData, 
+        setCachedData, 
+        getCachedConnectionStatus, 
+        setCachedConnectionStatus,
+        isCacheValid,
+        invalidateCache
+    } = useEmailCache();
+    
     const [activeTab, setActiveTab] = useState('inbox');
     
-    // Separate cached state for each email tab (prevents re-fetching on tab switch)
-    const [inboxData, setInboxData] = useState({ emails: [], nextPageToken: null, loaded: false });
-    const [sentData, setSentData] = useState({ emails: [], nextPageToken: null, loaded: false });
-    const [draftsData, setDraftsData] = useState({ drafts: [], nextPageToken: null, loaded: false });
+    // Initialize state from cache or defaults
+    const [inboxData, setInboxData] = useState(() => 
+        getCachedData('inbox') || { emails: [], nextPageToken: null, loaded: false }
+    );
+    const [sentData, setSentData] = useState(() => 
+        getCachedData('crm-sent') || { emails: [], nextPageToken: null, loaded: false }
+    );
+    const [draftsData, setDraftsData] = useState(() => 
+        getCachedData('drafts') || { drafts: [], nextPageToken: null, loaded: false }
+    );
     
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -64,9 +81,12 @@ const GmailView = () => {
     // Track which tabs have been visited (for keep-alive pattern)
     const [visitedTabs, setVisitedTabs] = useState(new Set(['inbox']));
 
-    // Connection state
-    const [emailConnected, setEmailConnected] = useState(null);
-    const [checkingConnection, setCheckingConnection] = useState(true);
+    // Connection state - initialize from cache
+    const [emailConnected, setEmailConnected] = useState(() => getCachedConnectionStatus());
+    const [checkingConnection, setCheckingConnection] = useState(() => getCachedConnectionStatus() === null);
+    
+    // Track if this is initial mount
+    const isInitialMount = useRef(true);
 
     // Selected email/draft for detail view
     const [selectedEmail, setSelectedEmail] = useState(null);
@@ -75,18 +95,44 @@ const GmailView = () => {
     const [showCompose, setShowCompose] = useState(false);
     const [editingDraft, setEditingDraft] = useState(null);
 
-    // Check connection on mount
+    // Check connection on mount (skip if already cached)
     useEffect(() => {
-        checkConnection();
+        const cachedConnection = getCachedConnectionStatus();
+        if (cachedConnection !== null) {
+            setEmailConnected(cachedConnection);
+            setCheckingConnection(false);
+        } else {
+            checkConnection();
+        }
+        isInitialMount.current = false;
     }, []);
+    
+    // Persist data to cache when it changes
+    useEffect(() => {
+        if (inboxData.loaded) {
+            setCachedData('inbox', inboxData);
+        }
+    }, [inboxData, setCachedData]);
+    
+    useEffect(() => {
+        if (sentData.loaded) {
+            setCachedData('crm-sent', sentData);
+        }
+    }, [sentData, setCachedData]);
+    
+    useEffect(() => {
+        if (draftsData.loaded) {
+            setCachedData('drafts', draftsData);
+        }
+    }, [draftsData, setCachedData]);
 
-    // Fetch data only when tab hasn't been loaded yet
+    // Fetch data only when tab hasn't been loaded yet (respects cache)
     useEffect(() => {
         if (emailConnected) {
             const needsFetch = 
-                (activeTab === 'inbox' && !inboxData.loaded) ||
-                (activeTab === 'sent' && !sentData.loaded) ||
-                (activeTab === 'drafts' && !draftsData.loaded);
+                (activeTab === 'inbox' && !inboxData.loaded && !isCacheValid('inbox')) ||
+                (activeTab === 'sent' && !sentData.loaded && !isCacheValid('crm-sent')) ||
+                (activeTab === 'drafts' && !draftsData.loaded && !isCacheValid('drafts'));
             
             if (needsFetch) {
                 fetchData();
@@ -94,15 +140,17 @@ const GmailView = () => {
                 setLoading(false);
             }
         }
-    }, [activeTab, emailConnected, inboxData.loaded, sentData.loaded, draftsData.loaded]);
+    }, [activeTab, emailConnected, inboxData.loaded, sentData.loaded, draftsData.loaded, isCacheValid]);
 
     const checkConnection = async () => {
         try {
             setCheckingConnection(true);
             const status = await getConnectionStatus();
             setEmailConnected(status.connected);
+            setCachedConnectionStatus(status.connected);
         } catch (err) {
             setEmailConnected(false);
+            setCachedConnectionStatus(false);
         } finally {
             setCheckingConnection(false);
         }
@@ -163,13 +211,16 @@ const GmailView = () => {
     const handleRefresh = () => {
         setRefreshing(true);
         setSelectedEmail(null);
-        // Reset loaded state for current tab to force refresh
+        // Reset loaded state and invalidate cache for current tab to force refresh
         if (activeTab === 'inbox') {
             setInboxData(prev => ({ ...prev, loaded: false }));
+            invalidateCache('inbox');
         } else if (activeTab === 'sent') {
             setSentData(prev => ({ ...prev, loaded: false }));
+            invalidateCache('crm-sent');
         } else if (activeTab === 'drafts') {
             setDraftsData(prev => ({ ...prev, loaded: false }));
+            invalidateCache('drafts');
         }
         fetchData(null, true);
     };

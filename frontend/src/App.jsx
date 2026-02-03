@@ -25,7 +25,6 @@ const GmailPage = lazy(() => import('./pages/GmailPage'));
 
 // Lazy loaded admin pages
 const AdminTeamPage = lazy(() => import('./pages/AdminTeamPage'));
-const AdminContactsPage = lazy(() => import('./pages/AdminContactsPage'));
 const AdminAnalyticsPage = lazy(() => import('./pages/AdminAnalyticsPage'));
 
 // Lazy loaded shared pages
@@ -59,15 +58,15 @@ const AuthenticatedRoute = ({ children }) => {
   return children;
 };
 
-// Protected Route Component (for employees only - admins go to admin dashboard)
+// Protected Route Component (for employees only - admins use AdminRoute)
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading, needsOnboarding, isAdmin } = useAuth();
 
   if (loading) return <LoadingSpinner />;
   if (!isAuthenticated) return <Navigate to="/login" />;
   if (needsOnboarding) return <Navigate to="/onboarding" />;
-  // Redirect admins to their dashboard
-  if (isAdmin) return <Navigate to="/admin" />;
+  // Redirect admins to their dashboard (same layout, but with team tab)
+  if (isAdmin) return <Navigate to="/admin/contacts/lead" />;
 
   return children;
 };
@@ -103,8 +102,8 @@ const PublicRoute = ({ children }) => {
 
   if (isAuthenticated) {
     if (needsOnboarding) return <Navigate to="/onboarding" />;
-    // Admins go to admin team page, employees go to contacts
-    return <Navigate to={isAdmin ? "/admin/team" : "/contacts/lead"} />;
+    // Admins go to admin contacts, employees go to contacts
+    return <Navigate to={isAdmin ? "/admin/contacts/lead" : "/contacts/lead"} />;
   }
 
   return children;
@@ -177,7 +176,7 @@ function App() {
                   <Route path="/gmail" element={<NestedSuspense><GmailPage /></NestedSuspense>} />
                 </Route>
 
-                {/* Admin routes with nested layout */}
+                {/* Admin routes with nested layout - same as employee but with Team tab */}
                 <Route
                   path="/admin"
                   element={
@@ -188,10 +187,28 @@ function App() {
                     </AdminRoute>
                   }
                 >
+                  {/* Default redirect to team*/}
                   <Route index element={<Navigate to="/admin/team" replace />} />
+                  
+                  {/* Team Management - Admin only */}
                   <Route path="team" element={<NestedSuspense><AdminTeamPage /></NestedSuspense>} />
-                  <Route path="contacts" element={<NestedSuspense><AdminContactsPage /></NestedSuspense>} />
+                  
+                  {/* Contact Stage Routes - Same as employee */}
+                  <Route path="contacts/:stage" element={<NestedSuspense><ContactsPage /></NestedSuspense>} />
+                  
+                  {/* Session/Followup Stage Routes - Same as employee */}
+                  <Route path="sessions/:stage" element={<NestedSuspense><StageFollowupsPage /></NestedSuspense>} />
+                  
+                  {/* Workspace View Routes - Admin uses company-wide analytics */}
                   <Route path="analytics" element={<NestedSuspense><AdminAnalyticsPage /></NestedSuspense>} />
+                  <Route path="calendar" element={<NestedSuspense><CalendarPage /></NestedSuspense>} />
+                  <Route path="gmail" element={<NestedSuspense><GmailPage /></NestedSuspense>} />
+                  
+                  {/* Settings */}
+                  <Route path="settings" element={<NestedSuspense><SettingsPage /></NestedSuspense>} />
+                  
+                  {/* Followups for individual contact (admin) */}
+                  <Route path="followups/:contactId" element={<NestedSuspense><FollowupsPage /></NestedSuspense>} />
                 </Route>
 
                 {/* Settings - Accessible by all authenticated users */}

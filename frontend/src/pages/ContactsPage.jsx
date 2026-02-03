@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, memo } from 'react';
-import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
+import { useParams, useNavigate, useOutletContext, useLocation } from 'react-router-dom';
 import { ContactGrid, ContactDetail, AddContactModal } from '../components/contacts';
 import { AddSessionModal, TakeActionModal } from '../components/sessions';
 import EmailComposer from '../components/email/EmailComposer';
@@ -33,8 +33,13 @@ const STAGE_MAP = {
 const ContactsPage = memo(() => {
   const { stage: stageSlug } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { setError } = useOutletContext();
   const { getCachedContacts, setCachedContacts, invalidateContactsCache } = useContactsCache();
+
+  // Determine if we're in admin routes
+  const isAdminRoute = location.pathname.startsWith('/admin');
+  const routePrefix = isAdminRoute ? '/admin' : '';
 
   // Convert URL slug to API stage value
   const activeStage = STAGE_MAP[stageSlug?.toLowerCase()] || 'LEAD';
@@ -127,8 +132,8 @@ const ContactsPage = memo(() => {
   }, []);
 
   const handleFollowupsClick = useCallback((contact) => {
-    navigate(`/followups/${contact.contact_id}`, { state: { contact } });
-  }, [navigate]);
+    navigate(`${routePrefix}/followups/${contact.contact_id}`, { state: { contact } });
+  }, [navigate, routePrefix]);
 
   const handleAddSession = useCallback((contact) => {
     setAddSessionContact(contact);
