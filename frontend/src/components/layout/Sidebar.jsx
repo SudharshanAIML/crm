@@ -16,7 +16,8 @@ import {
   CalendarDays,
   Mail,
   ClipboardList,
-  UsersRound
+  UsersRound,
+  FileText
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -111,6 +112,7 @@ const PRIMARY_VIEW_ITEMS = [
 const WORKSPACE_ITEMS = [
   { id: 'gmail', path: '/gmail', icon: Mail, label: 'Gmail' },
   { id: 'calendar', path: '/calendar', icon: CalendarDays, label: 'Calendar' },
+  { id: 'pages', path: '/pages', icon: FileText, label: 'Pages' },
   { id: 'analytics', path: '/analytics', icon: BarChart3, label: 'Analytics' },
 ];
 
@@ -260,6 +262,7 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle, isAdmin
     if (path === '/admin/gmail') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'gmail', currentAdminView: null, isAdminRoute: true };
     if (path === '/admin/calendar') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'calendar', currentAdminView: null, isAdminRoute: true };
     if (path === '/admin/analytics') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'analytics', currentAdminView: null, isAdminRoute: true };
+    if (path.startsWith('/admin/pages')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'pages', currentAdminView: null, isAdminRoute: true };
     
     // Check if we're in sessions mode (/sessions/:stage)
     const sessionsMatch = path.match(/^\/sessions\/([\w]+)$/);
@@ -293,6 +296,7 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle, isAdmin
     if (path === '/gmail') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'gmail', currentAdminView: null, isAdminRoute: false };
     if (path === '/calendar') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'calendar', currentAdminView: null, isAdminRoute: false };
     if (path === '/analytics') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'analytics', currentAdminView: null, isAdminRoute: false };
+    if (path.startsWith('/pages')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'pages', currentAdminView: null, isAdminRoute: false };
     
     // Default to contacts mode
     return {

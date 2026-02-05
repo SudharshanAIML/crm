@@ -27,6 +27,12 @@ const GmailPage = lazy(() => import('./pages/GmailPage'));
 const AdminTeamPage = lazy(() => import('./pages/AdminTeamPage'));
 const AdminAnalyticsPage = lazy(() => import('./pages/AdminAnalyticsPage'));
 
+// Lazy loaded pages feature
+const PagesListPage = lazy(() => import('./pages/PagesListPage'));
+const PageBuilderPage = lazy(() => import('./pages/PageBuilderPage'));
+const PageResponsesPage = lazy(() => import('./pages/PageResponsesPage'));
+const PublicPageView = lazy(() => import('./pages/PublicPageView'));
+
 // Lazy loaded shared pages
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const FollowupsPage = lazy(() => import('./pages/FollowupsPage'));
@@ -174,6 +180,12 @@ function App() {
                   <Route path="/analytics" element={<NestedSuspense><AnalyticsPage /></NestedSuspense>} />
                   <Route path="/calendar" element={<NestedSuspense><CalendarPage /></NestedSuspense>} />
                   <Route path="/gmail" element={<NestedSuspense><GmailPage /></NestedSuspense>} />
+                  
+                  {/* Pages (Landing Page Builder) */}
+                  <Route path="/pages" element={<NestedSuspense><PagesListPage /></NestedSuspense>} />
+                  <Route path="/pages/new" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
+                  <Route path="/pages/:pageId/edit" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
+                  <Route path="/pages/:pageId/responses" element={<NestedSuspense><PageResponsesPage /></NestedSuspense>} />
                 </Route>
 
                 {/* Admin routes with nested layout - same as employee but with Team tab */}
@@ -203,6 +215,12 @@ function App() {
                   <Route path="analytics" element={<NestedSuspense><AdminAnalyticsPage /></NestedSuspense>} />
                   <Route path="calendar" element={<NestedSuspense><CalendarPage /></NestedSuspense>} />
                   <Route path="gmail" element={<NestedSuspense><GmailPage /></NestedSuspense>} />
+                  
+                  {/* Pages (Landing Page Builder) - Admin */}
+                  <Route path="pages" element={<NestedSuspense><PagesListPage /></NestedSuspense>} />
+                  <Route path="pages/new" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
+                  <Route path="pages/:pageId/edit" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
+                  <Route path="pages/:pageId/responses" element={<NestedSuspense><PageResponsesPage /></NestedSuspense>} />
                   
                   {/* Settings */}
                   <Route path="settings" element={<NestedSuspense><SettingsPage /></NestedSuspense>} />
@@ -238,6 +256,10 @@ function App() {
                 {/* Redirects */}
                 <Route path="/dashboard" element={<Navigate to="/contacts/lead" replace />} />
                 <Route path="/contacts" element={<Navigate to="/contacts/lead" replace />} />
+                
+                {/* Public Page Route (no auth required) */}
+                <Route path="/p/:slug" element={<SuspenseWrapper><PublicPageView /></SuspenseWrapper>} />
+                
                 <Route path="/" element={<LandingPage />} />
                 <Route path="*" element={<Navigate to="/" />} />
                 </Routes>

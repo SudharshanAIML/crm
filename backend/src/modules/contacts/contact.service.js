@@ -25,11 +25,15 @@ const updateContactTemperature = async (contactId) => {
 
 /* ---------------------------------------------------
    CREATE LEAD (Employee)
+   Accepts optional status to allow adding contacts directly to any stage
 --------------------------------------------------- */
 export const createLead = async (data) => {
+  // Use provided status or default to "LEAD"
+  const status = data.status || "LEAD";
+  
   const contactId = await contactRepo.createContact({
     ...data,
-    status: "LEAD",
+    status,
   });
 
   // Generate tracking token

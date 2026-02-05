@@ -108,7 +108,7 @@ const ContactGrid = ({
               className={`flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r ${themeColors.primary} text-white rounded-xl font-medium ${themeColors.primaryHover} transition-all shadow-lg ${themeColors.shadow} hover:shadow-xl ${themeColors.shadowHover}`}
             >
               <Plus className="w-5 h-5" />
-              <span>Add Lead</span>
+              <span>Add Contact</span>
             </button>
             <button
               onClick={() => navigate(`/sessions/${activeStage.toLowerCase()}`)}
@@ -223,7 +223,7 @@ const ContactGrid = ({
           <p className="text-gray-500 text-center max-w-md mb-6">
             {searchQuery 
               ? `No contacts match "${searchQuery}". Try a different search term.`
-              : `Start building your pipeline by adding your first ${activeTemperature.toLowerCase()} lead.`
+              : `Start building your pipeline by adding your first ${activeTemperature.toLowerCase()} contact.`
             }
           </p>
           {!searchQuery && (
@@ -232,7 +232,7 @@ const ContactGrid = ({
               className={`flex items-center gap-2 px-6 py-3 bg-gradient-to-r ${themeColors.primary} text-white rounded-xl font-medium ${themeColors.primaryHover} transition-all shadow-lg ${themeColors.shadow}`}
             >
               <Plus className="w-5 h-5" />
-              Add Your First Lead
+              Add Your First Contact
             </button>
           )}
         </div>

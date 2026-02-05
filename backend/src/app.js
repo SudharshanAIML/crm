@@ -27,6 +27,7 @@ import emailRoutes from "./modules/emails/email.routes.js";
 import analyticsRoutes from "./modules/analytics/analytics.routes.js";
 import taskRoutes from "./modules/tasks/task.routes.js";
 import outreachRoutes from "./modules/outreach/outreach.routes.js";
+import outreachPublicRoutes from "./modules/outreach/pages.public.routes.js";
 
 // Initialize Express app
 const app = express();
@@ -152,6 +153,9 @@ app.use("/api/tasks", taskRoutes);
 
 // AI Outreach routes (RAG + Autopilot)
 app.use("/api/outreach", outreachRoutes);
+
+// Public outreach pages (no auth required)
+app.use("/api/public", outreachPublicRoutes);
 
 /* =====================================================
    404 HANDLER

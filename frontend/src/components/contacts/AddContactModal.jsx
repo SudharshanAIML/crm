@@ -1,5 +1,16 @@
 import { X, User, Mail, Phone, Briefcase, Thermometer } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+
+// Stage configuration for display
+const STAGE_CONFIG = {
+  LEAD: { label: 'Lead', color: 'from-gray-500 to-gray-600' },
+  MQL: { label: 'MQL', color: 'from-blue-500 to-blue-600' },
+  SQL: { label: 'SQL', color: 'from-purple-500 to-purple-600' },
+  OPPORTUNITY: { label: 'Opportunity', color: 'from-yellow-500 to-yellow-600' },
+  CUSTOMER: { label: 'Customer', color: 'from-green-500 to-green-600' },
+  EVANGELIST: { label: 'Evangelist', color: 'from-pink-500 to-pink-600' },
+  DORMANT: { label: 'Dormant', color: 'from-slate-500 to-slate-600' },
+};
 
 const InputField = ({ icon: Icon, label, name, type = 'text', placeholder, required = false, value, error, focused, onFocus, onBlur, onChange}) => (
   <div>
@@ -34,7 +45,10 @@ const InputField = ({ icon: Icon, label, name, type = 'text', placeholder, requi
     )}
   </div>
 );
-const AddContactModal = ({ isOpen, onClose, onSubmit, loading = false }) => {
+const AddContactModal = ({ isOpen, onClose, onSubmit, loading = false, activeStage = 'LEAD' }) => {
+  // Memoize stage config for performance
+  const stageConfig = useMemo(() => STAGE_CONFIG[activeStage] || STAGE_CONFIG.LEAD, [activeStage]);
+  
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -45,6 +59,21 @@ const AddContactModal = ({ isOpen, onClose, onSubmit, loading = false }) => {
 
   const [errors, setErrors] = useState({});
   const [focusedField, setFocusedField] = useState(null);
+
+  // Reset form when modal opens/closes or stage changes
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        job_title: '',
+        temperature: 'COLD',
+      });
+      setErrors({});
+      setFocusedField(null);
+    }
+  }, [isOpen, activeStage]);
 
 
   const validate = () => {
@@ -71,15 +100,11 @@ const AddContactModal = ({ isOpen, onClose, onSubmit, loading = false }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (validate()) {
-      onSubmit(formData);
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        job_title: '',
-        temperature: 'COLD',
+      // Include the current stage in the submission data
+      onSubmit({
+        ...formData,
+        status: activeStage,
       });
-      setErrors({});
     }
   };
 
@@ -115,7 +140,7 @@ const handleChange = (field, value) => {
       {/* Modal */}
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="relative bg-gradient-to-r from-sky-500 to-blue-600 px-8 py-6">
+        <div className={`relative bg-gradient-to-r ${stageConfig.color} px-8 py-6`}>
           <button
             onClick={onClose}
             className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-xl transition-colors"
@@ -127,8 +152,10 @@ const handleChange = (field, value) => {
               <User className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-white">Add New Lead</h2>
-              <p className="text-sky-100 text-sm mt-1">Fill in the details to create a new lead</p>
+              <h2 className="text-2xl font-bold text-white">Add New Contact</h2>
+              <p className="text-white/80 text-sm mt-1">
+                Adding to <span className="font-semibold">{stageConfig.label}</span> stage
+              </p>
             </div>
           </div>
         </div>
@@ -237,7 +264,7 @@ const handleChange = (field, value) => {
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="flex-1 px-6 py-3.5 bg-gradient-to-r from-sky-500 to-blue-600 text-white rounded-xl font-semibold hover:from-sky-600 hover:to-blue-700 transition-all shadow-lg shadow-sky-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`flex-1 px-6 py-3.5 bg-gradient-to-r ${stageConfig.color} text-white rounded-xl font-semibold hover:opacity-90 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             {loading ? (
               <div className="flex items-center justify-center gap-2">
@@ -245,7 +272,7 @@ const handleChange = (field, value) => {
                 <span>Creating...</span>
               </div>
             ) : (
-              'Create Lead'
+              `Add to ${stageConfig.label}`
             )}
           </button>
         </div>

@@ -226,6 +226,7 @@ const ContactsPage = memo(() => {
         onClose={() => setShowAddModal(false)}
         onSubmit={handleAddContact}
         loading={submitting}
+        activeStage={activeStage}
       />
 
       {/* Add Session Modal */}
