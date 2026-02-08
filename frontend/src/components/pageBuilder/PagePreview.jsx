@@ -76,11 +76,24 @@ function HeroComponent({ config }) {
     bgStyle.backgroundImage = `url(${config.backgroundValue})`;
     bgStyle.backgroundSize = 'cover';
     bgStyle.backgroundPosition = 'center';
+  } else if (config.backgroundType === 'gradient' && config.backgroundValue) {
+    const gradient = config.backgroundValue;
+    if (typeof gradient === 'object' && gradient.colors) {
+      const directionMap = {
+        'to-r': 'to right',
+        'to-l': 'to left',
+        'to-t': 'to top',
+        'to-b': 'to bottom',
+        'to-br': 'to bottom right',
+        'to-bl': 'to bottom left',
+        'to-tr': 'to top right',
+        'to-tl': 'to top left',
+      };
+      bgStyle.background = `linear-gradient(${directionMap[gradient.direction] || 'to bottom right'}, ${gradient.colors.join(', ')})`;
+    }
+  } else if (config.backgroundType === 'color' && config.backgroundValue) {
+    bgStyle.backgroundColor = config.backgroundValue;
   }
-  
-  const gradientClass = config.backgroundType === 'gradient' 
-    ? `bg-gradient-to-br ${config.backgroundValue || 'from-sky-500 to-blue-600'}` 
-    : '';
   
   const textColorClass = config.textColor === 'white' ? 'text-white' : 'text-gray-900';
   const alignClass = {
@@ -91,7 +104,7 @@ function HeroComponent({ config }) {
   
   return (
     <section 
-      className={`py-20 px-6 ${gradientClass}`}
+      className={`py-20 px-6`}
       style={bgStyle}
     >
       <div className={`max-w-4xl mx-auto flex flex-col ${alignClass}`}>
@@ -375,7 +388,10 @@ function FormComponent({ config, isPublic, onSubmit, componentId }) {
 
 function CTAComponent({ config }) {
   return (
-    <section className={`py-16 px-6 ${config.backgroundColor || 'bg-sky-50'}`}>
+    <section 
+      className="py-16 px-6"
+      style={{ backgroundColor: config.backgroundColor || '#f0f9ff' }}
+    >
       <div className="max-w-3xl mx-auto text-center">
         <h2 className="text-3xl font-bold text-gray-800 mb-4">{config.title}</h2>
         {config.description && (
@@ -383,7 +399,8 @@ function CTAComponent({ config }) {
         )}
         <a
           href={config.buttonUrl || '#'}
-          className={`inline-flex px-8 py-3 ${config.buttonColor || 'bg-sky-600'} text-white font-semibold rounded-lg hover:opacity-90 transition-opacity`}
+          className="inline-flex px-8 py-3 text-white font-semibold rounded-lg hover:opacity-90 transition-opacity"
+          style={{ backgroundColor: config.buttonColor || '#0284c7' }}
         >
           {config.buttonText || 'Get Started'}
         </a>
