@@ -43,7 +43,7 @@ const DEFAULT_COMPONENTS = {
       title: 'Welcome to Our Page',
       subtitle: 'Add a compelling subtitle here',
       backgroundType: 'gradient',
-      backgroundValue: 'from-sky-500 to-blue-600',
+      backgroundValue: { colors: ['#0ea5e9', '#2563eb'], direction: 'to-br' },
       textColor: 'white',
       alignment: 'center',
       showCta: true,
@@ -91,8 +91,8 @@ const DEFAULT_COMPONENTS = {
       description: 'Join thousands of satisfied customers.',
       buttonText: 'Contact Us',
       buttonUrl: '#form',
-      backgroundColor: 'bg-sky-50',
-      buttonColor: 'bg-sky-600'
+      backgroundColor: '#f0f9ff',
+      buttonColor: '#0284c7'
     }
   },
   video: {

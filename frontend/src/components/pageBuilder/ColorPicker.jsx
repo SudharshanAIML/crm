@@ -1,0 +1,199 @@
+/**
+ * Color Picker Component
+ * Compact floating color selector inspired by modern design tools (Figma, Canva)
+ */
+import { useState, useRef, useEffect } from 'react';
+import { Check } from 'lucide-react';
+
+// Comprehensive color palette organized by hue and shade
+const COLOR_PALETTE = [
+  // Row 1: Grays & Black/White
+  ['#000000', '#1f2937', '#374151', '#4b5563', '#6b7280', '#9ca3af', '#d1d5db', '#e5e7eb', '#f3f4f6', '#f9fafb', '#ffffff'],
+  
+  // Row 2: Reds
+  ['#fef2f2', '#fee2e2', '#fecaca', '#fca5a5', '#f87171', '#ef4444', '#dc2626', '#b91c1c', '#991b1b', '#7f1d1d', '#450a0a'],
+  
+  // Row 3: Oranges
+  ['#fff7ed', '#ffedd5', '#fed7aa', '#fdba74', '#fb923c', '#f97316', '#ea580c', '#c2410c', '#9a3412', '#7c2d12', '#431407'],
+  
+  // Row 4: Ambers/Yellows
+  ['#fffbeb', '#fef3c7', '#fde68a', '#fcd34d', '#fbbf24', '#f59e0b', '#d97706', '#b45309', '#92400e', '#78350f', '#451a03'],
+  
+  // Row 5: Limes/Greens
+  ['#f7fee7', '#ecfccb', '#d9f99d', '#bef264', '#a3e635', '#84cc16', '#65a30d', '#4d7c0f', '#3f6212', '#365314', '#1a2e05'],
+  
+  // Row 6: Emeralds/Greens
+  ['#f0fdf4', '#dcfce7', '#bbf7d0', '#86efac', '#4ade80', '#22c55e', '#16a34a', '#15803d', '#166534', '#14532d', '#052e16'],
+  
+  // Row 7: Teals/Cyans
+  ['#f0fdfa', '#ccfbf1', '#99f6e4', '#5eead4', '#2dd4bf', '#14b8a6', '#0d9488', '#0f766e', '#115e59', '#134e4a', '#042f2e'],
+  
+  // Row 8: Sky/Blues  
+  ['#f0f9ff', '#e0f2fe', '#bae6fd', '#7dd3fc', '#38bdf8', '#0ea5e9', '#0284c7', '#0369a1', '#075985', '#0c4a6e', '#082f49'],
+  
+  // Row 9: Blues
+  ['#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#1e3a8a', '#172554'],
+  
+  // Row 10: Indigos
+  ['#eef2ff', '#e0e7ff', '#c7d2fe', '#a5b4fc', '#818cf8', '#6366f1', '#4f46e5', '#4338ca', '#3730a3', '#312e81', '#1e1b4b'],
+  
+  // Row 11: Purples
+  ['#faf5ff', '#f3e8ff', '#e9d5ff', '#d8b4fe', '#c084fc', '#a855f7', '#9333ea', '#7e22ce', '#6b21a8', '#581c87', '#3b0764'],
+  
+  // Row 12: Fuchsias/Pinks
+  ['#fdf4ff', '#fae8ff', '#f5d0fe', '#f0abfc', '#e879f9', '#d946ef', '#c026d3', '#a21caf', '#86198f', '#701a75', '#4a044e'],
+  
+  // Row 13: Pinks
+  ['#fdf2f8', '#fce7f3', '#fbcfe8', '#f9a8d4', '#f472b6', '#ec4899', '#db2777', '#be185d', '#9d174d', '#831843', '#500724'],
+  
+  // Row 14: Roses
+  ['#fff1f2', '#ffe4e6', '#fecdd3', '#fda4af', '#fb7185', '#f43f5e', '#e11d48', '#be123c', '#9f1239', '#881337', '#4c0519'],
+];
+
+
+export default function ColorPicker({ value, onChange, label, compact = false, alignPopup = 'left' }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [hexInput, setHexInput] = useState('');
+  const pickerRef = useRef(null);
+  const popupRef = useRef(null);
+  const buttonRef = useRef(null);
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target) && popupRef.current && !popupRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
+  
+  const handleColorSelect = (color) => {
+    onChange(color);
+    setHexInput('');
+  };
+  
+  const handleHexChange = (e) => {
+    let val = e.target.value.toUpperCase();
+    if (!val.startsWith('#')) val = '#' + val;
+    setHexInput(val);
+  };
+  
+  const handleHexSubmit = (e) => {
+    e.preventDefault();
+    if (/^#[0-9A-F]{6}$/i.test(hexInput)) {
+      onChange(hexInput);
+      setHexInput('');
+      setIsOpen(false);
+    }
+  };
+  
+  const currentColor = value || '#ffffff';
+  const [style, setStyle] = useState({});
+  useEffect(() => {
+    if (!buttonRef.current || !isOpen) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const popupWidth = 260;
+    const popupHeight = 288; // h-[18rem]
+    // Ensure the popup fits within the viewport vertically
+    const top = Math.min(rect.top, window.innerHeight - popupHeight - 12);
+    setStyle({
+      position: "fixed",
+      top: Math.max(12, top),
+      left: rect.left - popupWidth - 12,
+      zIndex: 9999,
+    });
+  }, [isOpen]);
+
+  return (
+    <div className="relative" ref={pickerRef}>
+      {!compact && label && (
+        <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      )}
+      
+      {/* Color Display Button */}
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center gap-2 ${compact ? 'px-2 py-1.5' : 'px-3 py-2 w-full'} border border-gray-300 rounded-lg hover:border-gray-400 transition-colors bg-white`}
+        title={label || 'Choose color'}
+      >
+        <div 
+          className={`${compact ? 'w-6 h-6' : 'w-8 h-8'} rounded border border-gray-300 shadow-sm flex-shrink-0`}
+          style={{ backgroundColor: currentColor }}
+        />
+        {!compact && (
+          <span className="text-sm text-gray-700 flex-1 text-left font-mono">{currentColor}</span>
+        )}
+      </button>
+      
+      {/* Floating Color Picker Popup */}
+      {isOpen && buttonRef.current && (
+        <div ref={popupRef} style={style} className="bg-white rounded-lg shadow-2xl border border-gray-200 flex flex-col h-[18rem] w-[260px]">
+          {/* Color Palette Grid - Scrollable */}
+          <div className="p-3 flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+            <div className="space-y-1">
+              {COLOR_PALETTE.map((row, rowIdx) => (
+                <div key={rowIdx} className="flex gap-0.5">
+                  {row.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => handleColorSelect(color)}
+                      className="relative w-5 h-5 rounded hover:scale-125 transition-transform border border-gray-300 hover:border-gray-500 hover:z-10 flex-shrink-0"
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    >
+                      {currentColor.toLowerCase() === color.toLowerCase() && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Check 
+                            className="w-3 h-3 drop-shadow-lg" 
+                            style={{ 
+                              color: ['#000000', '#1f2937', '#374151', '#4b5563', '#6b7280'].includes(color) ? '#fff' : '#000'
+                            }}
+                          />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Hex Input */}
+          <form onSubmit={handleHexSubmit} className="px-3 pb-3 pt-2 border-t border-gray-200">
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">Hex Code</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={hexInput || currentColor}
+                onChange={(e) => {
+                  let v = e.target.value.toUpperCase();
+                  if (!v.startsWith("#")) v = "#" + v;
+                  setHexInput(v);
+                }}
+                placeholder="#000000"
+                className="flex-1 px-2.5 py-1.5 text-sm border border-gray-300 rounded font-mono focus:ring-2 focus:ring-sky-500 focus:border-transparent uppercase"
+                maxLength={7}
+              />
+              <button
+                type="submit"
+                disabled={!hexInput || !/^#[0-9A-F]{6}$/i.test(hexInput)}
+                className="px-3 py-1.5 bg-sky-500 text-white text-sm font-medium rounded hover:bg-sky-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+              >
+                OK
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+

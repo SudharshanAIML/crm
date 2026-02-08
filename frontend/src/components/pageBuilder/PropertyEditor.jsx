@@ -13,6 +13,8 @@ import {
   EyeOff,
   GripVertical
 } from 'lucide-react';
+import ColorPicker from './ColorPicker';
+import GradientPicker from './GradientPicker';
 
 // Form field types for the form builder
 const FIELD_TYPES = [
@@ -250,13 +252,19 @@ function HeroEditor({ config, updateConfig }) {
         </Field>
         
         {config.backgroundType === 'gradient' && (
-          <Field label="Gradient Class">
-            <TextInput
-              value={config.backgroundValue}
-              onChange={(v) => updateConfig('backgroundValue', v)}
-              placeholder="from-sky-500 to-blue-600"
-            />
-          </Field>
+          <GradientPicker
+            value={config.backgroundValue}
+            onChange={(v) => updateConfig('backgroundValue', v)}
+            label="Gradient"
+          />
+        )}
+        
+        {config.backgroundType === 'color' && (
+          <ColorPicker
+            value={config.backgroundValue}
+            onChange={(v) => updateConfig('backgroundValue', v)}
+            label="Background Color"
+          />
         )}
         
         {config.backgroundType === 'image' && (
@@ -611,13 +619,17 @@ function CTAEditor({ config, updateConfig }) {
         />
       </Field>
       
-      <Field label="Background Color">
-        <TextInput
-          value={config.backgroundColor}
-          onChange={(v) => updateConfig('backgroundColor', v)}
-          placeholder="bg-sky-50"
-        />
-      </Field>
+      <ColorPicker
+        value={config.backgroundColor}
+        onChange={(v) => updateConfig('backgroundColor', v)}
+        label="Background Color"
+      />
+      
+      <ColorPicker
+        value={config.buttonColor}
+        onChange={(v) => updateConfig('buttonColor', v)}
+        label="Button Color"
+      />
     </>
   );
 }
