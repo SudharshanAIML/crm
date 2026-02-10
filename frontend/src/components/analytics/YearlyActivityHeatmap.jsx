@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, memo, act } from "react";
+import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { Calendar, ChevronDown, Flame, Activity } from "lucide-react";
 import { getYearlyActivityHeatmap } from "../../services/analyticsService";
 
@@ -110,88 +110,82 @@ function YearlyActivityHeatmap() {
     setIsDropdownOpen(false);
   }, []);
 
-  // Generate calendar grid data - optimized with single pass
-  // Grid flows left-to-right, top-to-bottom with today at bottom-right
-  const { calendarData, monthLabels } = useMemo(() => {
-    if (!dateRange.start || !dateRange.end) {
-      return { calendarData: [], monthLabels: [] };
-    }
+  // Generate calendar data: actual calendar months with days at correct weekday positions
+  const monthGroups = useMemo(() => {
+    if (!dateRange.start || !dateRange.end) return [];
 
     const startDate = new Date(dateRange.start);
     const endDate = new Date(dateRange.end);
-    
-    // For proper grid: end on today's column, start from ~1 year ago
-    // End date should be in the last column, on its day of week row
-    const gridEnd = new Date(endDate);
-    
-    // Calculate grid start: go back enough weeks to cover the range
-    // We need ~53 weeks for a full year
-    const gridStart = new Date(endDate);
-    gridStart.setDate(gridStart.getDate() - 363); // ~52 weeks back
-    // Adjust to previous Sunday
-    gridStart.setDate(gridStart.getDate() - gridStart.getDay());
-    
-    const weeks = [];
-    const labels = [];
-    let currentDate = new Date(gridStart);
-    let currentWeek = [];
-    let lastMonth = -1;
-    let weekIndex = 0;
-    
-    while (currentDate <= gridEnd) {
-      const dateStr = currentDate.toISOString().split('T')[0];
-      const isInRange = currentDate >= startDate && currentDate <= endDate;
-      const month = currentDate.getMonth();
-      const dayData = activityData[dateStr];
-      
-      // Track month changes for labels
-      if (isInRange && month !== lastMonth) {
-        labels.push({ month, weekIndex });
-        lastMonth = month;
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // Collect all months in the range
+    const months = [];
+    const cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+
+    while (cursor <= endDate) {
+      const year = cursor.getFullYear();
+      const month = cursor.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const firstDayOfWeek = new Date(year, month, 1).getDay(); // 0=Sun, 6=Sat
+
+      // Calculate number of week columns needed
+      const totalSlots = firstDayOfWeek + daysInMonth;
+      const numWeeks = Math.ceil(totalSlots / 7);
+
+      // Build a 7×numWeeks grid (rows=days of week, columns=weeks)
+      const grid = [];
+      for (let w = 0; w < numWeeks; w++) {
+        const weekCol = [];
+        for (let d = 0; d < 7; d++) {
+          const dayNumber = w * 7 + d - firstDayOfWeek + 1;
+          if (dayNumber < 1 || dayNumber > daysInMonth) {
+            weekCol.push(null); // empty cell
+          } else {
+            const date = new Date(year, month, dayNumber);
+            const dateStr = date.toISOString().split('T')[0];
+            const isInRange = date >= startDate && date <= endDate;
+            const dayData = activityData[dateStr];
+            weekCol.push({
+              date,
+              dateStr,
+              dayNumber,
+              isInRange,
+              count: dayData?.count || 0,
+              connected: dayData?.connected || 0,
+              avgRating: Number(dayData?.avgRating) || 0,
+              isToday: dateStr === todayStr,
+            });
+          }
+        }
+        grid.push(weekCol);
       }
-      
-      currentWeek.push({
-        date: new Date(currentDate),
-        dateStr,
-        isInRange,
-        count: dayData?.count || 0,
-        connected: dayData?.connected || 0,
-        avgRating: Number(dayData?.avgRating) || 0,
-        isToday: dateStr === new Date().toISOString().split('T')[0],
+
+      months.push({
+        key: `${year}-${month}`,
+        month,
+        year,
+        numWeeks,
+        grid, // grid[weekIdx][dayOfWeek]
       });
-      
-      if (currentWeek.length === 7) {
-        weeks.push(currentWeek);
-        currentWeek = [];
-        weekIndex++;
-      }
-      
-      currentDate.setDate(currentDate.getDate() + 1);
+
+      cursor.setMonth(cursor.getMonth() + 1);
     }
-    
-    // Add remaining days as final partial week
-    if (currentWeek.length > 0) {
-      weeks.push(currentWeek);
-    }
-    
-    return { calendarData: weeks, monthLabels: labels };
+
+    return months;
   }, [dateRange, activityData]);
 
   const today = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
-    for (const week of calendarData) {
-      const day = week.find(d => d.dateStr === todayStr);
-      if (day) return day;
+    for (const group of monthGroups) {
+      for (const week of group.grid) {
+        const day = week.find(d => d && d.dateStr === todayStr);
+        if (day) return day;
+      }
     }
     return null;
-  }, [calendarData]);
+  }, [monthGroups]);
 
   const activeDay = hoveredDay || today;
-
-  const monthStartWeeks = useMemo(() => {
-    return new Set(monthLabels.map(m => m.weekIndex));
-  }, [monthLabels]);
-
 
   // Format year display
   const getYearDisplayText = useCallback((year) => {
@@ -294,63 +288,62 @@ function YearlyActivityHeatmap() {
         </div>
       </div>
 
-      {/* Heatmap Grid */}
+      {/* Heatmap Grid - Calendar months */}
       <div className="overflow-x-auto pb-2">
-        <div className="w-full">
-          {/* Month Labels - positioned above grid */}
-          <div className="relative h-4 mb-2">
-            {monthLabels.map(({ month, weekIndex }, idx) => (
-              <span
-                key={`${month}-${weekIndex}`}
-                className="absolute text-xs text-gray-400"
-                style={{ left: `${weekIndex * 16 + idx * 10}px` }}
+        <div className="flex items-end gap-[10px]">
+          {monthGroups.map((group) => (
+            <div key={group.key} className="flex flex-col">
+              {/* Month grid: columns = weeks, rows = Sun–Sat */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(6, 13px)',
+                  gridTemplateRows: 'repeat(7, 13px)',
+                  gridAutoFlow: 'column',
+                  gap: '3px',
+                }}
               >
-                {MONTH_NAMES[month]}
-              </span>
-            ))}
-          </div>
-
-
-          {/* Grid Container - horizontal scroll wrapper */}
-          <div className="flex gap-[3px]">
-            {calendarData.map((week, weekIdx) => (
-              <div key={`wrap-${weekIdx}`} className="flex">
-                {/* Month gap */}
-                {monthStartWeeks.has(weekIdx) && weekIdx !== 0 && (
-                  <div className="w-[10px]" />
+                {group.grid.map((week, weekIdx) =>
+                  week.map((day, dayIdx) => {
+                    if (!day) {
+                      return <div key={`${group.key}-${weekIdx}-${dayIdx}-empty`} />;
+                    }
+                    return (
+                      <div
+                        key={`${group.key}-${weekIdx}-${dayIdx}`}
+                        className={`rounded-sm transition-all ${
+                          day.isInRange
+                            ? `${getActivityColor(day.count, maxCount)} hover:ring-2 hover:ring-sky-300 hover:ring-offset-1 cursor-pointer ${day.isToday ? 'ring-2 ring-gray-400' : ''}`
+                            : 'bg-transparent'
+                        }`}
+                        style={{ width: 13, height: 13 }}
+                        onMouseEnter={() => day.isInRange && setHoveredDay(day)}
+                        onMouseLeave={() => setHoveredDay(null)}
+                      />
+                    );
+                  })
                 )}
-
-                {/* Week column */}
-                <div className="flex flex-col gap-[3px] w-[13px]">
-                  {week.map((day, dayIdx) => (
-                    <div
-                      key={dayIdx}
-                      className={`w-[13px] h-[13px] rounded-sm transition-all ${
-                        day.isInRange
-                          ? `${getActivityColor(day.count, maxCount)} hover:ring-2 hover:ring-sky-300 hover:ring-offset-1 cursor-pointer ${day.isToday ? 'ring-2 ring-gray-400' : ''}`
-                          : 'bg-transparent'
-                      }`}
-                      onMouseEnter={() => day.isInRange && setHoveredDay(day)}
-                      onMouseLeave={() => setHoveredDay(null)}
-                    />
-                  ))}
-                </div>
               </div>
-            ))}
-          </div>
 
-          {/* Legend */}
-          <div className="flex items-center justify-end gap-2 mt-4 text-xs text-gray-500">
-            <span>Less</span>
-            <div className="flex gap-[3px]">
-              <div className="w-[13px] h-[13px] rounded-sm bg-slate-100" />
-              <div className="w-[13px] h-[13px] rounded-sm bg-sky-200" />
-              <div className="w-[13px] h-[13px] rounded-sm bg-sky-400" />
-              <div className="w-[13px] h-[13px] rounded-sm bg-sky-500" />
-              <div className="w-[13px] h-[13px] rounded-sm bg-sky-600" />
+              {/* Month label below grid */}
+              <div className="text-xs text-gray-400 font-medium mt-1.5 text-center">
+                {MONTH_NAMES[group.month]}
+              </div>
             </div>
-            <span>More</span>
+          ))}
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center justify-end gap-2 mt-4 text-xs text-gray-500">
+          <span>Less</span>
+          <div className="flex gap-[3px]">
+            <div className="w-[13px] h-[13px] rounded-sm bg-slate-100" />
+            <div className="w-[13px] h-[13px] rounded-sm bg-sky-200" />
+            <div className="w-[13px] h-[13px] rounded-sm bg-sky-400" />
+            <div className="w-[13px] h-[13px] rounded-sm bg-sky-500" />
+            <div className="w-[13px] h-[13px] rounded-sm bg-sky-600" />
           </div>
+          <span>More</span>
         </div>
       </div>
 
