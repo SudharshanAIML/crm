@@ -3,6 +3,7 @@
  * Handles HTTP requests for form submissions and response management
  */
 import * as formResponsesService from "./formResponses.service.js";
+import { getRealIP } from "../../utils/ipUtils.js";
 
 /* ---------------------------------------------------
    PUBLIC FORM SUBMISSION
@@ -59,7 +60,7 @@ export const submitFormBySlug = async (req, res, next) => {
       formData,
       {
         contactId,
-        ipAddress: req.ip,
+        ipAddress: getRealIP(req),
         userAgent: req.get("User-Agent"),
         referrer: req.get("Referer"),
       }
@@ -96,7 +97,7 @@ export const submitForm = async (req, res, next) => {
       formData,
       {
         contactId,
-        ipAddress: req.ip,
+        ipAddress: getRealIP(req),
         userAgent: req.get("User-Agent"),
         referrer: req.get("Referer"),
       }

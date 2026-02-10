@@ -3,6 +3,7 @@
  * Handles HTTP requests for the landing page builder feature
  */
 import * as pagesService from "./pages.service.js";
+import { getRealIP } from "../../utils/ipUtils.js";
 
 /* ---------------------------------------------------
    PAGE CRUD
@@ -314,7 +315,7 @@ export const getPublicPageBySlug = async (req, res, next) => {
 
     // Record visit
     await pagesService.recordVisit(page.page_id, {
-      ipAddress: req.ip,
+      ipAddress: getRealIP(req),
       userAgent: req.get("User-Agent"),
       referrer: req.get("Referer"),
       utm: {
@@ -347,7 +348,7 @@ export const getPublicPage = async (req, res, next) => {
 
     // Record visit
     await pagesService.recordVisit(page.page_id, {
-      ipAddress: req.ip,
+      ipAddress: getRealIP(req),
       userAgent: req.get("User-Agent"),
       referrer: req.get("Referer"),
       utm: {
@@ -397,7 +398,7 @@ export const getPageByToken = async (req, res, next) => {
     // Record visit with contact association
     await pagesService.recordVisit(page.page_id, {
       contactId: record.contact_id,
-      ipAddress: req.ip,
+      ipAddress: getRealIP(req),
       userAgent: req.get("User-Agent"),
       referrer: req.get("Referer"),
       utm: {

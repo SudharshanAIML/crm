@@ -33,6 +33,22 @@ import outreachPublicRoutes from "./modules/outreach/pages.public.routes.js";
 const app = express();
 
 /* =====================================================
+   TRUST PROXY CONFIGURATION
+===================================================== */
+
+/**
+ * Enable trust proxy to get real client IP from proxy headers
+ * This is critical for production deployments behind:
+ * - Load balancers (AWS ALB, GCP LB, Azure LB)
+ * - Reverse proxies (Nginx, Apache)
+ * - CDNs (Cloudflare, Fastly, Akamai)
+ * 
+ * Setting to 'true' trusts all proxies (suitable for most cloud deployments)
+ * For stricter security, specify proxy IP/CIDR ranges
+ */
+app.set('trust proxy', process.env.TRUST_PROXY || true);
+
+/* =====================================================
    SECURITY MIDDLEWARE
 ===================================================== */
 

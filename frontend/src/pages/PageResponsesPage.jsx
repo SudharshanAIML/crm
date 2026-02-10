@@ -18,7 +18,9 @@ import {
   User,
   Calendar,
   ChevronDown,
-  X
+  X,
+  Globe,
+  MapPin
 } from 'lucide-react';
 import * as pagesService from '../services/pagesService';
 
@@ -478,15 +480,52 @@ function ResponseDetailModal({ response, onClose, onUpdateStatus, onDelete }) {
           </div>
           
           {/* Metadata */}
-          {(response.ip_address || response.referrer) && (
+          {(response.ip_address || response.user_agent || response.referrer) && (
             <div className="mt-6 pt-6 border-t border-gray-100">
-              <h4 className="text-sm font-medium text-gray-500 mb-3">Submission Info</h4>
-              <div className="text-sm space-y-2 text-gray-600">
+              <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                <Globe className="w-4 h-4" />
+                Submission Details
+              </h4>
+              <div className="space-y-3">
                 {response.ip_address && (
-                  <div>IP: {response.ip_address}</div>
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <div className="text-xs text-gray-500 mb-0.5">IP Address</div>
+                      <div className="text-sm font-mono text-gray-800 bg-gray-50 px-2 py-1 rounded inline-block">
+                        {response.ip_address}
+                      </div>
+                      {response.ip_address.startsWith('10.') || 
+                       response.ip_address.startsWith('192.168.') || 
+                       response.ip_address.startsWith('172.') ||
+                       response.ip_address === '127.0.0.1' ||
+                       response.ip_address === '::1' ? (
+                        <span className="ml-2 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+                          Private/Local
+                        </span>
+                      ) : (
+                        <span className="ml-2 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded">
+                          Public
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {response.user_agent && (
+                  <div className="text-sm text-gray-600">
+                    <div className="text-xs text-gray-500 mb-1">Browser/Device</div>
+                    <div className="font-mono text-xs bg-gray-50 px-2 py-1 rounded truncate" title={response.user_agent}>
+                      {response.user_agent}
+                    </div>
+                  </div>
                 )}
                 {response.referrer && (
-                  <div className="truncate">Referrer: {response.referrer}</div>
+                  <div className="text-sm text-gray-600">
+                    <div className="text-xs text-gray-500 mb-1">Referrer</div>
+                    <div className="font-mono text-xs bg-gray-50 px-2 py-1 rounded truncate" title={response.referrer}>
+                      {response.referrer}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
