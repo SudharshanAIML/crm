@@ -219,8 +219,8 @@ ${description}
                     <table role="presentation" style="width: 100%; border-collapse: collapse;">
                       <tr>
                         <td align="center" style="padding: 0;">
-                          <!-- Accept Button (Clickable - Minimal Text Response) -->
-                          <a href="${process.env.APP_URL}/api/appointments/accept/${appointmentTokenService.generateToken(taskId, contactId, 'accept')}" 
+                          <!-- Accept Button (Frontend Proxy - Backend URL Hidden) -->
+                          <a href="${process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:3000'}/accept/${appointmentTokenService.generateToken(taskId, contactId, 'accept')}" 
                              style="display: inline-block; min-width: 140px; padding: 14px 24px; margin: 0 4px 8px; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; border-radius: 8px; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);">
                             ✓ Accept
                           </a>
