@@ -96,6 +96,22 @@ export const syncTaskToGoogleCalendar = async (taskId) => {
   return response.data;
 };
 
+/* ---------------------------------------------------
+   APPOINTMENT RESPONSES
+--------------------------------------------------- */
+
+// Get appointment response status
+export const getAppointmentStatus = async (taskId) => {
+  const response = await api.get(`/appointments/status/${taskId}`);
+  return response.data;
+};
+
+// Update appointment status (for employee manual updates)
+export const updateAppointmentStatus = async (taskId, status, notes = null) => {
+  const response = await api.put(`/appointments/status/${taskId}`, { status, notes });
+  return response.data;
+};
+
 export default {
   getCalendarTasks,
   getTodaysTasks,
@@ -111,4 +127,6 @@ export default {
   getCalendarSyncStatus,
   syncAllToGoogleCalendar,
   syncTaskToGoogleCalendar,
+  getAppointmentStatus,
+  updateAppointmentStatus,
 };

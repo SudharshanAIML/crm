@@ -28,6 +28,7 @@ import analyticsRoutes from "./modules/analytics/analytics.routes.js";
 import taskRoutes from "./modules/tasks/task.routes.js";
 import outreachRoutes from "./modules/outreach/outreach.routes.js";
 import outreachPublicRoutes from "./modules/outreach/pages.public.routes.js";
+import appointmentRoutes from "./modules/appointments/appointment.routes.js";
 
 // Initialize Express app
 const app = express();
@@ -166,6 +167,9 @@ app.use("/api/analytics", analyticsRoutes);
 
 // Task/Calendar management routes
 app.use("/api/tasks", taskRoutes);
+
+// Appointment response routes (public + authenticated)
+app.use("/api/appointments", appointmentRoutes);
 
 // AI Outreach routes (RAG + Autopilot)
 app.use("/api/outreach", outreachRoutes);

@@ -21,6 +21,10 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { toLocalDateOnly } from "./constants";
+import { updateAppointmentStatus } from "../../services/taskService";
+
+// Task types that send appointment emails and track responses
+const APPOINTMENT_TYPES = new Set(["CALL", "MEETING", "DEMO"]);
 
 // Task Modal Component
 const TaskModal= ({ isOpen, task, contacts, selectedDate, onClose, onSave, lockedContact }) => {
@@ -44,6 +48,18 @@ const TaskModal= ({ isOpen, task, contacts, selectedDate, onClose, onSave, locke
     is_all_day: task?.is_all_day || false,
   });
   const [saving, setSaving] = useState(false);
+  // Read directly from task object (t.* already includes appointment_status)
+  const isAppointment = APPOINTMENT_TYPES.has(task?.task_type) && !!task?.contact_id;
+  const [appointmentStatus, setAppointmentStatus] = useState(
+    isAppointment ? (task?.appointment_status || "PENDING") : null
+  );
+  const [appointmentRespondedAt, setAppointmentRespondedAt] = useState(
+    task?.appointment_response_at || null
+  );
+  const [appointmentNotes, setAppointmentNotes] = useState(
+    task?.appointment_notes || null
+  );
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   // Update contact_id when lockedContact changes
   useEffect(() => {
@@ -51,6 +67,22 @@ const TaskModal= ({ isOpen, task, contacts, selectedDate, onClose, onSave, locke
       setFormData(prev => ({ ...prev, contact_id: lockedContact.contact_id }));
     }
   }, [lockedContact, task]);
+
+  const handleStatusUpdate = async (newStatus) => {
+    if (!task?.task_id) return;
+    
+    setUpdatingStatus(true);
+    try {
+      const result = await updateAppointmentStatus(task.task_id, newStatus);
+      setAppointmentStatus(result.status);
+      setAppointmentRespondedAt(result.respondedAt);
+      setAppointmentNotes(result.notes);
+    } catch (error) {
+      console.error("Failed to update appointment status:", error);
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -80,6 +112,96 @@ const TaskModal= ({ isOpen, task, contacts, selectedDate, onClose, onSave, locke
               <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
+          
+          {/* Appointment Status Banner */}
+          {isAppointment && (
+            <div className={`mt-3 p-3 rounded-lg ${
+              appointmentStatus === "ACCEPTED" 
+                ? "bg-emerald-50 border border-emerald-200" 
+                : appointmentStatus === "RESCHEDULE_REQUESTED"
+                ? "bg-amber-50 border border-amber-200"
+                : appointmentStatus === "CANCELLED"
+                ? "bg-gray-100 border border-gray-300"
+                : "bg-blue-50 border border-blue-200"
+            }`}>
+              <div className="flex items-start gap-2">
+                <div className={`mt-0.5 ${
+                  appointmentStatus === "ACCEPTED" ? "text-emerald-600" 
+                  : appointmentStatus === "RESCHEDULE_REQUESTED" ? "text-amber-600"
+                  : appointmentStatus === "CANCELLED" ? "text-gray-600"
+                  : "text-blue-600"
+                }`}>
+                  {appointmentStatus === "ACCEPTED" && <CheckCircle className="w-5 h-5" />}
+                  {appointmentStatus === "RESCHEDULE_REQUESTED" && <Clock className="w-5 h-5" />}
+                  {appointmentStatus === "CANCELLED" && <X className="w-5 h-5" />}
+                  {appointmentStatus === "PENDING" && <CalendarIcon className="w-5 h-5" />}
+                </div>
+                <div className="flex-1">
+                  <p className={`font-medium text-sm ${
+                    appointmentStatus === "ACCEPTED" ? "text-emerald-800" 
+                    : appointmentStatus === "RESCHEDULE_REQUESTED" ? "text-amber-800"
+                    : appointmentStatus === "CANCELLED" ? "text-gray-800"
+                    : "text-blue-800"
+                  }`}>
+                    {appointmentStatus === "ACCEPTED" && "Contact Accepted Appointment"}
+                    {appointmentStatus === "RESCHEDULE_REQUESTED" && "Reschedule Requested"}
+                    {appointmentStatus === "CANCELLED" && "Appointment Cancelled"}
+                    {appointmentStatus === "PENDING" && "Awaiting Contact Response"}
+                  </p>
+                  {appointmentRespondedAt && (
+                    <p className="text-xs text-gray-600 mt-0.5">
+                      Responded: {new Date(appointmentRespondedAt).toLocaleString()}
+                    </p>
+                  )}
+                  {appointmentNotes && (
+                    <p className="text-xs text-gray-700 mt-1.5 italic">
+                      Note: {appointmentNotes}
+                    </p>
+                  )}
+                  
+                  {/* Quick status update buttons */}
+                  {appointmentStatus !== "ACCEPTED" && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <button
+                        type="button"
+                        onClick={() => handleStatusUpdate("RESCHEDULE_REQUESTED")}
+                        disabled={updatingStatus || appointmentStatus === "RESCHEDULE_REQUESTED"}
+                        className={`text-xs px-2 py-1 rounded transition-colors ${
+                          appointmentStatus === "RESCHEDULE_REQUESTED"
+                            ? "bg-amber-200 text-amber-800 cursor-not-allowed"
+                            : "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                        }`}
+                      >
+                        {appointmentStatus === "RESCHEDULE_REQUESTED" ? "✓ Reschedule Marked" : "Mark Reschedule"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleStatusUpdate("CANCELLED")}
+                        disabled={updatingStatus || appointmentStatus === "CANCELLED"}
+                        className={`text-xs px-2 py-1 rounded transition-colors ${
+                          appointmentStatus === "CANCELLED"
+                            ? "bg-gray-300 text-gray-700 cursor-not-allowed"
+                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        }`}
+                      >
+                        {appointmentStatus === "CANCELLED" ? "✓ Cancelled" : "Mark Cancelled"}
+                      </button>
+                      {(appointmentStatus === "RESCHEDULE_REQUESTED" || appointmentStatus === "CANCELLED") && (
+                        <button
+                          type="button"
+                          onClick={() => handleStatusUpdate("PENDING")}
+                          disabled={updatingStatus}
+                          className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                        >
+                          Reset to Pending
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">

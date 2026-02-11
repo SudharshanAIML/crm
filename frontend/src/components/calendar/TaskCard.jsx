@@ -19,6 +19,10 @@ import {
   ListTodo,
   RefreshCw,
 } from "lucide-react";
+
+// Task types that send appointment emails and track responses
+const APPOINTMENT_TYPES = new Set(["CALL", "MEETING", "DEMO"]);
+
 // Task Card Component
 const TaskCard = ({ task, onToggleComplete, onEdit, onDelete, isAdmin = false }) => {
   const config = TASK_TYPES[task.task_type] || TASK_TYPES.OTHER;
@@ -26,6 +30,12 @@ const TaskCard = ({ task, onToggleComplete, onEdit, onDelete, isAdmin = false })
   const isCompleted = task.status === "COMPLETED";
   const isOverdue = task.status === "OVERDUE";
   
+  // Read appointment_status directly from task object (already in t.* from SQL)
+  // No extra API call needed — eliminates N+1 problem
+  const appointmentStatus = APPOINTMENT_TYPES.has(task.task_type) && task.contact_id
+    ? task.appointment_status
+    : null;
+
   const checkboxHoverColor = isAdmin ? "hover:border-orange-500" : "hover:border-sky-500";
 
   const formatTime = (timeStr) => {
@@ -68,6 +78,30 @@ const TaskCard = ({ task, onToggleComplete, onEdit, onDelete, isAdmin = false })
             {isOverdue && (
               <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded">
                 Overdue
+              </span>
+            )}
+            {appointmentStatus && appointmentStatus !== "PENDING" && (
+              <span 
+                className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                  appointmentStatus === "ACCEPTED" 
+                    ? "bg-emerald-100 text-emerald-700" 
+                    : appointmentStatus === "RESCHEDULE_REQUESTED"
+                    ? "bg-amber-100 text-amber-700"
+                    : appointmentStatus === "CANCELLED"
+                    ? "bg-red-100 text-red-600"
+                    : ""
+                }`}
+              >
+                {appointmentStatus === "ACCEPTED" 
+                  ? "✓ Accepted" 
+                  : appointmentStatus === "RESCHEDULE_REQUESTED"
+                  ? "↻ Reschedule" 
+                  : "✕ Cancelled"}
+              </span>
+            )}
+            {appointmentStatus === "PENDING" && (
+              <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-blue-50 text-blue-600">
+                ◷ Pending
               </span>
             )}
           </div>

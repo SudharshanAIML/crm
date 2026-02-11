@@ -1,5 +1,6 @@
 import * as taskRepo from "./task.repo.js";
 import * as gcalService from "../../services/googleCalendar.service.js";
+import * as appointmentEmailService from "../../services/appointmentEmail.service.js";
 
 /**
  * Fire-and-forget Google Calendar sync.
@@ -20,6 +21,18 @@ const syncToCalendar = async (action, taskId, empId) => {
     }
   } catch (err) {
     console.warn(`[GCal Sync] ${action} failed for task ${taskId}:`, err.message);
+  }
+};
+
+/**
+ * Fire-and-forget appointment email notification.
+ * Never throws — email failures must not block CRM operations.
+ */
+const sendAppointmentNotification = async (taskId, empId) => {
+  try {
+    await appointmentEmailService.sendAppointmentEmail(taskId, empId);
+  } catch (err) {
+    console.warn(`[Appointment Email] Failed for task ${taskId}:`, err.message);
   }
 };
 
@@ -70,8 +83,13 @@ export const getTaskById = async (companyId, empId, taskId) => {
 --------------------------------------------------- */
 export const createTask = async (taskData) => {
   const task = await taskRepo.createTask(taskData);
+  
   // Fire-and-forget: sync to Google Calendar
   syncToCalendar("create", task.task_id, taskData.emp_id);
+  
+  // Fire-and-forget: send appointment email to contact
+  sendAppointmentNotification(task.task_id, taskData.emp_id);
+  
   return task;
 };
 
@@ -79,10 +97,19 @@ export const createTask = async (taskData) => {
    UPDATE TASK
 --------------------------------------------------- */
 export const updateTask = async (taskId, companyId, empId, updates) => {
+  // Check if this is a significant change that warrants re-notification
+  const significantFields = ['contact_id', 'due_date', 'due_time', 'title', 'task_type'];
+  const hasSignificantChange = Object.keys(updates).some(key => significantFields.includes(key));
+  
   const task = await taskRepo.updateTask(taskId, companyId, empId, updates);
   if (task) {
     // Fire-and-forget: sync changes to Google Calendar
     syncToCalendar("update", taskId, empId);
+    
+    // Fire-and-forget: send updated appointment email if significant change
+    if (hasSignificantChange && updates.status !== 'CANCELLED') {
+      sendAppointmentNotification(taskId, empId);
+    }
   }
   return task;
 };
