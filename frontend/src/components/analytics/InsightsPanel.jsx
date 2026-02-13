@@ -1096,78 +1096,137 @@ const TrendsChart = memo(function TrendsChart({ data }) {
     );
   }
 
-  // Find the maximum value across all metrics for scaling
-  const maxValue = Math.max(
-    ...data.map(d =>
-      Math.max(
-        Number(d.leadsCreated ?? d.leads ?? 0),
-        Number(d.conversions ?? d.converted ?? 0)
-      )
-    ),
-    1
-  );
-  
+  // Compute max across both metrics for Y-axis scaling
+  const maxValue = useMemo(() => {
+    let max = 0;
+    for (const d of data) {
+      const leads = Number(d.leadsCreated ?? d.leads ?? 0);
+      const conv = Number(d.conversions ?? d.converted ?? 0);
+      if (leads > max) max = leads;
+      if (conv > max) max = conv;
+    }
+    return max || 1;
+  }, [data]);
+
+  // Generate Y-axis tick marks (4 ticks including 0)
+  const yTicks = useMemo(() => {
+    const step = Math.ceil(maxValue / 4) || 1;
+    const ticks = [];
+    for (let i = 4; i >= 0; i--) {
+      ticks.push(Math.min(step * i, Math.ceil(maxValue / step) * step));
+    }
+    // Deduplicate in case maxValue is very small
+    return [...new Set(ticks)];
+  }, [maxValue]);
+
+  const yMax = yTicks[0] || 1;
+  const chartHeight = 200; // px
 
   return (
-    <div className="space-y-4">
-      {/* Bar chart visualization */}
-      <div className="space-y-2">
-        <div className="flex items-end gap-1 h-48 border-b border-gray-200 pb-2">
-          {data.map((item, idx) => {
-            const leadsValue = Number(item.leadsCreated || item.leads || 0);
-            const conversionsValue = Number(item.conversions || item.converted || 0);
-            const leadsHeight = (leadsValue / maxValue) * 100;
-            const conversionsHeight = (conversionsValue / maxValue) * 100;
+    <div className="space-y-3">
+      {/* Chart area */}
+      <div className="flex">
+        {/* Y-axis labels */}
+        <div
+          className="flex flex-col justify-between pr-2 text-right shrink-0"
+          style={{ height: chartHeight }}
+        >
+          {yTicks.map((tick, i) => (
+            <span key={i} className="text-[10px] text-gray-400 leading-none">
+              {tick}
+            </span>
+          ))}
+        </div>
 
-            return (
-              <div key={idx} className="relative flex-1 flex flex-col items-center gap-1 group">
-                <div className="w-full flex flex-col items-center justify-end h-full gap-0.5">
+        {/* Bars area */}
+        <div className="flex-1 relative">
+          {/* Horizontal gridlines */}
+          <div
+            className="absolute inset-0 flex flex-col justify-between pointer-events-none"
+          >
+            {yTicks.map((_, i) => (
+              <div key={i} className="border-b border-gray-100 w-full" />
+            ))}
+          </div>
+
+          {/* Grouped bars */}
+          <div
+            className="relative flex items-end gap-1"
+            style={{ height: chartHeight }}
+          >
+            {data.map((item, idx) => {
+              const leadsValue = Number(item.leadsCreated ?? item.leads ?? 0);
+              const conversionsValue = Number(item.conversions ?? item.converted ?? 0);
+              const leadsH = (leadsValue / yMax) * chartHeight;
+              const convH = (conversionsValue / yMax) * chartHeight;
+
+              return (
+                <div
+                  key={idx}
+                  className="relative flex-1 flex items-end justify-center gap-px group"
+                  style={{ height: chartHeight }}
+                >
                   {/* Leads bar */}
                   <div
-                    className="w-full bg-sky-500 rounded-t transition-all hover:bg-sky-600 cursor-pointer"
-                    style={{ height: `${leadsHeight}%`, minHeight: leadsValue > 0 ? "4px" : "0" }}
-                    title={`${leadsValue} new leads`}
+                    className="flex-1 bg-sky-400 rounded-t-sm transition-all hover:bg-sky-500 cursor-pointer max-w-[20px]"
+                    style={{
+                      height: Math.max(leadsH, leadsValue > 0 ? 4 : 0),
+                    }}
                   />
                   {/* Conversions bar */}
                   <div
-                    className="w-full bg-emerald-500 rounded-t transition-all hover:bg-emerald-600 cursor-pointer"
-                    style={{ height: `${conversionsHeight}%`, minHeight: conversionsValue > 0 ? "4px" : "0" }}
-                    title={`${conversionsValue} conversions`}
+                    className="flex-1 bg-emerald-400 rounded-t-sm transition-all hover:bg-emerald-500 cursor-pointer max-w-[20px]"
+                    style={{
+                      height: Math.max(convH, conversionsValue > 0 ? 4 : 0),
+                    }}
                   />
+                  {/* Tooltip */}
+                  <div className="hidden group-hover:block absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full bg-gray-800 text-white text-xs rounded-lg px-3 py-2 z-20 whitespace-nowrap shadow-lg">
+                    <div className="font-medium mb-1">
+                      {item.label || `Period ${idx + 1}`}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 bg-sky-400 rounded-sm" />
+                      Leads: {leadsValue}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 bg-emerald-400 rounded-sm" />
+                      Conversions: {conversionsValue}
+                    </div>
+                    {Number(item.revenue) > 0 && (
+                      <div className="mt-1 pt-1 border-t border-gray-600">
+                        Revenue: ${Number(item.revenue).toLocaleString()}
+                      </div>
+                    )}
+                    {/* Tooltip arrow */}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                  </div>
                 </div>
-                {/* Label */}
-                <span className="text-[10px] text-gray-500 truncate w-full text-center mt-1">
-                  {item.label || item.week || item.month || `W${idx + 1}`}
-                </span>
-                {/* Tooltip on hover */}
-                <div className="hidden group-hover:block absolute bg-gray-800 text-white text-xs rounded px-2 py-1 mt-1 z-10 whitespace-nowrap">
-                  {item.label || `Period ${idx + 1}`}<br/>
-                  Leads: {leadsValue}<br/>
-                  Conversions: {conversionsValue}
-                  {Number(item.revenue) > 0 && <><br/>Revenue: ${Number(item.revenue).toFixed(0)}</>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        {/* X-axis labels for longer datasets */}
-        {data.length > 12 && (
-          <div className="flex justify-between text-xs text-gray-400 px-1">
-            <span>{data[0]?.label || 'Start'}</span>
-            <span>{data[Math.floor(data.length / 2)]?.label || 'Mid'}</span>
-            <span>{data[data.length - 1]?.label || 'End'}</span>
+              );
+            })}
           </div>
-        )}
+
+          {/* X-axis labels */}
+          <div className="flex gap-1 mt-2">
+            {data.map((item, idx) => (
+              <div key={idx} className="flex-1 text-center">
+                <span className="text-[10px] text-gray-500 truncate block">
+                  {item.label || `W${idx + 1}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Legend */}
       <div className="flex items-center justify-center gap-6 text-sm pt-2 border-t border-gray-100">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-sky-500 rounded" />
+          <div className="w-3 h-3 bg-sky-400 rounded" />
           <span className="text-gray-600">New Leads</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-emerald-500 rounded" />
+          <div className="w-3 h-3 bg-emerald-400 rounded" />
           <span className="text-gray-600">Conversions</span>
         </div>
       </div>

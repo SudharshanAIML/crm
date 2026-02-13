@@ -18,6 +18,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const PublicPageView = lazy(() => import('./pages/PublicPageView'));
+const AcceptAppointmentPage = lazy(() => import('./pages/AcceptAppointmentPage'));
 
 // Layouts
 const DashboardLayout = lazy(() => import('./components/layout/DashboardLayout'));
@@ -233,6 +234,16 @@ function App() {
                                 <LoginPage />
                               </SuspenseWrapper>
                             </PublicRoute>
+                          }
+                        />
+                        
+                        {/* Public appointment acceptance route (no auth) */}
+                        <Route
+                          path="/accept/:token"
+                          element={
+                            <SuspenseWrapper>
+                              <AcceptAppointmentPage />
+                            </SuspenseWrapper>
                           }
                         />
                         

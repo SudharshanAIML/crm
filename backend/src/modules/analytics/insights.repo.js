@@ -735,10 +735,31 @@ export const getFilterOptions = async (companyId, empId) => {
  * Get trend data for charts
  */
 export const getTrendsData = async (companyId, empId, filters = {}) => {
-  const { period = 'weekly', dateRange } = filters;
+  const { period = 'weekly', dateRange, source, assignedTo } = filters;
   const isAdmin = !empId;
+
+  // Employee scope filter
   const empFilter = isAdmin ? '' : 'AND c.assigned_emp_id = ?';
   const empParams = isAdmin ? [] : [empId];
+
+  // Source filter (same pattern as getBusinessPerformance)
+  const sourceFilter = source ? 'AND c.source = ?' : '';
+  const sourceParams = source ? [source] : [];
+
+  // Admin "assigned to" filter
+  const assignedFilter = assignedTo && isAdmin ? 'AND c.assigned_emp_id = ?' : '';
+  const assignedParams = assignedTo && isAdmin ? [assignedTo] : [];
+
+  // Date filter — use user-selected range via buildDateFilter, fallback to interval
+  const dateFilterContacts = buildDateFilter(dateRange, 'c.created_at');
+  const dateFilterHistory = buildDateFilter(dateRange, 'csh.changed_at');
+  const dateFilterDeals = buildDateFilter(dateRange, 'd.closed_at');
+
+  // Fallback interval only when no explicit date range is provided
+  const fallbackInterval = period === 'daily' ? '30 DAY' : period === 'monthly' ? '12 MONTH' : '12 WEEK';
+  const fallbackContactsClause = dateFilterContacts.clause ? '' : `AND c.created_at >= DATE_SUB(NOW(), INTERVAL ${fallbackInterval})`;
+  const fallbackHistoryClause = dateFilterHistory.clause ? '' : `AND csh.changed_at >= DATE_SUB(NOW(), INTERVAL ${fallbackInterval})`;
+  const fallbackDealsClause = dateFilterDeals.clause ? '' : `AND d.closed_at >= DATE_SUB(NOW(), INTERVAL ${fallbackInterval})`;
 
   const groupByContacts = period === 'daily' 
     ? "DATE_FORMAT(c.created_at, '%Y-%m-%d')"
@@ -764,65 +785,78 @@ export const getTrendsData = async (companyId, empId, filters = {}) => {
     ? "'%b %Y'"
     : null;
 
-  const interval = period === 'daily' ? '30 DAY' : period === 'monthly' ? '12 MONTH' : '12 WEEK';
-
   // Lead acquisition trend
   const [leadTrend] = await db.query(
     `SELECT 
        ${groupByContacts} as period,
-       ${dateFormat ? `DATE_FORMAT(MIN(c.created_at), ${dateFormat})` : 'MIN(DATE(c.created_at))'} as label,
+       ${dateFormat ? `DATE_FORMAT(MIN(c.created_at), ${dateFormat})` : `DATE_FORMAT(MIN(DATE(c.created_at)), '%b %d')`} as label,
        COUNT(*) as value
      FROM contacts c
-     WHERE c.company_id = ? ${empFilter}
-     AND c.created_at >= DATE_SUB(NOW(), INTERVAL ${interval})
+     WHERE c.company_id = ? ${empFilter} ${sourceFilter} ${assignedFilter}
+     ${dateFilterContacts.clause} ${fallbackContactsClause}
      GROUP BY ${groupByContacts}
      ORDER BY period`,
-    [companyId, ...empParams]
+    [companyId, ...empParams, ...sourceParams, ...assignedParams, ...dateFilterContacts.params]
   );
 
   // Conversion trend
   const [conversionTrend] = await db.query(
     `SELECT 
        ${groupByHistory} as period,
-       ${dateFormat ? `DATE_FORMAT(MIN(csh.changed_at), ${dateFormat})` : 'MIN(DATE(csh.changed_at))'} as label,
+       ${dateFormat ? `DATE_FORMAT(MIN(csh.changed_at), ${dateFormat})` : `DATE_FORMAT(MIN(DATE(csh.changed_at)), '%b %d')`} as label,
        COUNT(*) as value
      FROM contact_status_history csh
      JOIN contacts c ON c.contact_id = csh.contact_id
-     WHERE c.company_id = ? ${empFilter}
+     WHERE c.company_id = ? ${empFilter} ${sourceFilter} ${assignedFilter}
      AND csh.new_status = 'CUSTOMER'
-     AND csh.changed_at >= DATE_SUB(NOW(), INTERVAL ${interval})
+     ${dateFilterHistory.clause} ${fallbackHistoryClause}
      GROUP BY ${groupByHistory}
      ORDER BY period`,
-    [companyId, ...empParams]
+    [companyId, ...empParams, ...sourceParams, ...assignedParams, ...dateFilterHistory.params]
   );
 
   // Revenue trend
   const [revenueTrend] = await db.query(
     `SELECT 
        ${groupByDeals} as period,
-       ${dateFormat ? `DATE_FORMAT(MIN(d.closed_at), ${dateFormat})` : 'MIN(DATE(d.closed_at))'} as label,
+       ${dateFormat ? `DATE_FORMAT(MIN(d.closed_at), ${dateFormat})` : `DATE_FORMAT(MIN(DATE(d.closed_at)), '%b %d')`} as label,
        COUNT(d.deal_id) as deals,
        COALESCE(SUM(d.deal_value), 0) as revenue
      FROM deals d
      JOIN opportunities o ON o.opportunity_id = d.opportunity_id
      JOIN contacts c ON c.contact_id = o.contact_id
-     WHERE c.company_id = ? ${empFilter}
-     AND d.closed_at >= DATE_SUB(NOW(), INTERVAL ${interval})
+     WHERE c.company_id = ? ${empFilter} ${sourceFilter} ${assignedFilter}
+     ${dateFilterDeals.clause} ${fallbackDealsClause}
      GROUP BY ${groupByDeals}
      ORDER BY period`,
-    [companyId, ...empParams]
+    [companyId, ...empParams, ...sourceParams, ...assignedParams, ...dateFilterDeals.params]
   );
 
-  return {
-    period: period,
-    data: leadTrend.map((item, idx) => ({
+  // Merge all three trend arrays by period key (not by array index)
+  // This prevents misalignment when some periods have leads but no conversions
+  const conversionsByPeriod = Object.fromEntries(
+    conversionTrend.map(item => [String(item.period), item])
+  );
+  const revenueByPeriod = Object.fromEntries(
+    revenueTrend.map(item => [String(item.period), item])
+  );
+
+  // Use leadTrend as the base (most complete dataset), enrich from others
+  const mergedData = leadTrend.map(item => {
+    const periodKey = String(item.period);
+    const conv = conversionsByPeriod[periodKey];
+    const rev = revenueByPeriod[periodKey];
+    return {
+      period: periodKey,
       label: item.label,
-      leads: item.value || 0,
-      conversions: conversionTrend[idx]?.value || 0,
-      revenue: revenueTrend[idx]?.revenue || 0,
-    })),
-    leads: leadTrend,
-    conversions: conversionTrend,
-    revenue: revenueTrend,
+      leads: Number(item.value) || 0,
+      conversions: Number(conv?.value) || 0,
+      revenue: Number(rev?.revenue) || 0,
+    };
+  });
+
+  return {
+    period,
+    data: mergedData,
   };
 };

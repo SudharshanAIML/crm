@@ -85,13 +85,13 @@ export const DEFAULT_NOTIFICATIONS = [
 ];
 
 /**
- * Gmail integration benefits list
+ * Google integration feature list (Gmail + Calendar)
  */
-export const GMAIL_BENEFITS = [
-  'Send emails directly from CRM',
-  'Emails appear from your address',
-  'Track email opens and clicks',
-  'Automatic email history',
+export const GOOGLE_INTEGRATION_FEATURES = [
+  { title: 'Gmail Integration', desc: 'Send & receive emails directly in CRM' },
+  { title: 'Calendar Sync', desc: 'Tasks auto-sync to Google Calendar' },
+  { title: 'Contact Invites', desc: 'Contacts added as event attendees' },
+  { title: 'Your Identity', desc: 'Emails sent from your own address' },
 ];
 
 /**

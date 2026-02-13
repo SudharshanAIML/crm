@@ -28,6 +28,9 @@ import {
   createTask,
   updateTask,
   deleteTask,
+  getCalendarSyncStatus,
+  syncAllToGoogleCalendar,
+  resolveOverdueTask,
 } from "../../services/taskService";
 import { getContacts } from "../../services/contactService";
 import { StatCard, TaskCard, TaskModal } from '../calendar';
@@ -134,9 +137,53 @@ const CalendarView = ({ isAdmin = false }) => {
   const [lastUpdated, setLastUpdated] = useState(() => 
     calendarCache.staticDataTimestamp ? new Date(calendarCache.staticDataTimestamp) : null
   );
+
+  // Google Calendar sync state
+  const [gcalConnected, setGcalConnected] = useState(null); // null=loading, true, false
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
   
   // Track mounted state
   const isMountedRef = useRef(true);
+
+  // Check Google Calendar connection on mount
+  useEffect(() => {
+    const checkGcal = async () => {
+      try {
+        const status = await getCalendarSyncStatus();
+        if (isMountedRef.current) setGcalConnected(status.connected);
+      } catch {
+        if (isMountedRef.current) setGcalConnected(false);
+      }
+    };
+    checkGcal();
+  }, []);
+
+  // Handle sync all tasks to Google Calendar
+  const handleSyncAll = useCallback(async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    setSyncResult(null);
+    try {
+      const result = await syncAllToGoogleCalendar();
+      if (isMountedRef.current) {
+        setSyncResult(result);
+        // Auto-clear the toast after 4 seconds
+        setTimeout(() => {
+          if (isMountedRef.current) setSyncResult(null);
+        }, 4000);
+      }
+    } catch (err) {
+      if (isMountedRef.current) {
+        setSyncResult({ error: err.response?.data?.message || 'Sync failed' });
+        setTimeout(() => {
+          if (isMountedRef.current) setSyncResult(null);
+        }, 4000);
+      }
+    } finally {
+      if (isMountedRef.current) setIsSyncing(false);
+    }
+  }, [isSyncing]);
 
   // Format date to YYYY-MM-DD (local timezone)
   const formatDate = useCallback((date) => {
@@ -485,15 +532,27 @@ const CalendarView = ({ isAdmin = false }) => {
     );
   };
 
-  // Handle task completion toggle
-  const handleToggleComplete = async (task) => {
+  // Handle task completion toggle (with optional rating/feedback for session logging)
+  const handleToggleComplete = async (task, rating = null, feedback = null) => {
     try {
       const newStatus = task.status === "COMPLETED" ? "PENDING" : "COMPLETED";
-      await updateTask(task.task_id, { status: newStatus });
-      // Refresh all data including stats when status changes
+      const updates = { status: newStatus };
+      if (newStatus === "COMPLETED" && rating != null) updates.session_rating = rating;
+      if (newStatus === "COMPLETED" && feedback) updates.session_feedback = feedback;
+      await updateTask(task.task_id, updates);
       refreshAllData();
     } catch (error) {
       console.error("Failed to update task:", error);
+    }
+  };
+
+  // Handle overdue task resolution (with optional rating/feedback)
+  const handleResolveOverdue = async (taskId, resolution, rating = null, feedback = null) => {
+    try {
+      await resolveOverdueTask(taskId, resolution, rating, feedback);
+      refreshAllData();
+    } catch (error) {
+      console.error("Failed to resolve overdue task:", error);
     }
   };
 
@@ -601,6 +660,36 @@ const CalendarView = ({ isAdmin = false }) => {
             </button>
           </div>
 
+          {/* Google Calendar Sync Button */}
+          {gcalConnected && (
+            <button
+              onClick={handleSyncAll}
+              disabled={isSyncing}
+              className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-all ${
+                isSyncing
+                  ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+              }`}
+              title="Sync all tasks to Google Calendar"
+            >
+              <svg className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9" />
+              </svg>
+              {isSyncing ? 'Syncing...' : 'Sync'}
+            </button>
+          )}
+          {gcalConnected === false && (
+            <span className="text-xs text-gray-400 flex items-center gap-1" title="Connect your Gmail account in Settings to enable Google Calendar sync">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              Calendar not linked
+            </span>
+          )}
+
           <button
             onClick={() => setShowAddModal(true)}
             className={`flex items-center gap-2 px-4 py-2 bg-gradient-to-r ${themeColors.primary} text-white rounded-lg ${themeColors.primaryHover} transition-all shadow-sm`}
@@ -639,6 +728,33 @@ const CalendarView = ({ isAdmin = false }) => {
             icon={<CheckCircle className="w-5 h-5" />}
             color="emerald"
           />
+        </div>
+      )}
+
+      {/* Google Calendar Sync Toast */}
+      {syncResult && (
+        <div className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all ${
+          syncResult.error
+            ? 'bg-red-50 text-red-700 border border-red-200'
+            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+        }`}>
+          {syncResult.error ? (
+            <>
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{syncResult.error}</span>
+            </>
+          ) : (
+            <>
+              <CheckCircle className="w-4 h-4 shrink-0" />
+              <span>
+                Synced to Google Calendar — {syncResult.created || 0} created, {syncResult.updated || 0} updated
+                {syncResult.failed > 0 && `, ${syncResult.failed} failed`}
+              </span>
+            </>
+          )}
+          <button onClick={() => setSyncResult(null)} className="ml-auto p-0.5 hover:bg-black/5 rounded">
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
@@ -810,6 +926,7 @@ const CalendarView = ({ isAdmin = false }) => {
                   key={task.task_id}
                   task={task}
                   onToggleComplete={handleToggleComplete}
+                  onResolveOverdue={handleResolveOverdue}
                   onEdit={setEditingTask}
                   onDelete={handleDeleteTask}
                   isAdmin={isAdmin}

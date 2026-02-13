@@ -17,7 +17,7 @@ import {
  * 
  * Features:
  * - Profile management
- * - Gmail integration
+ * - Google account integration (Gmail + Calendar)
  * - Notification preferences
  * - Security information
  * - App preferences
@@ -48,11 +48,11 @@ const SettingsPage = () => {
     if (params.get('email_connected') === 'true') {
       setEmailConnected(true);
       setActiveTab('integrations');
-      setSuccessMessage('Gmail connected successfully!');
+      setSuccessMessage('Google account connected successfully!');
       window.history.replaceState({}, '', '/settings');
       setTimeout(() => setSuccessMessage(null), 5000);
     } else if (params.get('email_error')) {
-      setEmailError('Failed to connect Gmail account. Please try again.');
+      setEmailError('Failed to connect Google account. Please try again.');
       setActiveTab('integrations');
       window.history.replaceState({}, '', '/settings');
     }
@@ -64,7 +64,7 @@ const SettingsPage = () => {
   }, []);
 
   /**
-   * Check Gmail connection status
+   * Check Google connection status
    */
   const checkEmailStatus = useCallback(async () => {
     try {
@@ -79,7 +79,7 @@ const SettingsPage = () => {
   }, []);
 
   /**
-   * Initiate Gmail OAuth connection
+   * Initiate Google OAuth connection
    */
   const handleConnectEmail = useCallback(async () => {
     try {
@@ -94,10 +94,10 @@ const SettingsPage = () => {
   }, []);
 
   /**
-   * Disconnect Gmail account
+   * Disconnect Google account
    */
   const handleDisconnectEmail = useCallback(async () => {
-    if (!confirm('Are you sure you want to disconnect your Gmail account? You will not be able to send emails until you reconnect.')) {
+    if (!confirm('Are you sure you want to disconnect your Google account? Gmail and Calendar sync will stop working until you reconnect.')) {
       return;
     }
     
@@ -105,7 +105,7 @@ const SettingsPage = () => {
       setEmailLoading(true);
       await disconnectEmail();
       setEmailConnected(false);
-      setSuccessMessage('Gmail disconnected successfully');
+      setSuccessMessage('Google account disconnected');
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (error) {
       setEmailError('Failed to disconnect. Please try again.');

@@ -170,7 +170,7 @@ export const createTask = async (taskData) => {
    UPDATE TASK
 --------------------------------------------------- */
 export const updateTask = async (taskId, companyId, empId, updates) => {
-  const allowedFields = ['title', 'description', 'task_type', 'priority', 'status', 'due_date', 'due_time', 'duration_minutes', 'is_all_day', 'contact_id'];
+  const allowedFields = ['title', 'description', 'task_type', 'priority', 'status', 'due_date', 'due_time', 'duration_minutes', 'is_all_day', 'contact_id', 'google_meet_link'];
   
   const fields = [];
   const values = [];

@@ -159,7 +159,7 @@ export default function ProductAnalytics() {
                 <th className="text-right px-6 py-3 text-xs font-medium text-gray-600 uppercase tracking-wider">
                   Customers
                 </th>
-                <th className="text-right px-6 py-3 text-xs font-medium text-gray-600 uppercase tracking-wider">
+                <th className="px-6 py-3 text-xs font-medium text-gray-600 uppercase tracking-wider text-center" style={{ width: 180 }}>
                   Revenue Share
                 </th>
                 <th className="text-right px-6 py-3 text-xs font-medium text-gray-600 uppercase tracking-wider">
@@ -196,17 +196,24 @@ export default function ProductAnalytics() {
                         <span className="text-gray-700">{product.uniqueCustomers}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <div className="w-20 bg-gray-100 rounded-full h-2">
-                          <div
-                            className="bg-sky-500 h-2 rounded-full transition-all"
-                            style={{ width: `${product.revenueShare}%` }}
-                          />
-                        </div>
-                        <span className="text-sm font-medium text-gray-700">
+                    <td className="px-6 py-4" style={{ width: 180 }}>
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-sm font-semibold text-gray-700 tabular-nums whitespace-nowrap" style={{ minWidth: 46, textAlign: 'right' }}>
                           {product.revenueShare}%
                         </span>
+                        <div className="flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-500 ease-out"
+                            style={{
+                              width: `${Math.max(Number(product.revenueShare), Number(product.revenueShare) > 0 ? 4 : 0)}%`,
+                              background: Number(product.revenueShare) >= 30
+                                ? 'linear-gradient(90deg, #0ea5e9, #0284c7)'
+                                : Number(product.revenueShare) >= 10
+                                ? '#38bdf8'
+                                : '#7dd3fc',
+                            }}
+                          />
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">

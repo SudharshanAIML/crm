@@ -168,7 +168,7 @@ export const createTask = async (req, res, next) => {
   try {
     const companyId = req.user.companyId;
     const empId = req.user.empId;
-    const { title, description, task_type, priority, due_date, due_time, duration_minutes, is_all_day, contact_id } = req.body;
+    const { title, description, task_type, priority, due_date, due_time, duration_minutes, is_all_day, contact_id, generate_meet_link } = req.body;
 
     if (!companyId) {
       return res.status(400).json({ message: "Company ID is required" });
@@ -190,6 +190,7 @@ export const createTask = async (req, res, next) => {
       due_time,
       duration_minutes,
       is_all_day,
+      generate_meet_link: generate_meet_link || false,
     };
 
     const task = await taskService.createTask(taskData);
@@ -271,6 +272,73 @@ export const getTasksByContact = async (req, res, next) => {
 
     const tasks = await taskService.getTasksByContact(companyId, empId, contactId);
     res.json(tasks);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc   Resolve an overdue task with an outcome
+ * @route  POST /tasks/:taskId/resolve
+ * @access Employee
+ */
+export const resolveOverdueTask = async (req, res, next) => {
+  try {
+    const companyId = req.user.companyId;
+    const empId = req.user.empId;
+    const { taskId } = req.params;
+    const { resolution, rating, feedback } = req.body;
+
+    if (!companyId) {
+      return res.status(400).json({ message: "Company ID is required" });
+    }
+
+    if (!resolution) {
+      return res.status(400).json({ message: "Resolution is required (COMPLETED, NOT_CONNECTED, or BAD_TIMING)" });
+    }
+
+    const task = await taskService.resolveOverdueTask(taskId, companyId, empId, resolution, { rating, feedback });
+
+    if (!task) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    res.json(task);
+  } catch (error) {
+    if (error.message.includes('Invalid resolution') || error.message.includes('Only overdue')) {
+      return res.status(400).json({ message: error.message });
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc   Generate Google Meet link for a task
+ * @route  POST /tasks/:taskId/meet-link
+ * @access Employee
+ */
+export const generateMeetLink = async (req, res, next) => {
+  try {
+    const companyId = req.user.companyId;
+    const empId = req.user.empId;
+    const { taskId } = req.params;
+
+    if (!companyId) {
+      return res.status(400).json({ message: "Company ID is required" });
+    }
+
+    const result = await taskService.generateMeetLink(taskId, companyId, empId);
+
+    if (!result) {
+      return res.status(400).json({ 
+        message: "Could not generate Meet link. Ensure Google Calendar is connected and the task type is MEETING or DEMO." 
+      });
+    }
+
+    res.json({ 
+      google_meet_link: result.meetLink,
+      google_calendar_event_id: result.eventId,
+    });
   } catch (error) {
     next(error);
   }

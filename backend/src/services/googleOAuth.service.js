@@ -13,7 +13,7 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/emails/callback"
 );
 
-// Required scopes for full Gmail access (read, send, drafts)
+// Required scopes for full Gmail + Calendar access
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/gmail.send",
@@ -21,6 +21,8 @@ const SCOPES = [
   "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/userinfo.email",
   "https://www.googleapis.com/auth/userinfo.profile",
+  "https://www.googleapis.com/auth/calendar",
+  "https://www.googleapis.com/auth/calendar.events",
 ];
 
 /**
