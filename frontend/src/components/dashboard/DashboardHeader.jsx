@@ -92,20 +92,19 @@ const NotificationBell = memo(() => {
     }
   };
 
-  const formatTime = (dateStr) => {
-    if (!dateStr) return '';
+  const formatTime = (timeStr) => {
+    if (!timeStr) return '';
     try {
-      const date = new Date(dateStr);
+      // Handle HH:MM:SS or HH:MM format from database
+      const timeParts = timeStr.split(':');
+      if (timeParts.length < 2) return '';
       
-      // Validate the date
-      if (isNaN(date.getTime())) {
-        console.warn('Invalid date parsed:', dateStr);
-        return '';
-      }
+      let hours = parseInt(timeParts[0], 10);
+      const minutes = parseInt(timeParts[1], 10);
       
-      // Manually format time to avoid timezone parsing issues
-      let hours = date.getHours();
-      const minutes = date.getMinutes();
+      // Validate parsed values
+      if (isNaN(hours) || isNaN(minutes)) return '';
+      
       const meridiem = hours >= 12 ? 'PM' : 'AM';
       
       // Convert to 12-hour format
@@ -114,7 +113,7 @@ const NotificationBell = memo(() => {
       const minutesStr = String(minutes).padStart(2, '0');
       return `${hours}:${minutesStr} ${meridiem}`;
     } catch (error) {
-      console.error('Error formatting time:', error, dateStr);
+      console.error('Error formatting time:', error, timeStr);
       return '';
     }
   };
@@ -172,8 +171,8 @@ const NotificationBell = memo(() => {
                           <p className="text-xs text-gray-500 truncate">📌 {task.contact_name}</p>
                         )}
                         <div className="flex items-center gap-2 mt-1">
-                          {task.due_date && (
-                            <span className="text-xs text-gray-500">{formatTime(task.due_date)}</span>
+                          {task.due_time && (
+                            <span className="text-xs text-gray-500">{formatTime(task.due_time)}</span>
                           )}
                           <span className={`text-xs px-2 py-0.5 rounded-full ${
                             task.status === 'COMPLETED'
