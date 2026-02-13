@@ -29,6 +29,7 @@ import taskRoutes from "./modules/tasks/task.routes.js";
 import outreachRoutes from "./modules/outreach/outreach.routes.js";
 import outreachPublicRoutes from "./modules/outreach/pages.public.routes.js";
 import appointmentRoutes from "./modules/appointments/appointment.routes.js";
+import callRoutes from "./modules/calls/call.routes.js";
 
 // Initialize Express app
 const app = express();
@@ -176,6 +177,9 @@ app.use("/api/outreach", outreachRoutes);
 
 // Public outreach pages (no auth required)
 app.use("/api/public", outreachPublicRoutes);
+
+// Call/Twilio routes
+app.use("/api/calls", callRoutes);
 
 /* =====================================================
    404 HANDLER
