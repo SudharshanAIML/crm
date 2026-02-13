@@ -43,6 +43,7 @@ import {
   setWeeklySchedule
 } from '../../services/contactService';
 import { getTasksByContact } from '../../services/taskService';
+import { initiateCall } from '../../services/callService';
 import { useCurrency } from '../../context/CurrencyContext';
 
 const ContactDetail = ({ 
@@ -67,6 +68,8 @@ const ContactDetail = ({
   const [availability, setAvailability] = useState(null);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [showAvailabilityEditor, setShowAvailabilityEditor] = useState(false);
+  const [isCalling, setIsCalling] = useState(false);
+  const [callStatus, setCallStatus] = useState(null);
   const sidebarRef = useRef(null);
   
   // Use centralized currency formatting
@@ -155,6 +158,42 @@ const ContactDetail = ({
     } catch (error) {
       console.error('Error deleting window:', error);
       alert('Failed to delete window');
+    }
+  };
+
+  // Handle initiating a call via Twilio
+  const handleCall = async () => {
+    if (!contact.phone) {
+      alert('Contact does not have a phone number');
+      return;
+    }
+
+    if (!confirm(`Call ${contact.name} at ${contact.phone}?`)) {
+      return;
+    }
+
+    try {
+      setIsCalling(true);
+      setCallStatus('Initiating call...');
+      
+      const result = await initiateCall(contact.contact_id);
+      
+      setCallStatus(`Call connected! Status: ${result.data.status}`);
+      
+      // Auto-clear status after 5 seconds
+      setTimeout(() => {
+        setCallStatus(null);
+      }, 5000);
+    } catch (error) {
+      console.error('Error initiating call:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to initiate call';
+      setCallStatus(errorMessage);
+      alert(errorMessage);
+      setTimeout(() => {
+        setCallStatus(null);
+      }, 5000);
+    } finally {
+      setIsCalling(false);
     }
   };
 
@@ -1431,12 +1470,19 @@ const ContactDetail = ({
               <span className="text-xs font-medium text-gray-600">Email</span>
             </button>
             <button
-              onClick={() => window.open(`tel:${contact.phone}`, '_self')}
-              disabled={!contact.phone}
-              className="flex flex-col items-center justify-center gap-1 px-3 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleCall}
+              disabled={!contact.phone || isCalling}
+              className="flex flex-col items-center justify-center gap-1 px-3 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all group disabled:opacity-50 disabled:cursor-not-allowed relative"
             >
-              <Phone className="w-5 h-5 text-gray-600 group-hover:text-emerald-600 transition-colors" />
-              <span className="text-xs font-medium text-gray-600">Call</span>
+              <Phone className={`w-5 h-5 ${isCalling ? 'text-emerald-600 animate-pulse' : 'text-gray-600 group-hover:text-emerald-600'} transition-colors`} />
+              <span className="text-xs font-medium text-gray-600">
+                {isCalling ? 'Calling...' : 'Call'}
+              </span>
+              {callStatus && (
+                <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap">
+                  {callStatus}
+                </span>
+              )}
             </button>
             <button
               onClick={() => onFollowupsClick?.(contact)}

@@ -1,0 +1,22 @@
+CREATE TABLE call_logs (
+    call_log_id INT PRIMARY KEY AUTO_INCREMENT,
+    contact_id INT NOT NULL,
+    employee_id INT NOT NULL,
+    direction ENUM('outbound', 'inbound') NOT NULL DEFAULT 'outbound',
+    call_sid VARCHAR(100) UNIQUE,
+    from_number VARCHAR(20) NOT NULL,
+    to_number VARCHAR(20) NOT NULL,
+    status ENUM('queued', 'ringing', 'in-progress', 'completed', 'busy', 'failed', 'no-answer', 'canceled') DEFAULT 'queued',
+    duration INT DEFAULT 0 COMMENT 'Call duration in seconds',
+    recording_url VARCHAR(500),
+    notes TEXT,
+    started_at TIMESTAMP NULL,
+    ended_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (contact_id) REFERENCES contacts(contact_id) ON DELETE CASCADE,
+    FOREIGN KEY (employee_id) REFERENCES employees(emp_id) ON DELETE CASCADE,
+    INDEX idx_contact_calls (contact_id, created_at DESC),
+    INDEX idx_employee_calls (employee_id, created_at DESC),
+    INDEX idx_call_status (status, created_at DESC)
+);

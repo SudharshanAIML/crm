@@ -29,8 +29,6 @@ import taskRoutes from "./modules/tasks/task.routes.js";
 import outreachRoutes from "./modules/outreach/outreach.routes.js";
 import outreachPublicRoutes from "./modules/outreach/pages.public.routes.js";
 import appointmentRoutes from "./modules/appointments/appointment.routes.js";
-import notificationRoutes from "./modules/notifications/notification.routes.js";
-import discussRoutes from "./modules/discuss/discuss.routes.js";
 
 // Initialize Express app
 const app = express();
@@ -45,7 +43,7 @@ const app = express();
  * - Load balancers (AWS ALB, GCP LB, Azure LB)
  * - Reverse proxies (Nginx, Apache)
  * - CDNs (Cloudflare, Fastly, Akamai)
- * 
+ *
  * Setting to 'true' trusts all proxies (suitable for most cloud deployments)
  * For stricter security, specify proxy IP/CIDR ranges
  */
@@ -176,14 +174,8 @@ app.use("/api/appointments", appointmentRoutes);
 // AI Outreach routes (RAG + Autopilot)
 app.use("/api/outreach", outreachRoutes);
 
-// Notification routes
-app.use("/api/notifications", notificationRoutes);
-
 // Public outreach pages (no auth required)
 app.use("/api/public", outreachPublicRoutes);
-
-// Discuss (Team Chat) routes
-app.use("/api/discuss", discussRoutes);
 
 /* =====================================================
    404 HANDLER
@@ -216,10 +208,10 @@ import { initSocketIO } from "./services/socket.service.js";
 
 const gracefulShutdown = async (signal) => {
   console.log(`\n🛑 Received ${signal}. Shutting down gracefully...`);
-  
+
   // Wait for email queue to finish
   await emailQueue.shutdown();
-  
+
   // Close server
   server.close(() => {
     console.log("✅ HTTP server closed");
@@ -252,9 +244,9 @@ const server = httpServer.listen(PORT, HOST, async () => {
 ║                                                           ║
 ║   🚀 CRM Backend Server Started Successfully!             ║
 ║                                                           ║
-║   📍 URL: http://${HOST}:${PORT}                          
-║   🌍 Environment: ${process.env.NODE_ENV || "development"}                       
-║   📅 Started at: ${new Date().toISOString()}    
+║   📍 URL: http://${HOST}:${PORT}
+║   🌍 Environment: ${process.env.NODE_ENV || "development"}
+║   📅 Started at: ${new Date().toISOString()}
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
 
@@ -262,33 +254,33 @@ const server = httpServer.listen(PORT, HOST, async () => {
    • GET  /                          - Server status
    • GET  /api/health                - Database health check
    • POST /api/auth/google           - Google OAuth login
-   
+
    • GET  /api/companies             - List companies
    • POST /api/companies             - Create company
-   
+
    • GET  /api/employees             - List employees
    • POST /api/employees             - Create employee
    • GET  /api/employees/me          - Get current user
-   
+
    • GET  /api/contacts              - List contacts
    • POST /api/contacts              - Create lead
    • PATCH /api/contacts/:id/promote-sql    - MQL → SQL
    • POST /api/contacts/:id/opportunity     - SQL → Opportunity
    • POST /api/contacts/:id/evangelist      - Customer → Evangelist
-   
+
    • POST /api/sessions              - Create session (MQL/SQL calls)
    • GET  /api/sessions/contact/:id  - Get sessions for contact
-   
+
    • POST /api/opportunities         - Create opportunity
    • POST /api/opportunities/:id/won - Mark as WON → Customer
    • POST /api/opportunities/:id/lost - Mark as LOST → Dormant
-   
+
    • POST /api/deals                 - Create deal
    • GET  /api/deals/:id             - Get deal
-   
+
    • POST /api/feedback              - Submit feedback
    • GET  /api/feedback/contact/:id  - Get feedback
-   
+
    • GET  /api/analytics/dashboard   - Dashboard stats
    • GET  /api/analytics/funnel      - Pipeline funnel
    • GET  /api/analytics/performance - Employee performance
