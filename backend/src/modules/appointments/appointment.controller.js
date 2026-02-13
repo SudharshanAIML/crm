@@ -1,5 +1,6 @@
 import * as appointmentTokenService from "../../services/appointmentToken.service.js";
 import { db } from "../../config/db.js";
+import * as notificationService from "../notifications/notification.service.js";
 
 /**
  * Appointment Response Controller
@@ -7,6 +8,37 @@ import { db } from "../../config/db.js";
  * Design: Zero UI in backend. All endpoints return pure JSON
  * or 204 No Content. No HTML, no text pages, no redirects.
  */
+
+/**
+ * Fire-and-forget: Notify employee about appointment response
+ * Never throws — notification failures must not block appointment flow
+ */
+const notifyAppointmentResponse = async (taskId, contactId, status) => {
+  try {
+    // Fetch task and contact details for notification
+    const [rows] = await db.query(
+      `SELECT t.company_id, t.emp_id, t.title, c.name as contact_name
+       FROM tasks t
+       JOIN contacts c ON c.contact_id = t.contact_id
+       WHERE t.task_id = ?`,
+      [taskId]
+    );
+    
+    if (!rows[0]) return;
+    
+    const { company_id, emp_id, title, contact_name } = rows[0];
+    
+    if (status === "ACCEPTED") {
+      await notificationService.notifyAppointmentAccepted(company_id, emp_id, contactId, contact_name, title);
+    } else if (status === "RESCHEDULE_REQUESTED") {
+      await notificationService.notifyAppointmentRescheduled(company_id, emp_id, contactId, contact_name, title);
+    } else if (status === "CANCELLED") {
+      await notificationService.notifyAppointmentCancelled(company_id, emp_id, contactId, contact_name, title);
+    }
+  } catch (err) {
+    console.warn(`[Notification] Appointment response failed for task ${taskId}:`, err.message);
+  }
+};
 
 /**
  * @desc   Accept appointment — returns 204 No Content (zero UI)
@@ -31,6 +63,9 @@ export const acceptAppointment = async (req, res) => {
     }
 
     await appointmentTokenService.updateAppointmentStatus(taskId, contactId, "ACCEPTED");
+
+    // Fire-and-forget: notify employee
+    notifyAppointmentResponse(taskId, contactId, "ACCEPTED");
 
     // 204 No Content — no body, no UI, no redirect
     res.status(204).end();

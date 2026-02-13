@@ -6,6 +6,7 @@ import { AdminProvider } from './context/AdminContext';
 import { EmailCacheProvider } from './context/EmailCacheContext';
 import { ContactsCacheProvider } from './context/ContactsCacheContext';
 import { SessionsCacheProvider } from './context/SessionsCacheContext';
+import { SocketProvider } from './context/SocketContext';
 import { useRoutePrefetch } from './hooks/useRoutePrefetch';
 import { lazy, Suspense, Component, memo } from 'react';
 
@@ -39,6 +40,9 @@ const AdminAnalyticsPage = lazy(() => import('./pages/AdminAnalyticsPage'));
 const PagesListPage = lazy(() => import('./pages/PagesListPage'));
 const PageBuilderPage = lazy(() => import('./pages/PageBuilderPage'));
 const PageResponsesPage = lazy(() => import('./pages/PageResponsesPage'));
+
+// Discuss (Team Chat)
+const DiscussPage = lazy(() => import('./pages/DiscussPage'));
 
 // Shared pages (all authenticated users)
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
@@ -222,6 +226,7 @@ function App() {
             <EmailCacheProvider>
               <ContactsCacheProvider>
                 <SessionsCacheProvider>
+                  <SocketProvider>
                   <BrowserRouter>
                     <RoutePrefetchWrapper>
                       <Routes>
@@ -284,6 +289,9 @@ function App() {
                           <Route path="/pages/new" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
                           <Route path="/pages/:pageId/edit" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
                           <Route path="/pages/:pageId/responses" element={<NestedSuspense><PageResponsesPage /></NestedSuspense>} />
+                          
+                          {/* Discuss (Team Chat) */}
+                          <Route path="/discuss" element={<NestedSuspense><DiscussPage /></NestedSuspense>} />
                         </Route>
 
                         {/* ===== ADMIN DASHBOARD ROUTES ===== */}
@@ -319,6 +327,9 @@ function App() {
                           <Route path="pages/new" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
                           <Route path="pages/:pageId/edit" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
                           <Route path="pages/:pageId/responses" element={<NestedSuspense><PageResponsesPage /></NestedSuspense>} />
+                          
+                          {/* Discuss (Team Chat) - Admin */}
+                          <Route path="discuss" element={<NestedSuspense><DiscussPage /></NestedSuspense>} />
                           
                           {/* Settings */}
                           <Route path="settings" element={<NestedSuspense><SettingsPage /></NestedSuspense>} />
@@ -379,6 +390,7 @@ function App() {
                       </Routes>
                     </RoutePrefetchWrapper>
                   </BrowserRouter>
+                  </SocketProvider>
                 </SessionsCacheProvider>
               </ContactsCacheProvider>
             </EmailCacheProvider>

@@ -1,8 +1,9 @@
 import { memo, useRef, useEffect, useState, useCallback } from 'react';
-import { Bell, Menu, ChevronDown, Search, Clock, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { Bell, Menu, ChevronDown, Search, Check, CheckCheck, X, Calendar, UserPlus, Trophy, AlertCircle, Clock, Settings } from 'lucide-react';
 import Profile from '../layout/Profile';
 import GlobalSearch from '../layout/GlobalSearch';
 import { getInitials, getPageTitle } from './utils/dashboardHelpers';
+import notificationService from '../../services/notificationService';
 import { getTodaysTasks } from '../../services/taskService';
 
 /**
@@ -33,173 +34,250 @@ const MobileSearchModal = memo(({ isOpen, onClose }) => {
 MobileSearchModal.displayName = 'MobileSearchModal';
 
 /**
- * Notification bell component with today's tasks
+ * Get icon for notification type
+ */
+const getNotificationIcon = (type) => {
+  const iconProps = { className: "w-4 h-4" };
+  switch (type) {
+    case 'TASK_DUE_SOON':
+    case 'TASK_OVERDUE':
+      return <Clock {...iconProps} className="w-4 h-4 text-orange-500" />;
+    case 'TASK_ASSIGNED':
+      return <Check {...iconProps} className="w-4 h-4 text-blue-500" />;
+    case 'APPOINTMENT_ACCEPTED':
+      return <Calendar {...iconProps} className="w-4 h-4 text-green-500" />;
+    case 'APPOINTMENT_RESCHEDULE':
+      return <Calendar {...iconProps} className="w-4 h-4 text-yellow-500" />;
+    case 'APPOINTMENT_CANCELLED':
+      return <Calendar {...iconProps} className="w-4 h-4 text-red-500" />;
+    case 'NEW_CONTACT':
+      return <UserPlus {...iconProps} className="w-4 h-4 text-purple-500" />;
+    case 'DEAL_WON':
+      return <Trophy {...iconProps} className="w-4 h-4 text-green-500" />;
+    case 'DEAL_LOST':
+      return <AlertCircle {...iconProps} className="w-4 h-4 text-red-500" />;
+    default:
+      return <Settings {...iconProps} className="w-4 h-4 text-gray-500" />;
+  }
+};
+
+/**
+ * Format relative time
+ */
+const formatRelativeTime = (dateString) => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+};
+
+/**
+ * Single notification item
+ */
+const NotificationItem = memo(({ notification, onMarkAsRead, onArchive }) => {
+  const handleClick = useCallback(() => {
+    if (!notification.is_read) {
+      onMarkAsRead(notification.notification_id);
+    }
+  }, [notification, onMarkAsRead]);
+
+  const handleArchive = useCallback((e) => {
+    e.stopPropagation();
+    onArchive(notification.notification_id);
+  }, [notification, onArchive]);
+
+  return (
+    <div
+      onClick={handleClick}
+      className={`flex items-start gap-3 p-3 border-b border-gray-100 last:border-b-0 cursor-pointer transition-colors ${
+        notification.is_read ? 'bg-white hover:bg-gray-50' : 'bg-blue-50/50 hover:bg-blue-50'
+      }`}
+    >
+      <div className="flex-shrink-0 mt-0.5 p-1.5 bg-gray-100 rounded-lg">
+        {getNotificationIcon(notification.type)}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className={`text-sm ${notification.is_read ? 'text-gray-700' : 'text-gray-900 font-medium'}`}>
+          {notification.title}
+        </p>
+        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+          {notification.message}
+        </p>
+        <p className="text-xs text-gray-400 mt-1">
+          {formatRelativeTime(notification.created_at)}
+        </p>
+      </div>
+      <button
+        onClick={handleArchive}
+        className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+        title="Dismiss"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+});
+
+NotificationItem.displayName = 'NotificationItem';
+
+/**
+ * Notification bell component with dropdown
  */
 const NotificationBell = memo(() => {
-  const [tasks, setTasks] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const bellRef = useRef(null);
+  const dropdownRef = useRef(null);
 
-  // Fetch today's tasks
-  const fetchTodaysTasks = useCallback(async () => {
+  // Fetch unread count periodically
+  const fetchUnreadCount = useCallback(async () => {
     try {
-      setLoading(true);
-      const data = await getTodaysTasks();
-      setTasks(Array.isArray(data) ? data : data?.tasks || []);
-    } catch (error) {
-      console.error('Failed to fetch today\'s tasks:', error);
-      setTasks([]);
+      const data = await notificationService.getUnreadCount();
+      setUnreadCount(data.count);
+    } catch (err) {
+      console.error('Failed to fetch unread count:', err);
+    }
+  }, []);
+
+  // Fetch notifications when opening dropdown
+  const fetchNotifications = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await notificationService.getNotifications({ limit: 15 });
+      setNotifications(data.notifications || []);
+    } catch (err) {
+      console.error('Failed to fetch notifications:', err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Fetch tasks on mount and set hourly interval
+  // Initial fetch and polling
   useEffect(() => {
-    fetchTodaysTasks();
-    const interval = setInterval(fetchTodaysTasks, 60 * 60 * 1000); // Hourly
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 60000); // Poll every 60 seconds
     return () => clearInterval(interval);
-  }, [fetchTodaysTasks]);
+  }, [fetchUnreadCount]);
 
-  // Close dropdown when clicking outside
+  // Fetch notifications when dropdown opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchNotifications();
+    }
+  }, [isOpen, fetchNotifications]);
+
+  // Close on outside click
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (bellRef.current && !bellRef.current.contains(event.target)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false);
       }
     };
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [isOpen]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-  const taskCount = tasks.length;
-  const pendingCount = tasks.filter(t => t.status !== 'COMPLETED' && t.status !== 'CANCELLED').length;
+  const toggleDropdown = useCallback(() => {
+    setIsOpen(prev => !prev);
+  }, []);
 
-  const getTaskIcon = (taskType) => {
-    switch (taskType?.toUpperCase()) {
-      case 'APPOINTMENT':
-        return <Clock className="w-4 h-4 text-blue-500" />;
-      case 'CALL':
-        return <AlertCircle className="w-4 h-4 text-orange-500" />;
-      case 'FOLLOW_UP':
-      case 'FOLLOWUP':
-        return <AlertCircle className="w-4 h-4 text-purple-500" />;
-      default:
-        return <CheckCircle2 className="w-4 h-4 text-gray-500" />;
-    }
-  };
-
-  const formatTime = (timeStr) => {
-    if (!timeStr) return '';
+  const handleMarkAsRead = useCallback(async (notificationId) => {
     try {
-      // Handle HH:MM:SS or HH:MM format from database
-      const timeParts = timeStr.split(':');
-      if (timeParts.length < 2) return '';
-      
-      let hours = parseInt(timeParts[0], 10);
-      const minutes = parseInt(timeParts[1], 10);
-      
-      // Validate parsed values
-      if (isNaN(hours) || isNaN(minutes)) return '';
-      
-      const meridiem = hours >= 12 ? 'PM' : 'AM';
-      
-      // Convert to 12-hour format
-      hours = hours % 12 || 12;
-      
-      const minutesStr = String(minutes).padStart(2, '0');
-      return `${hours}:${minutesStr} ${meridiem}`;
-    } catch (error) {
-      console.error('Error formatting time:', error, timeStr);
-      return '';
+      await notificationService.markAsRead(notificationId);
+      setNotifications(prev =>
+        prev.map(n => n.notification_id === notificationId ? { ...n, is_read: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error('Failed to mark as read:', err);
     }
-  };
+  }, []);
+
+  const handleMarkAllAsRead = useCallback(async () => {
+    try {
+      await notificationService.markAllAsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      setUnreadCount(0);
+    } catch (err) {
+      console.error('Failed to mark all as read:', err);
+    }
+  }, []);
+
+  const handleArchive = useCallback(async (notificationId) => {
+    try {
+      await notificationService.archiveNotification(notificationId);
+      const archived = notifications.find(n => n.notification_id === notificationId);
+      setNotifications(prev => prev.filter(n => n.notification_id !== notificationId));
+      if (archived && !archived.is_read) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch (err) {
+      console.error('Failed to archive notification:', err);
+    }
+  }, [notifications]);
 
   return (
-    <div className="relative" ref={bellRef}>
+    <div className="relative" ref={dropdownRef}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggleDropdown}
         className="relative p-2 hover:bg-gray-100 rounded-xl transition-colors"
-        aria-label="View today's tasks"
+        aria-label="Notifications"
       >
         <Bell className="w-5 h-5 text-gray-600" />
-        {pendingCount > 0 && (
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+        {unreadCount > 0 && (
+          <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-semibold rounded-full">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
         )}
       </button>
 
-      {/* Notification Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 max-h-96 overflow-hidden flex flex-col">
+        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-100">
-            <div>
-              <h3 className="font-semibold text-gray-900">Today's Tasks</h3>
-              <p className="text-xs text-gray-500">{taskCount} task{taskCount !== 1 ? 's' : ''}</p>
-            </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <X className="w-4 h-4 text-gray-500" />
-            </button>
-          </div>
-
-          {/* Tasks List */}
-          <div className="overflow-y-auto flex-1">
-            {loading ? (
-              <div className="p-4 text-center text-gray-500 text-sm">Loading tasks...</div>
-            ) : tasks.length === 0 ? (
-              <div className="p-4 text-center text-gray-500 text-sm">No tasks for today</div>
-            ) : (
-              <div className="divide-y divide-gray-100">
-                {tasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className={`p-3 hover:bg-gray-50 transition-colors ${
-                      task.status === 'COMPLETED' ? 'opacity-60' : ''
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="mt-1">{getTaskIcon(task.task_type)}</div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{task.title}</p>
-                        {task.contact_name && (
-                          <p className="text-xs text-gray-500 truncate">📌 {task.contact_name}</p>
-                        )}
-                        <div className="flex items-center gap-2 mt-1">
-                          {task.due_time && (
-                            <span className="text-xs text-gray-500">{formatTime(task.due_time)}</span>
-                          )}
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            task.status === 'COMPLETED'
-                              ? 'bg-green-100 text-green-700'
-                              : task.status === 'CANCELLED'
-                              ? 'bg-gray-100 text-gray-700'
-                              : 'bg-blue-100 text-blue-700'
-                          }`}>
-                            {task.status || 'PENDING'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+            <h3 className="font-semibold text-gray-900">Notifications</h3>
+            {unreadCount > 0 && (
+              <button
+                onClick={handleMarkAllAsRead}
+                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+              >
+                <CheckCheck className="w-3.5 h-3.5" />
+                Mark all read
+              </button>
             )}
           </div>
 
-          {/* Footer */}
-          {tasks.length > 0 && (
-            <div className="p-3 border-t border-gray-100 bg-gray-50">
-              <button className="w-full text-sm text-blue-600 hover:text-blue-700 font-medium">
-                View all tasks in calendar →
-              </button>
-            </div>
-          )}
+          {/* Notification List */}
+          <div className="max-h-96 overflow-y-auto">
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : notifications.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+                <Bell className="w-8 h-8 mb-2 text-gray-300" />
+                <p className="text-sm">No notifications yet</p>
+              </div>
+            ) : (
+              notifications.map(notification => (
+                <NotificationItem
+                  key={notification.notification_id}
+                  notification={notification}
+                  onMarkAsRead={handleMarkAsRead}
+                  onArchive={handleArchive}
+                />
+              ))
+            )}
+          </div>
         </div>
       )}
     </div>

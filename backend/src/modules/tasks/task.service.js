@@ -2,6 +2,7 @@ import * as taskRepo from "./task.repo.js";
 import * as gcalService from "../../services/googleCalendar.service.js";
 import * as appointmentEmailService from "../../services/appointmentEmail.service.js";
 import * as sessionService from "../sessions/session.service.js";
+import * as notificationService from "../notifications/notification.service.js";
 
 // Map task_type → session mode_of_contact
 const TASK_TYPE_TO_MODE = {
@@ -75,6 +76,24 @@ const sendAppointmentNotification = async (taskId, empId) => {
   }
 };
 
+/**
+ * Fire-and-forget notification creation.
+ * Never throws — notification failures must not block CRM operations.
+ */
+const notifyTaskAssigned = async (task, contactName = null) => {
+  try {
+    await notificationService.notifyTaskAssigned(
+      task.company_id,
+      task.emp_id,
+      task.task_id,
+      task.title,
+      contactName
+    );
+  } catch (err) {
+    console.warn(`[Notification] Failed for task ${task.task_id}:`, err.message);
+  }
+};
+
 /* ---------------------------------------------------
    GET CALENDAR DATA
 --------------------------------------------------- */
@@ -122,6 +141,9 @@ export const getTaskById = async (companyId, empId, taskId) => {
 --------------------------------------------------- */
 export const createTask = async (taskData) => {
   const task = await taskRepo.createTask(taskData);
+  
+  // Fire-and-forget: notify employee about new task assignment
+  notifyTaskAssigned({ ...task, company_id: taskData.company_id }, taskData.contact_name || null);
   
   if (taskData.generate_meet_link) {
     // When generating a Meet link, await calendar sync first so the

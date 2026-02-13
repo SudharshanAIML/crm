@@ -17,7 +17,8 @@ import {
   Mail,
   ClipboardList,
   UsersRound,
-  FileText
+  FileText,
+  MessageCircle
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -110,6 +111,7 @@ const PRIMARY_VIEW_ITEMS = [
  * Workspace navigation items
  */
 const WORKSPACE_ITEMS = [
+  { id: 'discuss', path: '/discuss', icon: MessageCircle, label: 'Discuss' },
   { id: 'gmail', path: '/gmail', icon: Mail, label: 'Gmail' },
   { id: 'calendar', path: '/calendar', icon: CalendarDays, label: 'Calendar' },
   { id: 'pages', path: '/pages', icon: FileText, label: 'Pages' },
@@ -263,6 +265,7 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle, isAdmin
     if (path === '/admin/calendar') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'calendar', currentAdminView: null, isAdminRoute: true };
     if (path === '/admin/analytics') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'analytics', currentAdminView: null, isAdminRoute: true };
     if (path.startsWith('/admin/pages')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'pages', currentAdminView: null, isAdminRoute: true };
+    if (path === '/admin/discuss') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'discuss', currentAdminView: null, isAdminRoute: true };
     
     // Check if we're in sessions mode (/sessions/:stage)
     const sessionsMatch = path.match(/^\/sessions\/([\w]+)$/);
@@ -297,6 +300,7 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle, isAdmin
     if (path === '/calendar') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'calendar', currentAdminView: null, isAdminRoute: false };
     if (path === '/analytics') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'analytics', currentAdminView: null, isAdminRoute: false };
     if (path.startsWith('/pages')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'pages', currentAdminView: null, isAdminRoute: false };
+    if (path === '/discuss') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'discuss', currentAdminView: null, isAdminRoute: false };
     
     // Default to contacts mode
     return {
