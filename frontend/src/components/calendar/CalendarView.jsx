@@ -114,7 +114,7 @@ const CalendarView = ({ isAdmin = false }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState("month"); // 'month', 'week', 'today'
-  const [focusMode, setFocusMode] = useState(null); // null, 'today', 'week'
+  const [focusMode, setFocusMode] = useState(null); // null, 'today', 'week', 'availabilities'
   
   // Initialize state from cache if available
   const [tasks, setTasks] = useState(() => {
@@ -568,6 +568,31 @@ const CalendarView = ({ isAdmin = false }) => {
     }
   };
 
+  // Calculate end time from start time + duration
+  const calculateEndTime = useCallback((startTime, durationMinutes) => {
+    if (!startTime) return null;
+    try {
+      // Parse HH:MM:SS or HH:MM format
+      const timeParts = startTime.split(':');
+      if (timeParts.length < 2) return null;
+      
+      const hours = parseInt(timeParts[0], 10);
+      const minutes = parseInt(timeParts[1], 10);
+      
+      if (isNaN(hours) || isNaN(minutes)) return null;
+      
+      // Calculate total minutes
+      const totalMinutes = hours * 60 + minutes + (durationMinutes || 30);
+      const endHours = Math.floor(totalMinutes / 60) % 24;
+      const endMinutes = totalMinutes % 60;
+      
+      return `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+    } catch {
+      return null;
+    }
+  }, []);
+
+
   // Get display tasks based on focus mode
   const displayTasks = useMemo(() => {
     let filtered = [];
@@ -582,6 +607,9 @@ const CalendarView = ({ isAdmin = false }) => {
       filtered = tasks.filter((task) => {
         return task.due_date >= todayStr && task.due_date <= weekEndStr;
       });
+    } else if (focusMode === "availabilities") {
+      // Show today's tasks for availability view
+      filtered = todaysTasks;
     } else {
       filtered = getTasksForDate(selectedDate);
     }
@@ -657,6 +685,14 @@ const CalendarView = ({ isAdmin = false }) => {
               }`}
             >
               This Week
+            </button>
+            <button
+              onClick={() => setFocusMode("availabilities")}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                focusMode === "availabilities" ? themeColors.activeButton : "text-gray-600 hover:text-gray-800"
+              }`}
+            >
+              Availabilities
             </button>
           </div>
 
@@ -881,20 +917,24 @@ const CalendarView = ({ isAdmin = false }) => {
                 ? "Today's Tasks"
                 : focusMode === "week"
                 ? "This Week"
+                : focusMode === "availabilities"
+                ? "Today's Availabilities"
                 : selectedDate.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
             </h3>
             
-            {/* Filter Dropdown */}
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className={`text-sm border border-gray-200 rounded-lg px-2 py-1 text-gray-600 focus:outline-none focus:ring-2 ${themeColors.focusRing}`}
-            >
-              <option value="ALL">All Types</option>
-              {Object.entries(TASK_TYPES).map(([key, config]) => (
-                <option key={key} value={key}>{config.label}</option>
-              ))}
-            </select>
+            {/* Filter Dropdown - Hidden in availabilities mode */}
+            {focusMode !== "availabilities" && (
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className={`text-sm border border-gray-200 rounded-lg px-2 py-1 text-gray-600 focus:outline-none focus:ring-2 ${themeColors.focusRing}`}
+              >
+                <option value="ALL">All Types</option>
+                {Object.entries(TASK_TYPES).map(([key, config]) => (
+                  <option key={key} value={key}>{config.label}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Overdue Warning */}
@@ -920,6 +960,94 @@ const CalendarView = ({ isAdmin = false }) => {
                   + Add a task
                 </button>
               </div>
+            ) : focusMode === "availabilities" ? (
+              // Availability View - Show time slots with start/end times
+              displayTasks.map((task) => {
+                const startTime = task.due_time;
+                const endTime = calculateEndTime(startTime, task.duration_minutes || 30);
+                const config = TASK_TYPES[task.task_type] || TASK_TYPES.OTHER;
+                const Icon = config.icon;
+
+                return (
+                  <div
+                    key={task.task_id}
+                    className={`p-4 rounded-lg border-l-4 ${
+                      task.status === 'COMPLETED'
+                        ? 'bg-gray-50 border-gray-300 opacity-60'
+                        : task.status === 'CANCELLED'
+                        ? 'bg-gray-50 border-gray-400'
+                        : `bg-${config.color}-50 border-${config.color}-500`
+                    } transition-all hover:shadow-sm`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className={`p-2 rounded-lg ${
+                          task.status === 'COMPLETED' || task.status === 'CANCELLED'
+                            ? 'bg-gray-200'
+                            : `bg-${config.color}-100`
+                        }`}>
+                          <Icon className={`w-4 h-4 ${
+                            task.status === 'COMPLETED' || task.status === 'CANCELLED'
+                              ? 'text-gray-500'
+                              : `text-${config.color}-600`
+                          }`} />
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <h4 className={`font-medium text-gray-900 truncate ${
+                            task.status === 'COMPLETED' ? 'line-through' : ''
+                          }`}>
+                            {task.title}
+                          </h4>
+                          
+                          {task.contact_name && (
+                            <p className="text-sm text-gray-500 truncate mt-0.5">
+                              📌 {task.contact_name}
+                            </p>
+                          )}
+                          
+                          {/* Time Range */}
+                          <div className="flex items-center gap-3 mt-2">
+                            <div className="flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-gray-400" />
+                              <span className="text-sm font-medium text-gray-700">
+                                {formatTime(startTime)}
+                              </span>
+                            </div>
+                            
+                            <span className="text-gray-400">→</span>
+                            
+                            {endTime && (
+                              <span className="text-sm font-medium text-gray-700">
+                                {formatTime(endTime)}
+                              </span>
+                            )}
+                            
+                            <span className="text-xs text-gray-500 ml-1">
+                              ({task.duration_minutes || 30} min)
+                            </span>
+                          </div>
+                          
+                          {/* Status Badge */}
+                          <div className="mt-2">
+                            <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${
+                              task.status === 'COMPLETED'
+                                ? 'bg-green-100 text-green-700'
+                                : task.status === 'CANCELLED'
+                                ? 'bg-gray-100 text-gray-700'
+                                : task.status === 'OVERDUE'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {task.status || 'PENDING'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
             ) : (
               displayTasks.map((task) => (
                 <TaskCard
