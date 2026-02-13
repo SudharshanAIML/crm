@@ -961,93 +961,13 @@ const CalendarView = ({ isAdmin = false }) => {
                 </button>
               </div>
             ) : focusMode === "availabilities" ? (
-              // Availability View - Show time slots with start/end times
-              displayTasks.map((task) => {
-                const startTime = task.due_time;
-                const endTime = calculateEndTime(startTime, task.duration_minutes || 30);
-                const config = TASK_TYPES[task.task_type] || TASK_TYPES.OTHER;
-                const Icon = config.icon;
-
-                return (
-                  <div
-                    key={task.task_id}
-                    className={`p-4 rounded-lg border-l-4 ${
-                      task.status === 'COMPLETED'
-                        ? 'bg-gray-50 border-gray-300 opacity-60'
-                        : task.status === 'CANCELLED'
-                        ? 'bg-gray-50 border-gray-400'
-                        : `bg-${config.color}-50 border-${config.color}-500`
-                    } transition-all hover:shadow-sm`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <div className={`p-2 rounded-lg ${
-                          task.status === 'COMPLETED' || task.status === 'CANCELLED'
-                            ? 'bg-gray-200'
-                            : `bg-${config.color}-100`
-                        }`}>
-                          <Icon className={`w-4 h-4 ${
-                            task.status === 'COMPLETED' || task.status === 'CANCELLED'
-                              ? 'text-gray-500'
-                              : `text-${config.color}-600`
-                          }`} />
-                        </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <h4 className={`font-medium text-gray-900 truncate ${
-                            task.status === 'COMPLETED' ? 'line-through' : ''
-                          }`}>
-                            {task.title}
-                          </h4>
-                          
-                          {task.contact_name && (
-                            <p className="text-sm text-gray-500 truncate mt-0.5">
-                              📌 {task.contact_name}
-                            </p>
-                          )}
-                          
-                          {/* Time Range */}
-                          <div className="flex items-center gap-3 mt-2">
-                            <div className="flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5 text-gray-400" />
-                              <span className="text-sm font-medium text-gray-700">
-                                {formatTime(startTime)}
-                              </span>
-                            </div>
-                            
-                            <span className="text-gray-400">→</span>
-                            
-                            {endTime && (
-                              <span className="text-sm font-medium text-gray-700">
-                                {formatTime(endTime)}
-                              </span>
-                            )}
-                            
-                            <span className="text-xs text-gray-500 ml-1">
-                              ({task.duration_minutes || 30} min)
-                            </span>
-                          </div>
-                          
-                          {/* Status Badge */}
-                          <div className="mt-2">
-                            <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${
-                              task.status === 'COMPLETED'
-                                ? 'bg-green-100 text-green-700'
-                                : task.status === 'CANCELLED'
-                                ? 'bg-gray-100 text-gray-700'
-                                : task.status === 'OVERDUE'
-                                ? 'bg-red-100 text-red-700'
-                                : 'bg-blue-100 text-blue-700'
-                            }`}>
-                              {task.status || 'PENDING'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
+              // Availability View - Visual timeline with busy slots
+              <AvailabilityTimeline 
+                tasks={displayTasks} 
+                formatTime={formatTime}
+                calculateEndTime={calculateEndTime}
+                themeColors={themeColors}
+              />
             ) : (
               displayTasks.map((task) => (
                 <TaskCard
@@ -1092,6 +1012,342 @@ const CalendarView = ({ isAdmin = false }) => {
             }
           }}
         />
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
+// AVAILABILITY TIMELINE - Visual representation of free/busy time slots
+// =============================================================================
+function AvailabilityTimeline({ tasks, formatTime, calculateEndTime, themeColors }) {
+  // Working hours: 8 AM to 8 PM (12 hours)
+  const START_HOUR = 8;
+  const END_HOUR = 20;
+  const TOTAL_HOURS = END_HOUR - START_HOUR;
+
+  // Convert time string (HH:MM:SS or HH:MM) to minutes from midnight
+  const timeToMinutes = (timeStr) => {
+    if (!timeStr) return null;
+    const parts = timeStr.split(':');
+    return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+  };
+
+  // Get busy time slots from tasks
+  const busySlots = useMemo(() => {
+    return tasks
+      .filter(t => t.due_time && t.status !== 'COMPLETED' && t.status !== 'CANCELLED')
+      .map(task => {
+        const startMinutes = timeToMinutes(task.due_time);
+        const duration = task.duration_minutes || 30;
+        const endMinutes = startMinutes + duration;
+        return {
+          ...task,
+          startMinutes,
+          endMinutes,
+          startTime: task.due_time,
+          endTime: calculateEndTime(task.due_time, duration),
+        };
+      })
+      .sort((a, b) => a.startMinutes - b.startMinutes);
+  }, [tasks, calculateEndTime]);
+
+  // Calculate free slots
+  const freeSlots = useMemo(() => {
+    const slots = [];
+    const workStartMinutes = START_HOUR * 60;
+    const workEndMinutes = END_HOUR * 60;
+    
+    let currentTime = workStartMinutes;
+    
+    for (const busy of busySlots) {
+      // If there's a gap before this busy slot
+      if (busy.startMinutes > currentTime && busy.startMinutes >= workStartMinutes) {
+        const gapStart = Math.max(currentTime, workStartMinutes);
+        const gapEnd = Math.min(busy.startMinutes, workEndMinutes);
+        if (gapEnd > gapStart) {
+          slots.push({
+            type: 'free',
+            startMinutes: gapStart,
+            endMinutes: gapEnd,
+            duration: gapEnd - gapStart,
+          });
+        }
+      }
+      currentTime = Math.max(currentTime, busy.endMinutes);
+    }
+    
+    // Add remaining free time after last busy slot
+    if (currentTime < workEndMinutes) {
+      slots.push({
+        type: 'free',
+        startMinutes: Math.max(currentTime, workStartMinutes),
+        endMinutes: workEndMinutes,
+        duration: workEndMinutes - Math.max(currentTime, workStartMinutes),
+      });
+    }
+    
+    return slots;
+  }, [busySlots]);
+
+  // Format minutes to time string
+  const minutesToTime = (minutes) => {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 || 12;
+    return `${hour12}:${String(m).padStart(2, '0')} ${ampm}`;
+  };
+
+  // Calculate position and height for timeline items
+  const getTimelineStyle = (startMinutes, endMinutes) => {
+    const workStartMinutes = START_HOUR * 60;
+    const totalMinutes = TOTAL_HOURS * 60;
+    const top = ((startMinutes - workStartMinutes) / totalMinutes) * 100;
+    const height = ((endMinutes - startMinutes) / totalMinutes) * 100;
+    // Minimum height of 6% to ensure text is readable (approx 18px at 300px height)
+    return { top: `${top}%`, height: `${Math.max(height, 6)}%` };
+  };
+
+  // Generate hour markers
+  const hourMarkers = [];
+  for (let h = START_HOUR; h <= END_HOUR; h++) {
+    hourMarkers.push(h);
+  }
+
+  const totalBusyMinutes = busySlots.reduce((sum, s) => sum + (s.endMinutes - s.startMinutes), 0);
+  const totalFreeMinutes = freeSlots.reduce((sum, s) => sum + s.duration, 0);
+  const overdueTasks = tasks.filter(t => t.status === 'OVERDUE');
+
+  return (
+    <div className="space-y-4">
+      {/* Summary Stats */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+          <div className="text-2xl font-bold text-emerald-600">
+            {Math.floor(totalFreeMinutes / 60)}h {totalFreeMinutes % 60}m
+          </div>
+          <div className="text-xs text-emerald-600 font-medium">Available Today</div>
+        </div>
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center">
+          <div className="text-2xl font-bold text-purple-600">
+            {busySlots.length}
+          </div>
+          <div className="text-xs text-purple-600 font-medium">Scheduled Tasks</div>
+        </div>
+      </div>
+
+      {/* Overdue Alert */}
+      {overdueTasks.length > 0 && (
+        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span className="font-medium">{overdueTasks.length} overdue tasks</span>
+        </div>
+      )}
+
+      {/* Visual Timeline */}
+      <div className="relative bg-gray-50 rounded-xl p-4 border border-gray-200 overflow-hidden">
+        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+          Today's Schedule
+        </h4>
+        
+        <div className="flex gap-3">
+          {/* Hour labels */}
+          <div className="flex flex-col justify-between text-xs text-gray-400 py-1 flex-shrink-0" style={{ height: '300px' }}>
+            {hourMarkers.map(h => (
+              <span key={h} className="leading-none">
+                {h > 12 ? h - 12 : h}{h >= 12 ? 'p' : 'a'}
+              </span>
+            ))}
+          </div>
+
+          {/* Timeline bar */}
+          <div className="flex-1 relative bg-emerald-100 rounded-lg" style={{ height: '300px' }}>
+            {/* Hour grid lines */}
+            {hourMarkers.slice(0, -1).map((h, i) => (
+              <div
+                key={h}
+                className="absolute left-0 right-0 border-t border-emerald-200/50"
+                style={{ top: `${(i / TOTAL_HOURS) * 100}%` }}
+              />
+            ))}
+
+            {/* Busy slots */}
+            {busySlots.map((slot, index) => {
+              const style = getTimelineStyle(slot.startMinutes, slot.endMinutes);
+              const config = TASK_TYPES[slot.task_type] || TASK_TYPES.OTHER;
+              const heightPercent = parseFloat(style.height);
+              const isSmallBlock = heightPercent < 10;
+              const topPercent = parseFloat(style.top);
+              // Show tooltip below if task is in top half, above if in bottom half
+              const showTooltipBelow = topPercent < 50;
+              
+              return (
+                <div
+                  key={slot.task_id || index}
+                  className="absolute left-1 right-1 rounded-md cursor-pointer hover:ring-2 hover:ring-white/60 hover:shadow-md transition-all group z-[1] hover:z-[5]"
+                  style={{
+                    ...style,
+                    backgroundColor: slot.status === 'OVERDUE' ? '#fecaca' : 
+                      config.color === 'sky' ? '#bae6fd' :
+                      config.color === 'purple' ? '#e9d5ff' :
+                      config.color === 'amber' ? '#fde68a' :
+                      config.color === 'rose' ? '#fecdd3' :
+                      config.color === 'emerald' ? '#a7f3d0' : '#e5e7eb',
+                  }}
+                >
+                  {/* Task content */}
+                  <div className={`h-full flex flex-col justify-center px-2 py-0.5 overflow-hidden ${isSmallBlock ? 'py-0' : ''}`}>
+                    <div className={`font-medium text-gray-800 truncate ${isSmallBlock ? 'text-[10px] leading-tight' : 'text-xs'}`}>
+                      {slot.title}
+                    </div>
+                    {!isSmallBlock && (
+                      <div className="text-[10px] text-gray-600 truncate">
+                        {formatTime(slot.startTime)}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Hover tooltip - positioned above or below based on position */}
+                  <div className={`absolute left-1/2 -translate-x-1/2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 pointer-events-none ${
+                    showTooltipBelow ? 'top-full mt-2' : 'bottom-full mb-2'
+                  }`}>
+                    <div className="font-medium">{slot.title}</div>
+                    <div className="text-gray-300 mt-0.5">
+                      {formatTime(slot.startTime)} → {formatTime(slot.endTime)}
+                    </div>
+                    {slot.contact_name && (
+                      <div className="text-gray-400 mt-0.5">📌 {slot.contact_name}</div>
+                    )}
+                    {/* Tooltip arrow */}
+                    <div className={`absolute left-1/2 -translate-x-1/2 border-4 border-transparent ${
+                      showTooltipBelow 
+                        ? 'bottom-full border-b-gray-900' 
+                        : 'top-full border-t-gray-900'
+                    }`} />
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Current time indicator */}
+            {(() => {
+              const now = new Date();
+              const currentMinutes = now.getHours() * 60 + now.getMinutes();
+              const workStartMinutes = START_HOUR * 60;
+              const workEndMinutes = END_HOUR * 60;
+              
+              if (currentMinutes >= workStartMinutes && currentMinutes <= workEndMinutes) {
+                const position = ((currentMinutes - workStartMinutes) / (TOTAL_HOURS * 60)) * 100;
+                return (
+                  <div
+                    className="absolute left-0 right-0 flex items-center z-10"
+                    style={{ top: `${position}%` }}
+                  >
+                    <div className="w-2 h-2 bg-red-500 rounded-full -ml-1" />
+                    <div className="flex-1 h-0.5 bg-red-500" />
+                  </div>
+                );
+              }
+              return null;
+            })()}
+          </div>
+        </div>
+      </div>
+
+      {/* Free Slots List */}
+      <div className="space-y-2">
+        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+          <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+          Available Time Slots
+        </h4>
+        
+        {freeSlots.length === 0 ? (
+          <div className="text-sm text-gray-500 py-3 text-center bg-gray-50 rounded-lg">
+            No free slots available today
+          </div>
+        ) : (
+          <div className="grid gap-2">
+            {freeSlots.map((slot, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                    <Clock className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-emerald-900">
+                      {minutesToTime(slot.startMinutes)} — {minutesToTime(slot.endMinutes)}
+                    </div>
+                    <div className="text-xs text-emerald-600">
+                      {Math.floor(slot.duration / 60) > 0 && `${Math.floor(slot.duration / 60)}h `}
+                      {slot.duration % 60 > 0 && `${slot.duration % 60}m`} available
+                    </div>
+                  </div>
+                </div>
+                <div className="px-2 py-1 bg-emerald-200 text-emerald-800 text-xs font-medium rounded-full">
+                  FREE
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Scheduled Tasks Summary */}
+      {busySlots.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+            <CalendarIcon className="w-3.5 h-3.5 text-purple-500" />
+            Scheduled ({busySlots.length})
+          </h4>
+          <div className="space-y-2">
+            {busySlots.map((task) => {
+              const config = TASK_TYPES[task.task_type] || TASK_TYPES.OTHER;
+              const Icon = config.icon;
+              
+              return (
+                <div
+                  key={task.task_id}
+                  className={`flex items-center gap-3 p-3 rounded-lg border-l-4 ${
+                    task.status === 'OVERDUE'
+                      ? 'bg-red-50 border-red-500'
+                      : 'bg-white border-purple-400'
+                  }`}
+                >
+                  <div className={`p-1.5 rounded-md ${
+                    task.status === 'OVERDUE' ? 'bg-red-100' : `bg-purple-100`
+                  }`}>
+                    <Icon className={`w-3.5 h-3.5 ${
+                      task.status === 'OVERDUE' ? 'text-red-600' : 'text-purple-600'
+                    }`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{task.title}</p>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <span>{formatTime(task.startTime)} → {formatTime(task.endTime)}</span>
+                      {task.contact_name && (
+                        <>
+                          <span>•</span>
+                          <span className="truncate">{task.contact_name}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                    task.status === 'OVERDUE'
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-blue-100 text-blue-700'
+                  }`}>
+                    {task.status || 'PENDING'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
     </div>
   );
