@@ -49,6 +49,9 @@ export const getById = async (contactId) => {
   return rows[0];
 };
 
+// Alias for compatibility
+export const getContactById = getById;
+
 /* ---------------------------------------------------
    UPDATE CONTACT STATUS
 --------------------------------------------------- */
