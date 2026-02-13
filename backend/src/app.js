@@ -30,6 +30,7 @@ import outreachRoutes from "./modules/outreach/outreach.routes.js";
 import outreachPublicRoutes from "./modules/outreach/pages.public.routes.js";
 import appointmentRoutes from "./modules/appointments/appointment.routes.js";
 import notificationRoutes from "./modules/notifications/notification.routes.js";
+import discussRoutes from "./modules/discuss/discuss.routes.js";
 
 // Initialize Express app
 const app = express();
@@ -181,6 +182,9 @@ app.use("/api/notifications", notificationRoutes);
 // Public outreach pages (no auth required)
 app.use("/api/public", outreachPublicRoutes);
 
+// Discuss (Team Chat) routes
+app.use("/api/discuss", discussRoutes);
+
 /* =====================================================
    404 HANDLER
 ===================================================== */
@@ -204,6 +208,7 @@ app.use(errorHandler);
 
 import * as emailQueue from "./services/emailQueue.service.js";
 import { restoreAutopilotSessions } from "./modules/outreach/autopilot.service.js";
+import { initSocketIO } from "./services/socket.service.js";
 
 /* =====================================================
    GRACEFUL SHUTDOWN
@@ -235,7 +240,13 @@ const gracefulShutdown = async (signal) => {
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "0.0.0.0";
 
-const server = app.listen(PORT, HOST, async () => {
+import { createServer } from "http";
+const httpServer = createServer(app);
+
+// Attach Socket.IO to the HTTP server (real-time chat)
+initSocketIO(httpServer);
+
+const server = httpServer.listen(PORT, HOST, async () => {
   console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
