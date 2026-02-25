@@ -6,16 +6,20 @@ import * as repo from "../modules/discuss/discuss.repository.js";
 /**
  * Real-time WebSocket layer for the Discuss (Team Chat) feature.
  *
- * Architecture:
- *  - Each authenticated employee joins a personal room: `user:<empId>`
- *  - When viewing a channel, clients emit `channel:join` → joins room `channel:<channelId>`
- *  - Messages are broadcast to the channel room for instant delivery
- *  - Mentions trigger a targeted event to the mentioned user's personal room
- *  - Typing indicators are ephemeral (no DB persistence)
+ * Architecture (v2 — Organization-Namespace Isolation):
+ *  - Each organization gets its own Socket.IO namespace: /org/<companyId>
+ *  - JWT companyId MUST match the namespace path — cross-org connections are
+ *    refused at the middleware level (AUTH_FORBIDDEN)
+ *  - Within each org namespace:
+ *      · Personal room:  user:<empId>   — for mentions, DMs, invite notifications
+ *      · Channel room:   channel:<id>   — for channel messages & presence
+ *      · Company room:   company:<id>   — for org-wide broadcasts
+ *  - This architecture makes cross-org socket event leakage architecturally impossible
  *
  * Security:
- *  - JWT verified on connection handshake (same token as REST API)
- *  - Channel membership is validated before any write operation
+ *  - JWT verified on connection handshake (same secret as REST API)
+ *  - Namespace companyId validated against JWT companyId
+ *  - Channel membership validated in DB before any channel write
  *  - Rate-limited: max 30 messages per 10 seconds per socket
  */
 
@@ -48,7 +52,8 @@ const checkRateLimit = (socketId) => {
 ===================================================== */
 
 /**
- * Attach Socket.IO to the existing HTTP server
+ * Attach Socket.IO to the existing HTTP server.
+ * Uses dynamic per-organization namespaces for strong isolation.
  * @param {import('http').Server} httpServer
  */
 export const initSocketIO = (httpServer) => {
@@ -64,39 +69,63 @@ export const initSocketIO = (httpServer) => {
   });
 
   /* ---------------------------------------------------
-     AUTH MIDDLEWARE — verify JWT on handshake
+     DYNAMIC ORG NAMESPACES  (/org/:companyId)
+     
+     io.of(regex) matches any namespace of the form /org/123.
+     Each matched namespace is a fully isolated event space.
   --------------------------------------------------- */
-  io.use((socket, next) => {
-    const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(" ")[1];
+  const orgNamespace = io.of(/^\/org\/\d+$/);
+
+  /* ---------------------------------------------------
+     AUTH MIDDLEWARE — runs per namespace connection
+     Verifies JWT and ensures companyId in namespace
+     path matches companyId embedded in the JWT token.
+  --------------------------------------------------- */
+  orgNamespace.use((socket, next) => {
+    const token =
+      socket.handshake.auth?.token ||
+      socket.handshake.headers?.authorization?.split(" ")[1];
 
     if (!token) return next(new Error("AUTH_REQUIRED"));
 
+    let decoded;
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      socket.user = {
-        empId: decoded.empId,
-        companyId: decoded.companyId,
-        role: decoded.role,
-      };
-      next();
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch {
-      next(new Error("AUTH_INVALID"));
+      return next(new Error("AUTH_INVALID"));
     }
+
+    // Extract companyId from the namespace path: /org/42 → 42
+    const nspCompanyId = parseInt(socket.nsp.name.split("/org/")[1], 10);
+
+    // Critical: token's companyId must match the namespace's companyId
+    if (decoded.companyId !== nspCompanyId) {
+      return next(new Error("AUTH_FORBIDDEN"));
+    }
+
+    socket.user = {
+      empId: decoded.empId,
+      companyId: decoded.companyId,
+      role: decoded.role,
+      name: decoded.name || "",
+    };
+
+    next();
   });
 
   /* ---------------------------------------------------
-     CONNECTION HANDLER
+     CONNECTION HANDLER (per org namespace)
   --------------------------------------------------- */
-  io.on("connection", (socket) => {
+  orgNamespace.on("connection", (socket) => {
     const { empId, companyId } = socket.user;
 
-    // Join personal room for directed messages (mentions, DMs)
+    // Personal room for directed events (mentions, invites)
     socket.join(`user:${empId}`);
 
-    // Join company room (for broadcast company-wide events)
+    // Company-wide broadcast room
     socket.join(`company:${companyId}`);
 
-    console.log(`🔌 WS connected: emp=${empId} company=${companyId}`);
+    console.log(`🔌 WS [org:${companyId}] connected: emp=${empId}`);
 
     /* ---------------------------------------------------
        CHANNEL PRESENCE
@@ -108,10 +137,8 @@ export const initSocketIO = (httpServer) => {
         if (!member) return socket.emit("error", { message: "Not a member" });
 
         socket.join(`channel:${channelId}`);
-        // Update read cursor when joining a channel view
         await repo.updateLastRead(channelId, empId);
 
-        // Notify others in the channel
         socket.to(`channel:${channelId}`).emit("channel:user_joined", { channelId, empId });
       } catch (err) {
         socket.emit("error", { message: err.message });
@@ -129,7 +156,6 @@ export const initSocketIO = (httpServer) => {
 
     socket.on("message:send", async ({ channelId, content, parentMessageId }, ack) => {
       try {
-        // Rate limit check
         if (!checkRateLimit(socket.id)) {
           return ack?.({ error: "Rate limit exceeded. Slow down." });
         }
@@ -139,14 +165,14 @@ export const initSocketIO = (httpServer) => {
           parentMessageId: parentMessageId || null,
         });
 
-        // Broadcast to everyone in the channel (including sender for consistency)
-        io.to(`channel:${channelId}`).emit("message:new", message);
+        // Broadcast to everyone in the channel room (org-scoped namespace)
+        socket.nsp.to(`channel:${channelId}`).emit("message:new", message);
 
-        // Send mention notifications to mentioned employees' personal rooms
+        // Mention notifications → personal rooms within same org namespace
         if (message.mentions?.length > 0) {
           for (const mention of message.mentions) {
             if (mention.type === "EMPLOYEE" && mention.refId !== empId) {
-              io.to(`user:${mention.refId}`).emit("mention:new", {
+              socket.nsp.to(`user:${mention.refId}`).emit("mention:new", {
                 messageId: message.message_id,
                 channelId,
                 senderName: message.sender_name,
@@ -165,7 +191,7 @@ export const initSocketIO = (httpServer) => {
     socket.on("message:edit", async ({ messageId, content }, ack) => {
       try {
         const updated = await discussService.editMessage(messageId, empId, content);
-        io.to(`channel:${updated.channel_id}`).emit("message:edited", updated);
+        socket.nsp.to(`channel:${updated.channel_id}`).emit("message:edited", updated);
         ack?.({ ok: true });
       } catch (err) {
         ack?.({ error: err.message });
@@ -178,7 +204,9 @@ export const initSocketIO = (httpServer) => {
         if (!msg) return ack?.({ error: "Message not found" });
 
         await discussService.deleteMessage(messageId, empId, socket.user.role);
-        io.to(`channel:${msg.channel_id}`).emit("message:deleted", { messageId, channelId: msg.channel_id });
+        socket.nsp
+          .to(`channel:${msg.channel_id}`)
+          .emit("message:deleted", { messageId, channelId: msg.channel_id });
         ack?.({ ok: true });
       } catch (err) {
         ack?.({ error: err.message });
@@ -187,14 +215,36 @@ export const initSocketIO = (httpServer) => {
 
     /* ---------------------------------------------------
        TYPING INDICATOR (ephemeral, no DB)
+       — uses per-socket timer map to auto-clear on disconnect
     --------------------------------------------------- */
 
+    /** @type {Map<number, ReturnType<typeof setTimeout>>} */
+    const typingTimers = new Map(); // channelId → timer
+
+    const clearTyping = (channelId) => {
+      const timer = typingTimers.get(channelId);
+      if (timer) {
+        clearTimeout(timer);
+        typingTimers.delete(channelId);
+      }
+      socket.to(`channel:${channelId}`).emit("typing:stop", { channelId, empId });
+    };
+
     socket.on("typing:start", ({ channelId }) => {
+      // Clear any existing timer for this channel
+      if (typingTimers.has(channelId)) clearTimeout(typingTimers.get(channelId));
+
       socket.to(`channel:${channelId}`).emit("typing:start", { channelId, empId });
+
+      // Auto-clear after 4s if client doesn't send typing:stop
+      typingTimers.set(
+        channelId,
+        setTimeout(() => clearTyping(channelId), 4000)
+      );
     });
 
     socket.on("typing:stop", ({ channelId }) => {
-      socket.to(`channel:${channelId}`).emit("typing:stop", { channelId, empId });
+      clearTyping(channelId);
     });
 
     /* ---------------------------------------------------
@@ -202,8 +252,14 @@ export const initSocketIO = (httpServer) => {
     --------------------------------------------------- */
 
     socket.on("disconnect", () => {
+      // Clean up rate limit entry
       rateLimitMap.delete(socket.id);
-      console.log(`🔌 WS disconnected: emp=${empId}`);
+
+      // Clear all active typing timers
+      typingTimers.forEach((_, channelId) => clearTyping(channelId));
+      typingTimers.clear();
+
+      console.log(`🔌 WS [org:${companyId}] disconnected: emp=${empId}`);
     });
   });
 
@@ -211,6 +267,7 @@ export const initSocketIO = (httpServer) => {
 };
 
 /**
- * Get the Socket.IO instance (for use in other modules)
+ * Get the Socket.IO server instance.
+ * Use .of(`/org/${companyId}`) to target a specific org namespace.
  */
 export const getIO = () => io;

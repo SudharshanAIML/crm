@@ -11,7 +11,6 @@ A comprehensive CRM (Customer Relationship Management) backend system that manag
 - **Opportunity Management**: Track potential deals with expected values
 - **Customer Conversion**: Convert opportunities to customers when deals close
 - **Evangelist Program**: Convert satisfied customers to evangelists based on feedback
-
 ### Key Capabilities
 - 📧 **Email Tracking**: Track email opens/clicks for lead engagement
 - 📞 **Session Management**: Log up to 5 marketing/sales calls per stage with ratings

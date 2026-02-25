@@ -17,6 +17,7 @@ const pool = mysql.createPool(DATABASE_URL, {
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
+  timezone: 'Z', // Treat all DATETIME/TIMESTAMP columns as UTC
   ssl: {
     rejectUnauthorized: true, // required for Aiven
   },

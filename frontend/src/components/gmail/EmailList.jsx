@@ -35,18 +35,19 @@ const EmailList = ({
     if (!dateStr) return '';
     const date = new Date(dateStr);
     const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
+    const istOptions = { timeZone: 'Asia/Kolkata' };
+    const isToday = date.toLocaleDateString('en-IN', istOptions) === now.toLocaleDateString('en-IN', istOptions);
     
     if (isToday) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return date.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
     }
     
-    const isThisYear = date.getFullYear() === now.getFullYear();
+    const isThisYear = new Date(date.toLocaleString('en-IN', istOptions)).getFullYear() === new Date(now.toLocaleString('en-IN', istOptions)).getFullYear();
     if (isThisYear) {
-      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      return date.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
     }
     
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    return date.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   // Parse email address to get name

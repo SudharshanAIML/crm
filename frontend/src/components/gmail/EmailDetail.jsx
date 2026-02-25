@@ -95,7 +95,8 @@ const EmailDetail = ({ email, onBack, onRefresh, isAdmin = false }) => {
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
     const date = new Date(dateStr);
-    return date.toLocaleString([], {
+    return date.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
       weekday: 'short',
       month: 'short',
       day: 'numeric',

@@ -14,7 +14,7 @@ router.use(authenticateEmployee);
 // List my channels (with unread counts)
 router.get("/channels", discussController.getMyChannels);
 
-// Browse all company channels (for joining)
+// Browse all company PUBLIC channels (for joining)
 router.get("/channels/browse", discussController.browseChannels);
 
 // Create a new channel
@@ -33,7 +33,7 @@ router.delete("/channels/:channelId", discussController.deleteChannel);
    MEMBER ROUTES
 ===================================================== */
 
-// Join a channel
+// Join a channel (PUBLIC channels only)
 router.post("/channels/:channelId/join", discussController.joinChannel);
 
 // Leave a channel
@@ -44,6 +44,12 @@ router.get("/channels/:channelId/members", discussController.getMembers);
 
 // Mark channel as read
 router.post("/channels/:channelId/read", discussController.markRead);
+
+// Get employees who can be invited (same org, not yet members)
+router.get("/channels/:channelId/invitable", discussController.getInvitableEmployees);
+
+// Invite employees to a channel (org-isolated)
+router.post("/channels/:channelId/invite", discussController.inviteMembers);
 
 /* =====================================================
    MESSAGE ROUTES

@@ -5,25 +5,24 @@ import { useAuth } from './AuthContext';
 /**
  * SocketContext — manages a single Socket.IO connection per authenticated user.
  *
- * Features:
- *  - Auto-connect on login, auto-disconnect on logout
- *  - Reconnection with exponential backoff (built-in)
- *  - Exposes `socket` instance + connection status
- *  - Helper hooks: useSocketEvent, useEmit
+ * v2 — Organization Namespace Isolation:
+ *  - Connects to /org/<companyId> instead of the shared root namespace
+ *  - This matches the server's dynamic per-org namespace strategy
+ *  - A user from org 42 connects to /org/42; they cannot receive events from /org/99
  */
 
 const SocketContext = createContext(null);
 
-const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000';
+const SOCKET_SERVER = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000';
 
 export const SocketProvider = ({ children }) => {
-  const { token, isAuthenticated } = useAuth();
+  const { token, isAuthenticated, user } = useAuth();
   const socketRef = useRef(null);
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated || !token) {
-      // Disconnect if logged out
+    if (!isAuthenticated || !token || !user?.companyId) {
+      // Disconnect if logged out or user not yet loaded
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
@@ -32,8 +31,10 @@ export const SocketProvider = ({ children }) => {
       return;
     }
 
-    // Create socket connection with JWT auth
-    const socket = io(SOCKET_URL, {
+    // Connect to the organization-specific namespace — strong isolation by design
+    const orgNamespace = `/org/${user.companyId}`;
+
+    const socket = io(`${SOCKET_SERVER}${orgNamespace}`, {
       auth: { token },
       transports: ['websocket', 'polling'], // prefer WS, fallback to polling
       reconnection: true,
@@ -44,7 +45,7 @@ export const SocketProvider = ({ children }) => {
     });
 
     socket.on('connect', () => {
-      console.log('🔌 Socket connected:', socket.id);
+      console.log(`🔌 Socket connected [org:${user.companyId}]:`, socket.id);
       setConnected(true);
     });
 
@@ -65,7 +66,7 @@ export const SocketProvider = ({ children }) => {
       socketRef.current = null;
       setConnected(false);
     };
-  }, [isAuthenticated, token]);
+  }, [isAuthenticated, token, user?.companyId]);
 
   const emit = useCallback((event, data, ack) => {
     if (socketRef.current?.connected) {

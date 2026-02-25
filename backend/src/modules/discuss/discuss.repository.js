@@ -7,11 +7,11 @@ import { db } from "../../config/db.js";
 /**
  * Create a new channel and auto-add the creator as member
  */
-export const createChannel = async (companyId, name, description, isDefault, createdBy) => {
+export const createChannel = async (companyId, name, description, isDefault, channelType, createdBy) => {
   const [result] = await db.execute(
-    `INSERT INTO discuss_channels (company_id, name, description, is_default, created_by)
-     VALUES (?, ?, ?, ?, ?)`,
-    [companyId, name, description || null, isDefault ? 1 : 0, createdBy]
+    `INSERT INTO discuss_channels (company_id, name, description, is_default, channel_type, created_by)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [companyId, name, description || null, isDefault ? 1 : 0, channelType || 'PUBLIC', createdBy]
   );
   const channelId = result.insertId;
 
@@ -39,7 +39,7 @@ export const createChannel = async (companyId, name, description, isDefault, cre
 export const getChannelsForEmployee = async (companyId, empId) => {
   const [rows] = await db.execute(
     `SELECT
-       c.channel_id, c.name, c.description, c.is_default, c.created_by, c.created_at,
+       c.channel_id, c.name, c.description, c.is_default, c.channel_type, c.created_by, c.created_at,
        cm.last_read_at,
        (SELECT COUNT(*) FROM discuss_messages m
         WHERE m.channel_id = c.channel_id
@@ -72,14 +72,14 @@ export const getChannelById = async (channelId, empId) => {
 };
 
 /**
- * Get all channels in a company (for join/browse)
+ * Get all PUBLIC channels in a company (for join/browse) — excludes PRIVATE channels
  */
 export const getAllCompanyChannels = async (companyId) => {
   const [rows] = await db.execute(
     `SELECT c.*,
        (SELECT COUNT(*) FROM discuss_channel_members WHERE channel_id = c.channel_id) AS member_count
      FROM discuss_channels c
-     WHERE c.company_id = ?
+     WHERE c.company_id = ? AND c.channel_type = 'PUBLIC'
      ORDER BY c.is_default DESC, c.name ASC`,
     [companyId]
   );
@@ -100,7 +100,7 @@ export const updateChannel = async (channelId, name, description) => {
  * Delete channel and cascade members/messages
  */
 export const deleteChannel = async (channelId) => {
-  // Delete mentions first (FK-safe order)
+  // Delete in FK-safe order
   await db.execute(
     `DELETE dm FROM discuss_mentions dm
      JOIN discuss_messages m ON m.message_id = dm.message_id
@@ -109,6 +109,7 @@ export const deleteChannel = async (channelId) => {
   );
   await db.execute(`DELETE FROM discuss_messages WHERE channel_id = ?`, [channelId]);
   await db.execute(`DELETE FROM discuss_channel_members WHERE channel_id = ?`, [channelId]);
+  await db.execute(`DELETE FROM discuss_channel_invitations WHERE channel_id = ?`, [channelId]);
   await db.execute(`DELETE FROM discuss_channels WHERE channel_id = ?`, [channelId]);
 };
 
@@ -120,6 +121,21 @@ export const addMember = async (channelId, empId) => {
   await db.execute(
     `INSERT IGNORE INTO discuss_channel_members (channel_id, emp_id) VALUES (?, ?)`,
     [channelId, empId]
+  );
+};
+
+/**
+ * Bulk-add multiple employees to a channel (for invite flow)
+ * @param {number} channelId
+ * @param {number[]} empIds
+ */
+export const bulkAddMembers = async (channelId, empIds) => {
+  if (!empIds || empIds.length === 0) return;
+  const placeholders = empIds.map(() => "(?, ?)").join(", ");
+  const params = empIds.flatMap(id => [channelId, id]);
+  await db.execute(
+    `INSERT IGNORE INTO discuss_channel_members (channel_id, emp_id) VALUES ${placeholders}`,
+    params
   );
 };
 
@@ -157,6 +173,60 @@ export const updateLastRead = async (channelId, empId) => {
   );
 };
 
+/**
+ * Get all company employees who are NOT yet members of a channel
+ * Used for the invite search dropdown — org-isolated by companyId
+ */
+export const getCompanyEmployeesNotInChannel = async (companyId, channelId) => {
+  const [rows] = await db.execute(
+    `SELECT e.emp_id, e.name, e.email, e.role, e.department
+     FROM employees e
+     WHERE e.company_id = ?
+       AND e.emp_id NOT IN (
+         SELECT cm.emp_id FROM discuss_channel_members cm WHERE cm.channel_id = ?
+       )
+     ORDER BY e.name ASC`,
+    [companyId, channelId]
+  );
+  return rows;
+};
+
+/* =====================================================
+   INVITATION QUERIES
+===================================================== */
+
+/**
+ * Record an invitation (upsert: if previously declined, re-open it)
+ */
+export const createInvitations = async (channelId, inviterEmpId, inviteeEmpIds) => {
+  if (!inviteeEmpIds || inviteeEmpIds.length === 0) return;
+  const placeholders = inviteeEmpIds.map(() => "(?, ?, ?)").join(", ");
+  const params = inviteeEmpIds.flatMap(id => [channelId, inviterEmpId, id]);
+  await db.execute(
+    `INSERT INTO discuss_channel_invitations (channel_id, inviter_emp_id, invitee_emp_id)
+     VALUES ${placeholders}
+     ON DUPLICATE KEY UPDATE
+       status = 'PENDING',
+       inviter_emp_id = VALUES(inviter_emp_id),
+       updated_at = NOW()`,
+    params
+  );
+};
+
+/**
+ * Mark invitations as accepted when the employee is added
+ */
+export const acceptInvitations = async (channelId, inviteeEmpIds) => {
+  if (!inviteeEmpIds || inviteeEmpIds.length === 0) return;
+  const placeholders = inviteeEmpIds.map(() => "?").join(", ");
+  await db.execute(
+    `UPDATE discuss_channel_invitations
+     SET status = 'ACCEPTED', updated_at = NOW()
+     WHERE channel_id = ? AND invitee_emp_id IN (${placeholders})`,
+    [channelId, ...inviteeEmpIds]
+  );
+};
+
 /* =====================================================
    MESSAGE QUERIES
 ===================================================== */
@@ -175,14 +245,11 @@ export const createMessage = async (channelId, senderEmpId, content, parentMessa
 
 /**
  * Get messages for a channel with cursor-based pagination (newest first)
- * @param {number} channelId
- * @param {number} limit
- * @param {number|null} before - message_id cursor (fetch messages older than this)
+ * Uses idx_channel_active composite index for performance
  */
 export const getMessages = async (channelId, limit = 50, before = null) => {
-  // Ensure limit is a safe integer (prevent SQL injection)
   const safeLimit = Math.max(1, Math.min(parseInt(limit) || 50, 100));
-  
+
   let query = `
     SELECT m.message_id, m.channel_id, m.sender_emp_id, m.content,
            m.parent_message_id, m.is_edited, m.is_deleted, m.created_at, m.updated_at,
@@ -197,7 +264,6 @@ export const getMessages = async (channelId, limit = 50, before = null) => {
     params.push(before);
   }
 
-  // LIMIT cannot use placeholder in mysql2, use validated integer directly
   query += ` ORDER BY m.message_id DESC LIMIT ${safeLimit}`;
 
   const [rows] = await db.execute(query, params);
@@ -261,8 +327,6 @@ export const getThreadReplies = async (parentMessageId, limit = 50) => {
 
 /**
  * Bulk-insert mentions for a message
- * @param {number} messageId
- * @param {{ type: 'EMPLOYEE'|'DEAL', refId: number }[]} mentions
  */
 export const createMentions = async (messageId, mentions) => {
   if (!mentions || mentions.length === 0) return;
@@ -293,7 +357,7 @@ export const getMentionsForMessage = async (messageId) => {
 };
 
 /**
- * Get all messages where an employee was mentioned (across all channels)
+ * Get all messages where an employee was mentioned (uses idx_ref_message composite index)
  */
 export const getMentionsForEmployee = async (empId, limit = 30) => {
   const safeLimit = Math.max(1, Math.min(parseInt(limit) || 30, 100));
@@ -306,7 +370,7 @@ export const getMentionsForEmployee = async (empId, limit = 30) => {
      JOIN discuss_channels c ON c.channel_id = m.channel_id
      JOIN employees e ON e.emp_id = m.sender_emp_id
      WHERE dm.mention_type = 'EMPLOYEE' AND dm.ref_id = ?
-     ORDER BY m.created_at DESC
+     ORDER BY m.message_id DESC
      LIMIT ${safeLimit}`,
     [empId]
   );
@@ -314,7 +378,7 @@ export const getMentionsForEmployee = async (empId, limit = 30) => {
 };
 
 /**
- * Search messages across channels the employee has access to
+ * Search messages across channels the employee has access to (FULLTEXT)
  */
 export const searchMessages = async (companyId, empId, query, limit = 30) => {
   const safeLimit = Math.max(1, Math.min(parseInt(limit) || 30, 100));
@@ -327,7 +391,7 @@ export const searchMessages = async (companyId, empId, query, limit = 30) => {
      JOIN discuss_channel_members cm ON cm.channel_id = m.channel_id AND cm.emp_id = ?
      JOIN employees e ON e.emp_id = m.sender_emp_id
      WHERE m.is_deleted = FALSE AND MATCH(m.content) AGAINST(? IN BOOLEAN MODE)
-     ORDER BY m.created_at DESC
+     ORDER BY m.message_id DESC
      LIMIT ${safeLimit}`,
     [companyId, empId, query]
   );
@@ -348,7 +412,7 @@ export const searchMessagesLike = async (companyId, empId, query, limit = 30) =>
      JOIN discuss_channel_members cm ON cm.channel_id = m.channel_id AND cm.emp_id = ?
      JOIN employees e ON e.emp_id = m.sender_emp_id
      WHERE m.is_deleted = FALSE AND m.content LIKE ?
-     ORDER BY m.created_at DESC
+     ORDER BY m.message_id DESC
      LIMIT ${safeLimit}`,
     [companyId, empId, `%${query}%`]
   );

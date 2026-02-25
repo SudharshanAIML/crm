@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react';
-import { Hash, Plus, Search, Users, X, Send, Pencil, Trash2, MessageSquare, AtSign, ChevronDown } from 'lucide-react';
+import {
+  Hash, Lock, Plus, Search, Users, X, Send, Pencil, Trash2,
+  MessageSquare, AtSign, ChevronDown, UserPlus, Check, Bell
+} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket, useSocketEvent } from '../../context/SocketContext';
 import * as discussService from '../../services/discussService';
@@ -8,30 +11,24 @@ import * as discussService from '../../services/discussService';
    MENTION HELPERS
 ===================================================== */
 
-// Render message content with styled @mentions and #deal references
 const renderContent = (content) => {
   if (!content) return null;
-  // Replace @[Name](emp:ID) with styled chip
-  // Replace #[Deal Name](deal:ID) with styled chip
   const parts = [];
   let lastIndex = 0;
   const regex = /(?:@\[([^\]]*)\]\(emp:(\d+)\))|(?:#\[([^\]]*)\]\(deal:(\d+)\))/g;
   let match;
 
   while ((match = regex.exec(content)) !== null) {
-    // Push text before the match
     if (match.index > lastIndex) {
       parts.push(<span key={lastIndex}>{content.slice(lastIndex, match.index)}</span>);
     }
     if (match[1] !== undefined) {
-      // Employee mention
       parts.push(
         <span key={match.index} className="inline-flex items-center gap-0.5 bg-sky-100 text-sky-700 rounded px-1.5 py-0.5 text-xs font-medium mx-0.5">
           @{match[1]}
         </span>
       );
     } else if (match[3] !== undefined) {
-      // Deal mention
       parts.push(
         <span key={match.index} className="inline-flex items-center gap-0.5 bg-emerald-100 text-emerald-700 rounded px-1.5 py-0.5 text-xs font-medium mx-0.5">
           #{match[3]}
@@ -55,7 +52,6 @@ const ChannelList = memo(({ channels, activeChannelId, onSelect, onCreateClick, 
 
   return (
     <div className="w-64 border-r border-gray-200 bg-gray-50 flex flex-col h-full">
-      {/* Header */}
       <div className="p-3 border-b border-gray-200 flex items-center justify-between">
         <h2 className="font-semibold text-sm text-gray-700 uppercase tracking-wider">Channels</h2>
         <button
@@ -67,10 +63,10 @@ const ChannelList = memo(({ channels, activeChannelId, onSelect, onCreateClick, 
         </button>
       </div>
 
-      {/* Channel Items */}
       <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
         {channels.map((ch) => {
           const isActive = ch.channel_id === activeChannelId;
+          const Icon = ch.channel_type === 'PRIVATE' ? Lock : Hash;
           return (
             <button
               key={ch.channel_id}
@@ -81,7 +77,7 @@ const ChannelList = memo(({ channels, activeChannelId, onSelect, onCreateClick, 
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
-              <Hash className="w-4 h-4 flex-shrink-0" />
+              <Icon className="w-4 h-4 flex-shrink-0" />
               <span className="flex-1 text-left truncate">{ch.name}</span>
               {ch.unread_count > 0 && (
                 <span className="bg-sky-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
@@ -108,6 +104,7 @@ ChannelList.displayName = 'ChannelList';
 const CreateChannelModal = memo(({ onClose, onCreated }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [channelType, setChannelType] = useState('PUBLIC');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const inputRef = useRef(null);
@@ -120,7 +117,11 @@ const CreateChannelModal = memo(({ onClose, onCreated }) => {
     setLoading(true);
     setError('');
     try {
-      const result = await discussService.createChannel({ name: name.trim(), description: description.trim() });
+      const result = await discussService.createChannel({
+        name: name.trim(),
+        description: description.trim(),
+        channelType,
+      });
       onCreated(result);
       onClose();
     } catch (err) {
@@ -167,6 +168,42 @@ const CreateChannelModal = memo(({ onClose, onCreated }) => {
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Channel Type</label>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setChannelType('PUBLIC')}
+                className={`flex-1 flex items-center gap-2 p-3 rounded-lg border-2 text-sm transition-colors ${
+                  channelType === 'PUBLIC'
+                    ? 'border-sky-500 bg-sky-50 text-sky-700'
+                    : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                }`}
+              >
+                <Hash className="w-4 h-4" />
+                <div className="text-left">
+                  <div className="font-medium">Public</div>
+                  <div className="text-[11px] text-gray-400">Anyone can join</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setChannelType('PRIVATE')}
+                className={`flex-1 flex items-center gap-2 p-3 rounded-lg border-2 text-sm transition-colors ${
+                  channelType === 'PRIVATE'
+                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                    : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                }`}
+              >
+                <Lock className="w-4 h-4" />
+                <div className="text-left">
+                  <div className="font-medium">Private</div>
+                  <div className="text-[11px] text-gray-400">Invite only</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
           {error && <p className="text-red-500 text-sm">{error}</p>}
 
           <div className="flex justify-end gap-2 pt-2">
@@ -189,17 +226,181 @@ const CreateChannelModal = memo(({ onClose, onCreated }) => {
 CreateChannelModal.displayName = 'CreateChannelModal';
 
 /* =====================================================
+   INVITE MODAL
+===================================================== */
+
+const InviteModal = memo(({ channelId, onClose, onInvited }) => {
+  const [employees, setEmployees] = useState([]);
+  const [selected, setSelected] = useState(new Set());
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const searchRef = useRef(null);
+
+  useEffect(() => {
+    searchRef.current?.focus();
+    discussService.getInvitableEmployees(channelId)
+      .then(setEmployees)
+      .catch((err) => setError(err.response?.data?.message || err.message))
+      .finally(() => setLoading(false));
+  }, [channelId]);
+
+  const filtered = useMemo(() =>
+    employees.filter(e =>
+      e.name.toLowerCase().includes(search.toLowerCase()) ||
+      e.email?.toLowerCase().includes(search.toLowerCase()) ||
+      e.department?.toLowerCase().includes(search.toLowerCase())
+    ),
+  [employees, search]);
+
+  const toggle = (empId) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(empId) ? next.delete(empId) : next.add(empId);
+      return next;
+    });
+  };
+
+  const handleInvite = async () => {
+    if (selected.size === 0) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const result = await discussService.inviteToChannel(channelId, [...selected]);
+      onInvited(result);
+      onClose();
+    } catch (err) {
+      setError(err.response?.data?.message || err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">Invite People</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Add teammates from your organization</p>
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
+        </div>
+
+        {/* Search */}
+        <div className="p-3 border-b border-gray-100">
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+            <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <input
+              ref={searchRef}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, email or department..."
+              className="flex-1 text-sm bg-transparent outline-none text-gray-700 placeholder-gray-400"
+            />
+          </div>
+        </div>
+
+        {/* Employee List */}
+        <div className="flex-1 overflow-y-auto p-2">
+          {loading && (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-sky-500" />
+            </div>
+          )}
+
+          {!loading && filtered.length === 0 && (
+            <div className="text-center py-8">
+              <Users className="w-10 h-10 text-gray-200 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">
+                {employees.length === 0 ? 'All organization members are already in this channel' : 'No results found'}
+              </p>
+            </div>
+          )}
+
+          {!loading && filtered.map((emp) => {
+            const isSelected = selected.has(emp.emp_id);
+            return (
+              <button
+                key={emp.emp_id}
+                onClick={() => toggle(emp.emp_id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors mb-0.5 ${
+                  isSelected ? 'bg-sky-50 border border-sky-200' : 'hover:bg-gray-50 border border-transparent'
+                }`}
+              >
+                {/* Avatar */}
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                  isSelected
+                    ? 'bg-sky-500 text-white'
+                    : 'bg-gradient-to-br from-sky-400 to-indigo-500 text-white'
+                }`}>
+                  {isSelected ? <Check className="w-4 h-4" /> : emp.name[0].toUpperCase()}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{emp.name}</p>
+                  <p className="text-[11px] text-gray-400 truncate">
+                    {emp.role}{emp.department ? ` · ${emp.department}` : ''}
+                  </p>
+                </div>
+
+                {isSelected && (
+                  <span className="text-xs text-sky-600 font-medium bg-sky-100 px-2 py-0.5 rounded-full">Selected</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Footer */}
+        <div className="p-3 border-t border-gray-100">
+          {error && <p className="text-red-500 text-xs mb-2">{error}</p>}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400">
+              {selected.size > 0 ? `${selected.size} selected` : 'Select people to invite'}
+            </span>
+            <div className="flex gap-2">
+              <button onClick={onClose} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                Cancel
+              </button>
+              <button
+                onClick={handleInvite}
+                disabled={selected.size === 0 || submitting}
+                className="px-4 py-1.5 text-sm bg-sky-500 text-white rounded-lg hover:bg-sky-600 disabled:opacity-40 transition-colors font-medium flex items-center gap-1.5"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                {submitting ? 'Inviting...' : `Invite${selected.size > 0 ? ` (${selected.size})` : ''}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+InviteModal.displayName = 'InviteModal';
+
+/* =====================================================
    SINGLE MESSAGE BUBBLE
 ===================================================== */
 
 const MessageBubble = memo(({ message, isOwn, onEdit, onDelete, onReply }) => {
   const [showActions, setShowActions] = useState(false);
 
-  const time = new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const time = new Date(message.created_at).toLocaleTimeString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
 
   return (
     <div
-      className={`group flex gap-3 px-4 py-1.5 hover:bg-gray-50 transition-colors ${isOwn ? '' : ''}`}
+      className={`group flex gap-3 px-4 py-1.5 hover:bg-gray-50 transition-colors`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
@@ -299,11 +500,10 @@ MentionPopup.displayName = 'MentionPopup';
 
 const MessageComposer = memo(({ channelId, members, deals, onSendViaSocket, editingMessage, onCancelEdit }) => {
   const [text, setText] = useState('');
-  const [mentionQuery, setMentionQuery] = useState(null); // { type: 'employee'|'deal', query: string, startIndex: number }
+  const [mentionQuery, setMentionQuery] = useState(null);
   const inputRef = useRef(null);
   const { emit } = useSocket();
 
-  // Pre-fill when editing
   useEffect(() => {
     if (editingMessage) {
       setText(editingMessage.content);
@@ -311,16 +511,13 @@ const MessageComposer = memo(({ channelId, members, deals, onSendViaSocket, edit
     }
   }, [editingMessage]);
 
-  // Handle mention detection while typing
   const handleChange = (e) => {
     const val = e.target.value;
     setText(val);
 
-    // Check for @mention trigger
     const cursorPos = e.target.selectionStart;
     const textBeforeCursor = val.slice(0, cursorPos);
 
-    // Look for @ or # at the end
     const atMatch = textBeforeCursor.match(/@(\w*)$/);
     const hashMatch = textBeforeCursor.match(/#(\w*)$/);
 
@@ -333,7 +530,6 @@ const MessageComposer = memo(({ channelId, members, deals, onSendViaSocket, edit
     }
   };
 
-  // Filter items for autocomplete
   const filteredItems = useMemo(() => {
     if (!mentionQuery) return [];
     const q = mentionQuery.query;
@@ -350,18 +546,14 @@ const MessageComposer = memo(({ channelId, members, deals, onSendViaSocket, edit
     }
   }, [mentionQuery, members, deals]);
 
-  // Select a mention from the autocomplete
   const handleMentionSelect = (item) => {
     if (!mentionQuery) return;
     const before = text.slice(0, mentionQuery.startIndex);
     const after = text.slice(inputRef.current?.selectionStart || text.length);
 
-    let insertion;
-    if (mentionQuery.type === 'employee') {
-      insertion = `@[${item.name}](emp:${item.id}) `;
-    } else {
-      insertion = `#[${item.name}](deal:${item.id}) `;
-    }
+    const insertion = mentionQuery.type === 'employee'
+      ? `@[${item.name}](emp:${item.id}) `
+      : `#[${item.name}](deal:${item.id}) `;
 
     setText(before + insertion + after);
     setMentionQuery(null);
@@ -402,7 +594,6 @@ const MessageComposer = memo(({ channelId, members, deals, onSendViaSocket, edit
 
   return (
     <div className="relative border-t border-gray-200 bg-white p-3">
-      {/* Editing indicator */}
       {editingMessage && (
         <div className="flex items-center gap-2 mb-2 px-2 py-1 bg-amber-50 rounded-lg text-sm">
           <Pencil className="w-3.5 h-3.5 text-amber-500" />
@@ -413,7 +604,6 @@ const MessageComposer = memo(({ channelId, members, deals, onSendViaSocket, edit
         </div>
       )}
 
-      {/* Mention autocomplete popup */}
       <MentionPopup
         items={filteredItems}
         type={mentionQuery?.type}
@@ -421,7 +611,6 @@ const MessageComposer = memo(({ channelId, members, deals, onSendViaSocket, edit
         position={0}
       />
 
-      {/* Input area */}
       <div className="flex items-end gap-2">
         <textarea
           ref={inputRef}
@@ -442,7 +631,10 @@ const MessageComposer = memo(({ channelId, members, deals, onSendViaSocket, edit
         </button>
       </div>
       <p className="text-[10px] text-gray-400 mt-1 px-1">
-        <kbd className="bg-gray-100 px-1 rounded text-[10px]">Enter</kbd> to send · <kbd className="bg-gray-100 px-1 rounded text-[10px]">Shift+Enter</kbd> for newline · <kbd className="bg-gray-100 px-1 rounded text-[10px]">@</kbd> mention · <kbd className="bg-gray-100 px-1 rounded text-[10px]">#</kbd> deal
+        <kbd className="bg-gray-100 px-1 rounded text-[10px]">Enter</kbd> to send ·{' '}
+        <kbd className="bg-gray-100 px-1 rounded text-[10px]">Shift+Enter</kbd> for newline ·{' '}
+        <kbd className="bg-gray-100 px-1 rounded text-[10px]">@</kbd> mention ·{' '}
+        <kbd className="bg-gray-100 px-1 rounded text-[10px]">#</kbd> deal
       </p>
     </div>
   );
@@ -459,30 +651,25 @@ const MessageList = memo(({ messages, currentEmpId, onEdit, onDelete, onReply, o
   const prevScrollHeightRef = useRef(0);
   const [autoScroll, setAutoScroll] = useState(true);
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (autoScroll && bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages.length, autoScroll]);
 
-  // Handle scroll for "load more" (scroll to top)
   const handleScroll = () => {
     const el = containerRef.current;
     if (!el) return;
 
-    // Near bottom → enable auto-scroll
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
     setAutoScroll(nearBottom);
 
-    // Near top → load more
     if (el.scrollTop < 60 && hasMore && !loading) {
       prevScrollHeightRef.current = el.scrollHeight;
       onLoadMore();
     }
   };
 
-  // Preserve scroll position after prepending older messages
   useEffect(() => {
     if (prevScrollHeightRef.current > 0 && containerRef.current) {
       const newHeight = containerRef.current.scrollHeight;
@@ -491,12 +678,13 @@ const MessageList = memo(({ messages, currentEmpId, onEdit, onDelete, onReply, o
     }
   }, [messages]);
 
-  // Group messages by date
   const grouped = useMemo(() => {
     const groups = [];
     let lastDate = '';
     for (const msg of messages) {
-      const date = new Date(msg.created_at).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+      const date = new Date(msg.created_at).toLocaleDateString(undefined, {
+        weekday: 'long', month: 'short', day: 'numeric',
+      });
       if (date !== lastDate) {
         groups.push({ type: 'date', date });
         lastDate = date;
@@ -510,7 +698,7 @@ const MessageList = memo(({ messages, currentEmpId, onEdit, onDelete, onReply, o
     <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
       {loading && (
         <div className="flex justify-center py-3">
-          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-sky-500"></div>
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-sky-500" />
         </div>
       )}
 
@@ -561,12 +749,16 @@ MessageList.displayName = 'MessageList';
 
 const ChannelHeader = memo(({ channel, memberCount, onMembersClick, onSearchClick }) => {
   if (!channel) return null;
+  const Icon = channel.channel_type === 'PRIVATE' ? Lock : Hash;
 
   return (
     <div className="h-14 border-b border-gray-200 bg-white flex items-center justify-between px-4">
       <div className="flex items-center gap-2">
-        <Hash className="w-5 h-5 text-gray-400" />
+        <Icon className="w-5 h-5 text-gray-400" />
         <h2 className="font-semibold text-gray-900">{channel.name}</h2>
+        {channel.channel_type === 'PRIVATE' && (
+          <span className="text-[10px] font-medium text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full border border-indigo-100">Private</span>
+        )}
         {channel.description && (
           <span className="text-sm text-gray-400 ml-2 hidden sm:inline">{channel.description}</span>
         )}
@@ -589,30 +781,95 @@ ChannelHeader.displayName = 'ChannelHeader';
    MEMBERS PANEL (slide-over)
 ===================================================== */
 
-const MembersPanel = memo(({ members, onClose }) => {
+const MembersPanel = memo(({ members, channelId, onClose, onInvited }) => {
+  const [showInvite, setShowInvite] = useState(false);
+
   return (
-    <div className="w-64 border-l border-gray-200 bg-white flex flex-col h-full">
-      <div className="p-3 border-b border-gray-200 flex items-center justify-between">
-        <h3 className="font-semibold text-sm text-gray-700">Members ({members.length})</h3>
-        <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded"><X className="w-4 h-4 text-gray-400" /></button>
-      </div>
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {members.map((m) => (
-          <div key={m.emp_id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold">
-              {m.name[0].toUpperCase()}
+    <>
+      <div className="w-64 border-l border-gray-200 bg-white flex flex-col h-full">
+        <div className="p-3 border-b border-gray-200 flex items-center justify-between">
+          <h3 className="font-semibold text-sm text-gray-700">Members ({members.length})</h3>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded"><X className="w-4 h-4 text-gray-400" /></button>
+        </div>
+
+        {/* Invite button */}
+        <div className="p-2 border-b border-gray-100">
+          <button
+            onClick={() => setShowInvite(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-sky-600 hover:bg-sky-50 rounded-lg transition-colors font-medium"
+          >
+            <UserPlus className="w-4 h-4" />
+            Invite People
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          {members.map((m) => (
+            <div key={m.emp_id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold">
+                {m.name[0].toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-800 truncate">{m.name}</p>
+                <p className="text-[11px] text-gray-400 truncate">{m.role} {m.department ? `· ${m.department}` : ''}</p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-800 truncate">{m.name}</p>
-              <p className="text-[11px] text-gray-400 truncate">{m.role} {m.department ? `· ${m.department}` : ''}</p>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
+
+      {showInvite && (
+        <InviteModal
+          channelId={channelId}
+          onClose={() => setShowInvite(false)}
+          onInvited={(result) => {
+            setShowInvite(false);
+            onInvited(result);
+          }}
+        />
+      )}
+    </>
   );
 });
 MembersPanel.displayName = 'MembersPanel';
+
+/* =====================================================
+   INVITE NOTIFICATION BANNER
+===================================================== */
+
+const InviteBanner = memo(({ invite, onDismiss, onJoin }) => (
+  <div className="fixed bottom-6 right-6 z-50 bg-white border border-sky-200 shadow-xl rounded-2xl p-4 max-w-sm animate-slide-in">
+    <div className="flex items-start gap-3">
+      <div className="w-9 h-9 bg-sky-100 rounded-full flex items-center justify-center flex-shrink-0">
+        <Bell className="w-4 h-4 text-sky-600" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-gray-900">You were invited to a channel</p>
+        <p className="text-xs text-gray-500 mt-0.5">
+          <span className="font-medium">{invite.inviterName}</span> added you to a channel
+        </p>
+      </div>
+      <button onClick={onDismiss} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+    <div className="flex gap-2 mt-3">
+      <button
+        onClick={onDismiss}
+        className="flex-1 px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+      >
+        Dismiss
+      </button>
+      <button
+        onClick={onJoin}
+        className="flex-1 px-3 py-1.5 text-xs bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition-colors font-medium"
+      >
+        View Channel
+      </button>
+    </div>
+  </div>
+));
+InviteBanner.displayName = 'InviteBanner';
 
 /* =====================================================
    MAIN DISCUSS COMPONENT
@@ -622,21 +879,20 @@ const DiscussView = () => {
   const { user } = useAuth();
   const { socket, connected, emit } = useSocket();
 
-  // State
   const [channels, setChannels] = useState([]);
   const [activeChannelId, setActiveChannelId] = useState(null);
   const [activeChannel, setActiveChannel] = useState(null);
   const [messages, setMessages] = useState([]);
   const [members, setMembers] = useState([]);
-  const [deals, setDeals] = useState([]); // for deal mentions
+  const [deals, setDeals] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
   const [editingMessage, setEditingMessage] = useState(null);
   const [typingUsers, setTypingUsers] = useState([]);
+  const [pendingInvite, setPendingInvite] = useState(null); // for toast notification
 
-  // Load channels on mount
   useEffect(() => {
     loadChannels();
     loadDeals();
@@ -646,7 +902,6 @@ const DiscussView = () => {
     try {
       const data = await discussService.getMyChannels();
       setChannels(data);
-      // Auto-select first channel if none selected
       if (data.length > 0 && !activeChannelId) {
         selectChannel(data[0].channel_id);
       }
@@ -657,19 +912,15 @@ const DiscussView = () => {
 
   const loadDeals = async () => {
     try {
-      // Try fetching company deals for mention autocomplete
       const { default: api } = await import('../../services/api');
       const { data } = await api.get('/deals/company/all');
       setDeals(Array.isArray(data) ? data : []);
     } catch {
-      // Deals endpoint may not return company-wide list — that's OK
       setDeals([]);
     }
   };
 
-  // Select a channel — load messages + members + join socket room
   const selectChannel = useCallback(async (channelId) => {
-    // Leave previous channel room
     if (activeChannelId && socket) {
       emit('channel:leave', activeChannelId);
     }
@@ -692,12 +943,10 @@ const DiscussView = () => {
       setMembers(membersData);
       setHasMore(messagesData.length >= 50);
 
-      // Join socket room
       if (socket) {
         emit('channel:join', channelId);
       }
 
-      // Mark as read
       discussService.markChannelRead(channelId).catch(() => {});
     } catch (err) {
       console.error('Failed to load channel:', err);
@@ -706,7 +955,6 @@ const DiscussView = () => {
     }
   }, [activeChannelId, socket, emit]);
 
-  // Load older messages (infinite scroll)
   const loadMore = useCallback(async () => {
     if (!activeChannelId || loading || !hasMore) return;
     const oldest = messages[0];
@@ -728,17 +976,14 @@ const DiscussView = () => {
      REAL-TIME EVENT HANDLERS
   --------------------------------------------------- */
 
-  // New message arrives
   const handleNewMessage = useCallback((msg) => {
     if (msg.channel_id === activeChannelId) {
       setMessages(prev => {
-        // Deduplicate by message_id
         if (prev.some(m => m.message_id === msg.message_id)) return prev;
         return [...prev, msg];
       });
     }
 
-    // Update unread count on other channels
     setChannels(prev =>
       prev.map(ch =>
         ch.channel_id === msg.channel_id && ch.channel_id !== activeChannelId
@@ -761,22 +1006,30 @@ const DiscussView = () => {
       if (prev.includes(empId)) return prev;
       return [...prev, empId];
     });
-    // Auto-clear after 3s
     setTimeout(() => {
       setTypingUsers(prev => prev.filter(id => id !== empId));
-    }, 3000);
+    }, 4000);
   }, []);
 
   const handleTypingStop = useCallback(({ empId }) => {
     setTypingUsers(prev => prev.filter(id => id !== empId));
   }, []);
 
-  // Subscribe to socket events
+  /**
+   * Handle being invited to a channel (received via personal room)
+   * Refreshes channel list and shows a toast notification
+   */
+  const handleMemberInvited = useCallback((payload) => {
+    loadChannels(); // Refresh channel list to include the new channel
+    setPendingInvite(payload); // Show invite banner
+  }, []);
+
   useSocketEvent('message:new', handleNewMessage);
   useSocketEvent('message:edited', handleEditedMessage);
   useSocketEvent('message:deleted', handleDeletedMessage);
   useSocketEvent('typing:start', handleTypingStart);
   useSocketEvent('typing:stop', handleTypingStop);
+  useSocketEvent('member:invited', handleMemberInvited);
 
   /* ---------------------------------------------------
      ACTION HANDLERS
@@ -791,15 +1044,27 @@ const DiscussView = () => {
   };
 
   const handleReply = (msg) => {
-    // For now, just quote-reply by prefixing content
-    // Thread support can be added later with parentMessageId
+    // Thread support placeholder
   };
 
   const handleChannelCreated = () => {
     loadChannels();
   };
 
-  // Clear unread when channel is active
+  /**
+   * Called after successfully inviting members via the InviteModal
+   * Refreshes member list for the current channel
+   */
+  const handleMembersInvited = async () => {
+    if (!activeChannelId) return;
+    try {
+      const updated = await discussService.getChannelMembers(activeChannelId);
+      setMembers(updated);
+    } catch (err) {
+      console.error('Failed to refresh members:', err);
+    }
+  };
+
   useEffect(() => {
     if (activeChannelId) {
       setChannels(prev => prev.map(ch =>
@@ -808,13 +1073,12 @@ const DiscussView = () => {
     }
   }, [activeChannelId]);
 
-  // Get typing indicator names
-  const typingNames = useMemo(() => {
-    return typingUsers
+  const typingNames = useMemo(() =>
+    typingUsers
       .filter(id => id !== user?.emp_id)
       .map(id => members.find(m => m.emp_id === id)?.name || 'Someone')
-      .slice(0, 3);
-  }, [typingUsers, members, user?.emp_id]);
+      .slice(0, 3),
+  [typingUsers, members, user?.emp_id]);
 
   return (
     <div className="flex h-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -848,7 +1112,6 @@ const DiscussView = () => {
               loading={loading}
             />
 
-            {/* Typing indicator */}
             {typingNames.length > 0 && (
               <div className="px-4 py-1 text-xs text-gray-400 italic">
                 {typingNames.join(', ')} {typingNames.length === 1 ? 'is' : 'are'} typing...
@@ -875,13 +1138,32 @@ const DiscussView = () => {
       </div>
 
       {/* Members Panel */}
-      {showMembers && <MembersPanel members={members} onClose={() => setShowMembers(false)} />}
+      {showMembers && (
+        <MembersPanel
+          members={members}
+          channelId={activeChannelId}
+          onClose={() => setShowMembers(false)}
+          onInvited={handleMembersInvited}
+        />
+      )}
 
       {/* Create Channel Modal */}
       {showCreateModal && (
         <CreateChannelModal
           onClose={() => setShowCreateModal(false)}
           onCreated={handleChannelCreated}
+        />
+      )}
+
+      {/* Invite notification banner */}
+      {pendingInvite && (
+        <InviteBanner
+          invite={pendingInvite}
+          onDismiss={() => setPendingInvite(null)}
+          onJoin={() => {
+            if (pendingInvite.channelId) selectChannel(pendingInvite.channelId);
+            setPendingInvite(null);
+          }}
         />
       )}
     </div>

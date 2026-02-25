@@ -392,8 +392,8 @@ export const getAutopilotStatus = async (empId) => {
   return {
     isActive: isActiveInMemory && rows[0].is_active === 1,
     intervalMinutes: rows[0].interval_minutes,
-    startedAt: rows[0].started_at,
-    stoppedAt: rows[0].stopped_at,
+    startedAt: rows[0].started_at ? new Date(rows[0].started_at).toISOString() : null,
+    stoppedAt: rows[0].stopped_at ? new Date(rows[0].stopped_at).toISOString() : null,
   };
 };
 
@@ -405,7 +405,13 @@ export const getAutopilotLog = async (empId, limit = 50) => {
     `SELECT * FROM autopilot_log WHERE emp_id = ? ORDER BY created_at DESC LIMIT ?`,
     [empId, limit]
   );
-  return rows;
+
+  // Serialize Date objects as ISO UTC strings for reliable frontend parsing
+  return rows.map((row) => ({
+    ...row,
+    created_at: row.created_at ? new Date(row.created_at).toISOString() : null,
+    reply_sent_at: row.reply_sent_at ? new Date(row.reply_sent_at).toISOString() : null,
+  }));
 };
 
 /**

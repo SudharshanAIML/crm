@@ -16,8 +16,8 @@ export const browseChannels = async () => {
   return data;
 };
 
-export const createChannel = async ({ name, description, isDefault = false }) => {
-  const { data } = await api.post('/discuss/channels', { name, description, isDefault });
+export const createChannel = async ({ name, description, isDefault = false, channelType = 'PUBLIC' }) => {
+  const { data } = await api.post('/discuss/channels', { name, description, isDefault, channelType });
   return data;
 };
 
@@ -55,6 +55,24 @@ export const getChannelMembers = async (channelId) => {
 
 export const markChannelRead = async (channelId) => {
   const { data } = await api.post(`/discuss/channels/${channelId}/read`);
+  return data;
+};
+
+/**
+ * Get employees in the same org who are not yet in this channel
+ */
+export const getInvitableEmployees = async (channelId) => {
+  const { data } = await api.get(`/discuss/channels/${channelId}/invitable`);
+  return data;
+};
+
+/**
+ * Invite one or more employees to a channel by emp_id
+ * @param {number} channelId
+ * @param {number[]} empIds
+ */
+export const inviteToChannel = async (channelId, empIds) => {
+  const { data } = await api.post(`/discuss/channels/${channelId}/invite`, { empIds });
   return data;
 };
 

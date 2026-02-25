@@ -10,7 +10,6 @@ const MAX_MESSAGE_LENGTH = 4000;
 
 const sanitiseText = (text) => {
   if (!text) return text;
-  // Strip any HTML tags to prevent XSS stored in DB
   return text.replace(/<[^>]*>/g, "").trim();
 };
 
@@ -24,17 +23,10 @@ const validateChannelName = (name) => {
 
 /* =====================================================
    MENTION PARSER — extracts @emp:ID and #deal:ID from content
-   Syntax in message content:
-     @[Name](emp:42)   → employee mention
-     #[Deal Name](deal:7) → deal mention
 ===================================================== */
 
 const MENTION_REGEX = /(?:@\[([^\]]*)\]\(emp:(\d+)\))|(?:#\[([^\]]*)\]\(deal:(\d+)\))/g;
 
-/**
- * Parse mentions from raw message content
- * @returns {{ type: 'EMPLOYEE'|'DEAL', refId: number }[]}
- */
 export const parseMentions = (content) => {
   const mentions = [];
   const seen = new Set();
@@ -64,11 +56,12 @@ export const parseMentions = (content) => {
    CHANNEL SERVICES
 ===================================================== */
 
-export const createChannel = async (companyId, empId, { name, description, isDefault }) => {
+export const createChannel = async (companyId, empId, { name, description, isDefault, channelType }) => {
   const cleanName = validateChannelName(name);
   const cleanDesc = description ? sanitiseText(description).slice(0, MAX_DESCRIPTION) : null;
-  const channelId = await repo.createChannel(companyId, cleanName, cleanDesc, !!isDefault, empId);
-  return { channelId, name: cleanName };
+  const type = channelType === 'PRIVATE' ? 'PRIVATE' : 'PUBLIC';
+  const channelId = await repo.createChannel(companyId, cleanName, cleanDesc, !!isDefault, type, empId);
+  return { channelId, name: cleanName, channelType: type };
 };
 
 export const getMyChannels = async (companyId, empId) => {
@@ -88,7 +81,6 @@ export const getChannel = async (channelId, empId) => {
 export const updateChannel = async (channelId, empId, { name, description }) => {
   const channel = await repo.getChannelById(channelId, empId);
   if (!channel) throw new Error("Channel not found");
-  // Only creator or admin can update (handled in controller via role check)
   const cleanName = name ? validateChannelName(name) : channel.name;
   const cleanDesc = description !== undefined ? sanitiseText(description)?.slice(0, MAX_DESCRIPTION) : channel.description;
   await repo.updateChannel(channelId, cleanName, cleanDesc);
@@ -105,7 +97,12 @@ export const deleteChannel = async (channelId, empId) => {
    MEMBER SERVICES
 ===================================================== */
 
-export const joinChannel = async (channelId, empId) => {
+export const joinChannel = async (channelId, empId, companyId) => {
+  // Verify the channel belongs to the employee's org (org-isolation check)
+  const channel = await repo.getChannelById(channelId, empId);
+  if (!channel) throw new Error("Channel not found");
+  if (channel.company_id !== companyId) throw new Error("Access denied");
+  if (channel.channel_type === 'PRIVATE') throw new Error("This is a private channel. Ask a member to invite you.");
   await repo.addMember(channelId, empId);
 };
 
@@ -123,14 +120,53 @@ export const markRead = async (channelId, empId) => {
   await repo.updateLastRead(channelId, empId);
 };
 
+/**
+ * Get employees in the same org who are not yet channel members (for invite modal)
+ */
+export const getInvitableEmployees = async (channelId, companyId) => {
+  return repo.getCompanyEmployeesNotInChannel(companyId, channelId);
+};
+
+/**
+ * Invite multiple company employees to a channel
+ * Enforces org-isolation: all invitees must belong to inviter's company
+ * @param {number} channelId
+ * @param {number} inviterEmpId
+ * @param {number} inviterCompanyId
+ * @param {number[]} targetEmpIds
+ */
+export const inviteMembers = async (channelId, inviterEmpId, inviterCompanyId, targetEmpIds) => {
+  if (!Array.isArray(targetEmpIds) || targetEmpIds.length === 0) {
+    throw new Error("No employees selected to invite");
+  }
+  if (targetEmpIds.length > 50) throw new Error("Cannot invite more than 50 people at once");
+
+  // Verify channel belongs to inviter's org
+  const channel = await repo.getChannelById(channelId, inviterEmpId);
+  if (!channel) throw new Error("Channel not found");
+  if (channel.company_id !== inviterCompanyId) throw new Error("Access denied");
+
+  // Org-isolation: fetch only org employees with matching IDs to prevent cross-org invitations
+  const eligible = await repo.getCompanyEmployeesNotInChannel(inviterCompanyId, channelId);
+  const eligibleIds = new Set(eligible.map(e => e.emp_id));
+
+  // Filter to only valid (same-org, not-yet-member) IDs
+  const validIds = targetEmpIds.filter(id => eligibleIds.has(id));
+  if (validIds.length === 0) throw new Error("Selected employees are already members or not in your organization");
+
+  // Add members + record invitations atomically
+  await repo.bulkAddMembers(channelId, validIds);
+  await repo.createInvitations(channelId, inviterEmpId, validIds);
+  await repo.acceptInvitations(channelId, validIds);
+
+  // Return enriched objects for socket notifications
+  return eligible.filter(e => validIds.includes(e.emp_id));
+};
+
 /* =====================================================
    MESSAGE SERVICES
 ===================================================== */
 
-/**
- * Send a message — creates message row + mention rows
- * Returns the full enriched message object for real-time broadcast
- */
 export const sendMessage = async (channelId, empId, { content, parentMessageId }) => {
   if (!content || typeof content !== "string") throw new Error("Message content is required");
 
@@ -138,34 +174,25 @@ export const sendMessage = async (channelId, empId, { content, parentMessageId }
   if (clean.length === 0) throw new Error("Message cannot be empty");
   if (clean.length > MAX_MESSAGE_LENGTH) throw new Error(`Message max ${MAX_MESSAGE_LENGTH} chars`);
 
-  // Verify sender is a member
   const member = await repo.isMember(channelId, empId);
   if (!member) throw new Error("You must be a channel member to send messages");
 
-  // Create message
   const messageId = await repo.createMessage(channelId, empId, clean, parentMessageId);
 
-  // Parse & store mentions
   const mentions = parseMentions(clean);
   if (mentions.length > 0) {
     await repo.createMentions(messageId, mentions);
   }
 
-  // Fetch the full message to return
   const message = await repo.getMessageById(messageId);
   message.mentions = mentions;
 
-  // Update sender's last_read cursor automatically
   await repo.updateLastRead(channelId, empId);
 
   return message;
 };
 
-/**
- * Fetch paginated messages (cursor-based)
- */
 export const getMessages = async (channelId, empId, { limit = 50, before = null }) => {
-  // Verify membership
   const member = await repo.isMember(channelId, empId);
   if (!member) throw new Error("Not a member of this channel");
 
@@ -184,9 +211,7 @@ export const editMessage = async (messageId, empId, content) => {
 
   await repo.editMessage(messageId, clean);
 
-  // Re-parse mentions (delete old, insert new)
   const mentions = parseMentions(clean);
-
   const updated = await repo.getMessageById(messageId);
   updated.mentions = mentions;
   return updated;
@@ -195,7 +220,6 @@ export const editMessage = async (messageId, empId, content) => {
 export const deleteMessage = async (messageId, empId, role) => {
   const msg = await repo.getMessageById(messageId);
   if (!msg) throw new Error("Message not found");
-  // Only the sender or an admin can delete
   if (msg.sender_emp_id !== empId && role !== "ADMIN") {
     throw new Error("You can only delete your own messages");
   }
@@ -217,6 +241,5 @@ export const getMyMentions = async (empId) => {
 export const searchMessages = async (companyId, empId, query) => {
   if (!query || query.trim().length < 2) throw new Error("Search query too short");
   const clean = sanitiseText(query).slice(0, 100);
-  // Use LIKE-based search (safe fallback, no FULLTEXT index needed)
   return repo.searchMessagesLike(companyId, empId, clean);
 };

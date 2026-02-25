@@ -645,7 +645,7 @@ const CalendarView = ({ isAdmin = false }) => {
             <p className="text-gray-500">Manage your tasks, calls, and follow-ups</p>
             {lastUpdated && (
               <span className="text-xs text-gray-400">
-                • Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                • Updated {lastUpdated.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })}
               </span>
             )}
           </div>

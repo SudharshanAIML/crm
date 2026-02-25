@@ -1,4 +1,5 @@
 import * as discussService from "./discuss.service.js";
+import { getIO } from "../../services/socket.service.js";
 
 /* =====================================================
    CHANNEL CONTROLLERS
@@ -63,7 +64,11 @@ export const deleteChannel = async (req, res, next) => {
 
 export const joinChannel = async (req, res, next) => {
   try {
-    await discussService.joinChannel(parseInt(req.params.channelId), req.user.empId);
+    await discussService.joinChannel(
+      parseInt(req.params.channelId),
+      req.user.empId,
+      req.user.companyId
+    );
     res.json({ message: "Joined channel" });
   } catch (error) { next(error); }
 };
@@ -86,6 +91,60 @@ export const markRead = async (req, res, next) => {
   try {
     await discussService.markRead(parseInt(req.params.channelId), req.user.empId);
     res.json({ message: "Read cursor updated" });
+  } catch (error) { next(error); }
+};
+
+/**
+ * GET /channels/:channelId/invitable
+ * Returns company employees who are not yet channel members
+ */
+export const getInvitableEmployees = async (req, res, next) => {
+  try {
+    const employees = await discussService.getInvitableEmployees(
+      parseInt(req.params.channelId),
+      req.user.companyId
+    );
+    res.json(employees);
+  } catch (error) { next(error); }
+};
+
+/**
+ * POST /channels/:channelId/invite
+ * Body: { empIds: number[] }
+ * Adds employees to channel (org-isolated) and sends real-time notification
+ */
+export const inviteMembers = async (req, res, next) => {
+  try {
+    const channelId = parseInt(req.params.channelId);
+    const { empIds } = req.body;
+
+    const addedEmployees = await discussService.inviteMembers(
+      channelId,
+      req.user.empId,
+      req.user.companyId,
+      (empIds || []).map(Number)
+    );
+
+    // Real-time: notify each invited employee via their personal room in the org namespace
+    const io = getIO();
+    if (io && addedEmployees.length > 0) {
+      // Fetch minimal channel info to include in the notification
+      const channelInfo = { channelId, inviterName: req.user.name || "A teammate" };
+
+      addedEmployees.forEach(emp => {
+        io.of(`/org/${req.user.companyId}`)
+          .to(`user:${emp.emp_id}`)
+          .emit("member:invited", {
+            channelId,
+            inviterName: channelInfo.inviterName,
+          });
+      });
+    }
+
+    res.json({
+      message: `${addedEmployees.length} employee(s) added to channel`,
+      added: addedEmployees,
+    });
   } catch (error) { next(error); }
 };
 

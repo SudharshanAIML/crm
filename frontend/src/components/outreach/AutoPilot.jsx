@@ -127,7 +127,7 @@ const AutoPilot = () => {
               </p>
               {isActive && status.startedAt && (
                 <p className="text-xs text-green-600 mt-1">
-                  Started: {new Date(status.startedAt).toLocaleString()}
+                  Started: {new Date(status.startedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
                 </p>
               )}
             </div>
@@ -316,7 +316,7 @@ const AutoPilot = () => {
                       {entry.reply_sent ? 'Replied' : entry.needs_reply ? 'Pending' : 'Skipped'}
                     </span>
                     <p className="text-xs text-gray-400 mt-1">
-                      {new Date(entry.created_at).toLocaleTimeString()}
+                      {new Date(entry.created_at).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })}
                     </p>
                   </div>
                 </div>

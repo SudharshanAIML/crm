@@ -11,3 +11,4 @@ backend/db/migrations/alter_sessions_stage.sql
 dist/
 *.json
 backend/db/migrations/*.js
+crm_comparative_analysis.md
