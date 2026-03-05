@@ -608,8 +608,8 @@ const CalendarView = ({ isAdmin = false }) => {
         return task.due_date >= todayStr && task.due_date <= weekEndStr;
       });
     } else if (focusMode === "availabilities") {
-      // Show today's tasks for availability view
-      filtered = todaysTasks;
+      // Show tasks for the selected date in availability view
+      filtered = getTasksForDate(selectedDate);
     } else {
       filtered = getTasksForDate(selectedDate);
     }
@@ -854,7 +854,7 @@ const CalendarView = ({ isAdmin = false }) => {
                   key={index}
                   onClick={() => {
                     setSelectedDate(day.date);
-                    setFocusMode(null);
+                    if (focusMode !== 'availabilities') setFocusMode(null);
                   }}
                   className={`
                     relative p-2 min-h-[70px] rounded-lg text-left transition-all
@@ -918,7 +918,7 @@ const CalendarView = ({ isAdmin = false }) => {
                 : focusMode === "week"
                 ? "This Week"
                 : focusMode === "availabilities"
-                ? "Today's Availabilities"
+                ? `${selectedDate.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })} — Availability`
                 : selectedDate.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
             </h3>
             
@@ -949,7 +949,16 @@ const CalendarView = ({ isAdmin = false }) => {
 
           {/* Task List */}
           <div className="space-y-2 max-h-[500px] overflow-y-auto">
-            {displayTasks.length === 0 ? (
+            {focusMode === "availabilities" ? (
+              // Availability View - Visual timeline with busy slots
+              <AvailabilityTimeline 
+                tasks={displayTasks} 
+                formatTime={formatTime}
+                calculateEndTime={calculateEndTime}
+                themeColors={themeColors}
+                selectedDate={selectedDate}
+              />
+            ) : displayTasks.length === 0 ? (
               <div className="text-center py-8">
                 <CalendarIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500 text-sm">No tasks scheduled</p>
@@ -960,14 +969,6 @@ const CalendarView = ({ isAdmin = false }) => {
                   + Add a task
                 </button>
               </div>
-            ) : focusMode === "availabilities" ? (
-              // Availability View - Visual timeline with busy slots
-              <AvailabilityTimeline 
-                tasks={displayTasks} 
-                formatTime={formatTime}
-                calculateEndTime={calculateEndTime}
-                themeColors={themeColors}
-              />
             ) : (
               displayTasks.map((task) => (
                 <TaskCard
@@ -1020,7 +1021,11 @@ const CalendarView = ({ isAdmin = false }) => {
 // =============================================================================
 // AVAILABILITY TIMELINE - Visual representation of free/busy time slots
 // =============================================================================
-function AvailabilityTimeline({ tasks, formatTime, calculateEndTime, themeColors }) {
+function AvailabilityTimeline({ tasks, formatTime, calculateEndTime, themeColors, selectedDate }) {
+  const isToday = selectedDate && new Date().toDateString() === selectedDate.toDateString();
+  const dateLabel = selectedDate
+    ? selectedDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+    : 'Today';
   // Working hours: 8 AM to 8 PM (12 hours)
   const START_HOUR = 8;
   const END_HOUR = 20;
@@ -1127,7 +1132,7 @@ function AvailabilityTimeline({ tasks, formatTime, calculateEndTime, themeColors
           <div className="text-2xl font-bold text-emerald-600">
             {Math.floor(totalFreeMinutes / 60)}h {totalFreeMinutes % 60}m
           </div>
-          <div className="text-xs text-emerald-600 font-medium">Available Today</div>
+          <div className="text-xs text-emerald-600 font-medium">Available {isToday ? 'Today' : dateLabel}</div>
         </div>
         <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center">
           <div className="text-2xl font-bold text-purple-600">
@@ -1148,7 +1153,7 @@ function AvailabilityTimeline({ tasks, formatTime, calculateEndTime, themeColors
       {/* Visual Timeline */}
       <div className="relative bg-gray-50 rounded-xl p-4 border border-gray-200 overflow-hidden">
         <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-          Today's Schedule
+          {isToday ? "Today's" : dateLabel} Schedule
         </h4>
         
         <div className="flex gap-3">
@@ -1231,7 +1236,8 @@ function AvailabilityTimeline({ tasks, formatTime, calculateEndTime, themeColors
             })}
 
             {/* Current time indicator */}
-            {(() => {
+            {/* Current time indicator - only shown for today */}
+            {isToday && (() => {
               const now = new Date();
               const currentMinutes = now.getHours() * 60 + now.getMinutes();
               const workStartMinutes = START_HOUR * 60;
@@ -1264,7 +1270,7 @@ function AvailabilityTimeline({ tasks, formatTime, calculateEndTime, themeColors
         
         {freeSlots.length === 0 ? (
           <div className="text-sm text-gray-500 py-3 text-center bg-gray-50 rounded-lg">
-            No free slots available today
+            No free slots available {isToday ? 'today' : 'on this day'}
           </div>
         ) : (
           <div className="grid gap-2">
