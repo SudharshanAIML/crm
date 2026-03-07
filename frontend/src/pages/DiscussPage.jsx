@@ -7,9 +7,12 @@ import DiscussView from '../components/discuss/DiscussView';
  */
 const DiscussPage = () => {
   return (
-    <div className="h-[calc(100vh-4rem)] -m-4 md:-m-6">
-      <DiscussView />
-    </div>
+    <AudioCallProvider>
+      <div className="h-full -m-4 lg:-m-6">
+        <DiscussView />
+      </div>
+      <CallOverlay />
+    </AudioCallProvider>
   );
 };
 

@@ -1668,7 +1668,7 @@ const DiscussView = () => {
   [typingUsers, members, user?.emp_id]);
 
   return (
-    <div className="flex h-full bg-white overflow-hidden">
+    <div className="flex h-full bg-white overflow-hidden border-t border-gray-200">
       {/* Channel Sidebar */}
       <ChannelList
         channels={channels}
