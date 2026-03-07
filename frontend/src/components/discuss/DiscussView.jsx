@@ -1143,12 +1143,52 @@ const MessageList = memo(({ messages, currentEmpId, channelId, channelName, onEd
   const containerRef = useRef(null);
   const prevScrollHeightRef = useRef(0);
   const [autoScroll, setAutoScroll] = useState(true);
+  const autoScrollRef = useRef(true); // stable ref for use inside effects
+  const lastMsgIdRef = useRef(null);  // tracks last seen message_id for new-append detection
+  const [unreadCount, setUnreadCount] = useState(0);
 
+  // Keep ref in sync with state (avoids stale closures in effects)
+  useEffect(() => { autoScrollRef.current = autoScroll; }, [autoScroll]);
+
+  // Auto-scroll to bottom when new messages arrive and user is already at the bottom
   useEffect(() => {
     if (autoScroll && bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages.length, autoScroll]);
+
+  // Detect genuine real-time appends and increment unread counter when scrolled up.
+  // Uses auto-increment message_id: a new real message always has a higher ID than the
+  // previous last, so this cleanly excludes loadMore (prepend) and jump/replace (historical).
+  useEffect(() => {
+    if (!messages.length) {
+      lastMsgIdRef.current = null;
+      return;
+    }
+    const lastMsg = messages[messages.length - 1];
+    const prevLastId = lastMsgIdRef.current;
+    lastMsgIdRef.current = lastMsg.message_id;
+
+    if (
+      prevLastId !== null &&           // skip initial load
+      !lastMsg.isCallEvent &&          // skip synthetic call events
+      lastMsg.message_id > prevLastId  // true append — message IDs are auto-increment
+    ) {
+      if (!autoScrollRef.current) {
+        setUnreadCount(prev => prev + 1);
+      }
+    }
+  }, [messages]);
+
+  // Clear unread badge when user scrolls near the bottom
+  useEffect(() => {
+    if (autoScroll) setUnreadCount(0);
+  }, [autoScroll]);
+
+  // Clear unread badge when user explicitly jumps to a message
+  useEffect(() => {
+    if (highlightedMessageId) setUnreadCount(0);
+  }, [highlightedMessageId]);
 
   // Scroll highlighted message into view whenever it changes
   useEffect(() => {
@@ -1156,6 +1196,11 @@ const MessageList = memo(({ messages, currentEmpId, channelId, channelName, onEd
     const el = containerRef.current.querySelector(`[data-message-id="${highlightedMessageId}"]`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [highlightedMessageId, messages]);
+
+  const scrollToBottom = useCallback(() => {
+    setUnreadCount(0);
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
 
   const handleScroll = () => {
     const el = containerRef.current;
@@ -1254,6 +1299,19 @@ const MessageList = memo(({ messages, currentEmpId, channelId, channelName, onEd
       )}
 
       <div ref={bottomRef} />
+
+      {/* ↓ Unread-messages sticky banner — shown when user is scrolled up and new messages arrive */}
+      {unreadCount > 0 && (
+        <div className="sticky bottom-3 flex justify-center z-10 pointer-events-none">
+          <button
+            onClick={scrollToBottom}
+            className="pointer-events-auto flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold px-3.5 py-1.5 rounded-full shadow-lg transition-all duration-150 animate-bounce-subtle"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+            {unreadCount} new message{unreadCount !== 1 ? 's' : ''}
+          </button>
+        </div>
+      )}
     </div>
   );
 });

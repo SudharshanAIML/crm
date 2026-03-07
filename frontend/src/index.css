@@ -149,3 +149,12 @@
 .animate-call-ripple-3 {
   animation: call-ripple 2s ease-out 1s infinite;
 }
+/* Subtle bounce for the unread-messages banner */
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-4px); }
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 1.4s ease-in-out 3; /* bounces 3 times then stops */
+}
