@@ -50,6 +50,10 @@ const DiscussPage = lazy(() => import('./pages/DiscussPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const FollowupsPage = lazy(() => import('./pages/FollowupsPage'));
 
+// Automations
+const AutomationsPage = lazy(() => import('./pages/AutomationsPage'));
+const AutomationBuilderPage = lazy(() => import('./pages/AutomationBuilderPage'));
+
 // ============================================================================
 // ERROR BOUNDARY - Graceful error handling for lazy loaded components
 // ============================================================================
@@ -295,6 +299,11 @@ function App() {
                           
                           {/* Discuss (Team Chat) */}
                           <Route path="/discuss" element={<NestedSuspense><DiscussPage /></NestedSuspense>} />
+
+                          {/* Automations */}
+                          <Route path="/automations" element={<NestedSuspense><AutomationsPage /></NestedSuspense>} />
+                          <Route path="/automations/new" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
+                          <Route path="/automations/:id/edit" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
                         </Route>
 
                         {/* ===== ADMIN DASHBOARD ROUTES ===== */}
@@ -333,6 +342,11 @@ function App() {
                           
                           {/* Discuss (Team Chat) - Admin */}
                           <Route path="discuss" element={<NestedSuspense><DiscussPage /></NestedSuspense>} />
+
+                          {/* Automations - Admin */}
+                          <Route path="automations" element={<NestedSuspense><AutomationsPage /></NestedSuspense>} />
+                          <Route path="automations/new" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
+                          <Route path="automations/:id/edit" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
                           
                           {/* Settings */}
                           <Route path="settings" element={<NestedSuspense><SettingsPage /></NestedSuspense>} />

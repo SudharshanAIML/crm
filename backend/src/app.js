@@ -42,6 +42,7 @@ import appointmentRoutes from "./modules/appointments/appointment.routes.js";
 import notificationRoutes from "./modules/notifications/notification.routes.js";
 import discussRoutes from "./modules/discuss/discuss.routes.js";
 import callRoutes from "./modules/calls/call.routes.js";
+import automationRoutes from "./modules/automations/automation.routes.js";
 
 // Initialize Express app
 const app = express();
@@ -270,6 +271,9 @@ app.use("/api/discuss", discussRoutes);
 // Call/Twilio routes
 app.use("/api/calls", callRoutes);
 
+// Automation engine routes
+app.use("/api/automations", automationRoutes);
+
 /* =====================================================
    404 HANDLER
 ===================================================== */
@@ -294,6 +298,7 @@ app.use(errorHandler);
 import * as emailQueue from "./services/emailQueue.service.js";
 import { restoreAutopilotSessions } from "./modules/outreach/autopilot.service.js";
 import { initSocketIO } from "./services/socket.service.js";
+import { initAutomationEngine } from "./modules/automations/automation.engine.js";
 
 /* =====================================================
    GRACEFUL SHUTDOWN
@@ -330,6 +335,9 @@ const httpServer = createServer(app);
 
 // Attach Socket.IO to the HTTP server (real-time chat)
 initSocketIO(httpServer);
+
+// Start automation engine (subscribe to CRM events)
+initAutomationEngine();
 
 const server = httpServer.listen(PORT, HOST, async () => {
   console.log(`

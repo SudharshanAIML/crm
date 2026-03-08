@@ -7,6 +7,7 @@ import * as gmailService from "../../services/gmail.service.js";
 import * as googleOAuth from "../../services/googleOAuth.service.js";
 import * as emailQueue from "../../services/emailQueue.service.js";
 import { sendMail } from "../../config/email.js";
+import eventBus, { CRM_EVENTS } from "../../services/eventBus.service.js";
 
 /* ---------------------------------------------------
    GENERATE PROFESSIONAL EMAIL TEMPLATE
@@ -231,6 +232,18 @@ export const trackEmailClick = async (token) => {
 
   // Mark email as clicked
   await emailRepo.markClicked(email.email_id);
+
+  // Emit automation events
+  eventBus.emitCRM(CRM_EVENTS.EMAIL_CLICKED, {
+    companyId: email.company_id || 1,
+    entityId: email.contact_id,
+    data: { contact_id: email.contact_id, email_id: email.email_id },
+  });
+  eventBus.emitCRM(CRM_EVENTS.EMAIL_OPENED, {
+    companyId: email.company_id || 1,
+    entityId: email.contact_id,
+    data: { contact_id: email.contact_id, email_id: email.email_id },
+  });
 
   return {
     contactId: email.contact_id,

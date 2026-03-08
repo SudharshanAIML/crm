@@ -1,5 +1,6 @@
 import * as sessionRepo from "./session.repo.js";
 import * as contactRepo from "../contacts/contact.repo.js";
+import eventBus, { CRM_EVENTS } from "../../services/eventBus.service.js";
 
 /* ---------------------------------------------------
    HELPER: Calculate temperature based on average rating

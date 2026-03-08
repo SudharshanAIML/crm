@@ -5,6 +5,7 @@ import {
   RATING_LIMITS,
   THRESHOLDS,
 } from "../../utils/constants.js";
+import eventBus, { CRM_EVENTS } from "../../services/eventBus.service.js";
 
 /* ---------------------------------------------------
    SUBMIT FEEDBACK
@@ -42,6 +43,13 @@ export const submitFeedback = async ({
     contact_id: contactId,
     rating,
     comment,
+  });
+
+  // Emit automation event
+  eventBus.emitCRM(CRM_EVENTS.FEEDBACK_SUBMITTED, {
+    companyId: contact.company_id,
+    entityId: contactId,
+    data: { contact_id: contactId, rating, comment, status: contact.status, name: contact.name, email: contact.email, assigned_emp_id: contact.assigned_emp_id },
   });
 
   // Check for evangelist eligibility

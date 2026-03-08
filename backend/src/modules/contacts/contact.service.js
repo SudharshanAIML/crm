@@ -5,6 +5,7 @@ import * as opportunityRepo from "../opportunities/opportunity.repo.js";
 import * as dealRepo from "../deals/deal.repo.js";
 import * as feedbackRepo from "../feedback/feedback.repo.js";
 import { sendLeadEmail } from "../emails/email.service.js";
+import eventBus, { CRM_EVENTS } from "../../services/eventBus.service.js";
 
 /* ---------------------------------------------------
    HELPER: UPDATE CONTACT TEMPERATURE BASED ON RATING
@@ -50,6 +51,14 @@ export const createLead = async (data) => {
     companyId: data.company_id || null,
   });
 
+  // Emit automation event
+  eventBus.emitCRM(CRM_EVENTS.CONTACT_CREATED, {
+    companyId: data.company_id,
+    entityId: contactId,
+    empId: data.assigned_emp_id || null,
+    data: { ...data, contact_id: contactId, status },
+  });
+
   return contactId;
 };
 
@@ -64,7 +73,16 @@ export const getContactById = async (id) => {
    UPDATE CONTACT
 --------------------------------------------------- */
 export const updateContact = async (contactId, updates) => {
-  return await contactRepo.updateContact(contactId, updates);
+  const before = await contactRepo.getById(contactId);
+  await contactRepo.updateContact(contactId, updates);
+  if (before) {
+    eventBus.emitCRM(CRM_EVENTS.CONTACT_UPDATED, {
+      companyId: before.company_id,
+      entityId: contactId,
+      empId: before.assigned_emp_id,
+      data: { ...before, ...updates, contact_id: contactId },
+    });
+  }
 };
 
 /* ---------------------------------------------------
@@ -129,6 +147,11 @@ export const processLeadActivity = async ({ contactId, token }) => {
       "MQL",
       null // system
     );
+    eventBus.emitCRM(CRM_EVENTS.CONTACT_STATUS_CHANGED, {
+      companyId: contact.company_id,
+      entityId: contactId,
+      data: { ...contact, contact_id: contactId, status: "MQL", previous_status: "LEAD" },
+    });
   }
 };
 
@@ -153,6 +176,12 @@ export const promoteToMQL = async (contactId, empId) => {
     "MQL",
     empId
   );
+  eventBus.emitCRM(CRM_EVENTS.CONTACT_STATUS_CHANGED, {
+    companyId: contact.company_id,
+    entityId: contactId,
+    empId,
+    data: { ...contact, contact_id: contactId, status: "MQL", previous_status: "LEAD" },
+  });
 };
 
 /* ---------------------------------------------------
@@ -181,6 +210,12 @@ export const promoteToSQL = async (contactId, empId) => {
     "SQL",
     empId
   );
+  eventBus.emitCRM(CRM_EVENTS.CONTACT_STATUS_CHANGED, {
+    companyId: contact.company_id,
+    entityId: contactId,
+    empId,
+    data: { ...contact, contact_id: contactId, status: "SQL", previous_status: "MQL" },
+  });
 };
 
 /* ---------------------------------------------------
@@ -210,6 +245,12 @@ export const convertToOpportunity = async (
     "OPPORTUNITY",
     empId
   );
+  eventBus.emitCRM(CRM_EVENTS.CONTACT_STATUS_CHANGED, {
+    companyId: contact.company_id,
+    entityId: contactId,
+    empId,
+    data: { ...contact, contact_id: contactId, status: "OPPORTUNITY", previous_status: "SQL", expected_value: expectedValue },
+  });
 };
 
 /* ---------------------------------------------------
@@ -243,6 +284,19 @@ export const closeDeal = async (contactId, empId, dealValue, productName = null)
     "CUSTOMER",
     empId
   );
+  const closedContact = await contactRepo.getById(contactId);
+  eventBus.emitCRM(CRM_EVENTS.DEAL_WON, {
+    companyId: closedContact?.company_id,
+    entityId: contactId,
+    empId,
+    data: { ...closedContact, contact_id: contactId, status: "CUSTOMER", deal_value: dealValue, previous_status: "OPPORTUNITY" },
+  });
+  eventBus.emitCRM(CRM_EVENTS.CONTACT_STATUS_CHANGED, {
+    companyId: closedContact?.company_id,
+    entityId: contactId,
+    empId,
+    data: { ...closedContact, contact_id: contactId, status: "CUSTOMER", previous_status: "OPPORTUNITY" },
+  });
 };
 
 /* ---------------------------------------------------
@@ -269,6 +323,11 @@ export const convertToEvangelist = async (contactId) => {
     "EVANGELIST",
     null // system
   );
+  eventBus.emitCRM(CRM_EVENTS.CONTACT_STATUS_CHANGED, {
+    companyId: contact.company_id,
+    entityId: contactId,
+    data: { ...contact, contact_id: contactId, status: "EVANGELIST", previous_status: "CUSTOMER" },
+  });
 };
 
 /* ---------------------------------------------------
@@ -336,6 +395,12 @@ export const moveToDormant = async (contactId, empId, reason = null) => {
     "DORMANT",
     empId
   );
+  eventBus.emitCRM(CRM_EVENTS.CONTACT_STATUS_CHANGED, {
+    companyId: contact.company_id,
+    entityId: contactId,
+    empId,
+    data: { ...contact, contact_id: contactId, status: "DORMANT", previous_status: previousStatus },
+  });
 };
 
 // ----------- Bulk CSV utilities ----------
