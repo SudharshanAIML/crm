@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Hash, Lock, Plus, Search, Users, X, Send, Pencil, Trash2,
   MessageSquare, AtSign, ChevronDown, UserPlus, Check, Bell,
   Paperclip, Mic, MicOff, FileDown, Music, Image as ImageIcon,
-  Phone, Pin
+  Phone, Pin, Smile, MoreHorizontal
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket, useSocketEvent } from '../../context/SocketContext';
@@ -545,9 +546,54 @@ const AVATAR_COLORS = {
   default: 'bg-gradient-to-br from-sky-400 to-indigo-500',
 };
 
-const MessageBubble = memo(({ message, isOwn, onEdit, onDelete, onReply, hideReplyBtn = false, highlighted = false, isPinned = false, onPin }) => {
+/** Emoji reactions whitelist — must mirror ALLOWED_EMOJIS in discuss.service.js */
+const EMOJI_OPTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙌'];
+
+/**
+ * Renders children into document.body via a portal with position:fixed.
+ * `anchorRect`  — DOMRect of the trigger button (from getBoundingClientRect()).
+ * `alignRight`  — when true, right-aligns the popover to the button's right edge.
+ * This escapes any overflow:hidden / overflow:auto ancestor clipping.
+ */
+const FloatingPortal = ({ children, anchorRect, alignRight = false }) => {
+  if (!anchorRect) return null;
+  const style = {
+    position: 'fixed',
+    zIndex: 9999,
+    bottom: window.innerHeight - anchorRect.top + 6,
+    ...(alignRight
+      ? { right: window.innerWidth - anchorRect.right }
+      : { left: anchorRect.left }),
+  };
+  return createPortal(<div style={style}>{children}</div>, document.body);
+};
+
+const MessageBubble = memo(({ message, isOwn, onEdit, onDelete, onReply, hideReplyBtn = false, highlighted = false, isPinned = false, onPin, reactions = [], onReact, currentEmpId }) => {
   const [showActions, setShowActions] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
+  // Anchor rects drive both visibility AND portal positioning for the two popovers.
+  // Storing DOMRect (measured at click time) instead of a boolean lets FloatingPortal
+  // paint them at position:fixed, escaping the overflow-y-auto scroll container.
+  const [emojiAnchorRect, setEmojiAnchorRect] = useState(null);
+  const [menuAnchorRect, setMenuAnchorRect] = useState(null);
+  const smileBtnRef = useRef(null);
+  const menuBtnRef = useRef(null);
+  // Derived booleans for button active-state styling
+  const showEmojiPicker = !!emojiAnchorRect;
+  const showMenu = !!menuAnchorRect;
+  // Delay-hide timer: keeps popovers alive while mouse moves from button into portal.
+  const hideTimerRef = useRef(null);
+  const showHoverActions = () => { clearTimeout(hideTimerRef.current); setShowActions(true); };
+  const hideHoverActions = () => {
+    hideTimerRef.current = setTimeout(() => {
+      setShowActions(false);
+      setEmojiAnchorRect(null);
+      setMenuAnchorRect(null);
+    }, 150);
+  };
+  // Cleanup on unmount
+  useEffect(() => () => clearTimeout(hideTimerRef.current), []);
+
 
   // Trigger flash when highlighted prop flips to true
   useEffect(() => {
@@ -578,8 +624,8 @@ const MessageBubble = memo(({ message, isOwn, onEdit, onDelete, onReply, hideRep
             ? 'bg-amber-50 hover:bg-amber-100'
             : 'hover:bg-gray-50'
       } ${isOwn ? 'flex-row-reverse' : ''}`}
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
+      onMouseEnter={() => showHoverActions()}
+      onMouseLeave={() => hideHoverActions()}
     >
       {/* Avatar */}
       <div className={`w-8 h-8 rounded-full ${avatarColor} flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5`}>
@@ -724,6 +770,30 @@ const MessageBubble = memo(({ message, isOwn, onEdit, onDelete, onReply, hideRep
             );
           })()}
         </div>
+        {/* Emoji reaction pills — always visible, click to toggle */}
+        {!isDeleted && reactions.length > 0 && (
+          <div className={`flex flex-wrap gap-1 mt-1.5 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+            {reactions.map(r => {
+              const isMine = currentEmpId != null && r.empIds.includes(currentEmpId);
+              return (
+                <button
+                  key={r.emoji}
+                  onClick={() => onReact?.(message.message_id, r.emoji)}
+                  className={`flex items-center gap-0.5 text-sm px-2 py-0.5 rounded-full border transition-all hover:scale-105 active:scale-95 ${
+                    isMine
+                      ? 'bg-indigo-50 border-indigo-300 text-indigo-700 hover:bg-indigo-100'
+                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                  title={isMine ? 'Click to remove your reaction' : 'Click to react'}
+                >
+                  <span>{r.emoji}</span>
+                  <span className="text-xs font-semibold ml-0.5">{r.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Thread reply count — persistent inline badge */}
         {!isDeleted && !!message.reply_count && (
           <button
@@ -738,33 +808,118 @@ const MessageBubble = memo(({ message, isOwn, onEdit, onDelete, onReply, hideRep
         )}
       </div>
 
-      {/* Hover Actions */}
+      {/* Hover Actions — emoji button + 3-dot menu */}
       {showActions && !message.is_deleted && (
         <div className={`flex items-center gap-0.5 self-center ${isOwn ? 'flex-row-reverse' : ''}`}>
-          {onPin && (
-            <button
-              onClick={() => onPin(message)}
-              className={`p-1 rounded ${isPinned ? 'hover:bg-amber-100' : 'hover:bg-gray-200'}`}
-              title={isPinned ? 'Unpin message' : 'Pin message'}
+
+          {/* Emoji picker — rendered via portal to escape overflow clipping */}
+          <FloatingPortal anchorRect={emojiAnchorRect} alignRight={isOwn}>
+            <div
+              className="bg-white border border-gray-200 rounded-full shadow-lg flex items-center gap-0.5 px-1.5 py-1"
+              onMouseEnter={() => showHoverActions()}
+              onMouseLeave={() => hideHoverActions()}
             >
-              <Pin className={`w-3.5 h-3.5 ${isPinned ? 'text-amber-500' : 'text-gray-400'}`} />
+              {onReact && EMOJI_OPTIONS.map(emoji => {
+                const reacted = reactions.some(
+                  r => r.emoji === emoji && currentEmpId != null && r.empIds.includes(currentEmpId)
+                );
+                return (
+                  <button
+                    key={emoji}
+                    onClick={() => { onReact(message.message_id, emoji); setEmojiAnchorRect(null); }}
+                    className={`text-base w-7 h-7 flex items-center justify-center rounded-full transition-all hover:scale-125 ${
+                      reacted ? 'bg-indigo-50 ring-1 ring-indigo-300' : 'hover:bg-gray-100'
+                    }`}
+                    title={emoji}
+                  >
+                    {emoji}
+                  </button>
+                );
+              })}
+            </div>
+          </FloatingPortal>
+
+          {/* 3-dot dropdown — rendered via portal to escape overflow clipping */}
+          <FloatingPortal anchorRect={menuAnchorRect} alignRight={isOwn}>
+            <div
+              className="bg-white border border-gray-200 rounded-xl shadow-xl py-1 min-w-[140px]"
+              onMouseEnter={() => showHoverActions()}
+              onMouseLeave={() => hideHoverActions()}
+            >
+              {!hideReplyBtn && (
+                <button
+                  onClick={() => { onReply(message); setMenuAnchorRect(null); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 text-gray-400" />
+                  Reply
+                </button>
+              )}
+              {onPin && (
+                <button
+                  onClick={() => { onPin(message); setMenuAnchorRect(null); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <Pin className={`w-3.5 h-3.5 ${isPinned ? 'text-amber-500' : 'text-gray-400'}`} />
+                  {isPinned ? 'Unpin' : 'Pin'}
+                </button>
+              )}
+              {isOwn && (
+                <>
+                  <button
+                    onClick={() => { onEdit(message); setMenuAnchorRect(null); }}
+                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-gray-400" />
+                    Edit
+                  </button>
+                  <div className="my-1 border-t border-gray-100" />
+                  <button
+                    onClick={() => { onDelete(message); setMenuAnchorRect(null); }}
+                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete
+                  </button>
+                </>
+              )}
+            </div>
+          </FloatingPortal>
+
+          {/* Smile / add-reaction button */}
+          {onReact && (
+            <button
+              ref={smileBtnRef}
+              onClick={(e) => {
+                e.stopPropagation();
+                setEmojiAnchorRect(prev => prev ? null : smileBtnRef.current?.getBoundingClientRect() ?? null);
+                setMenuAnchorRect(null);
+              }}
+              className={`p-1.5 rounded-lg transition-colors ${
+                showEmojiPicker ? 'bg-yellow-100 text-yellow-600' : 'hover:bg-gray-200 text-gray-400'
+              }`}
+              title="Add reaction"
+            >
+              <Smile className="w-3.5 h-3.5" />
             </button>
           )}
-          {!hideReplyBtn && (
-            <button onClick={() => onReply(message)} className="p-1 hover:bg-gray-200 rounded" title="Reply in thread">
-              <MessageSquare className="w-3.5 h-3.5 text-gray-400" />
-            </button>
-          )}
-          {isOwn && (
-            <>
-              <button onClick={() => onEdit(message)} className="p-1 hover:bg-gray-200 rounded" title="Edit">
-                <Pencil className="w-3.5 h-3.5 text-gray-400" />
-              </button>
-              <button onClick={() => onDelete(message)} className="p-1 hover:bg-red-100 rounded" title="Delete">
-                <Trash2 className="w-3.5 h-3.5 text-red-400" />
-              </button>
-            </>
-          )}
+
+          {/* 3-dot options button */}
+          <button
+            ref={menuBtnRef}
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuAnchorRect(prev => prev ? null : menuBtnRef.current?.getBoundingClientRect() ?? null);
+              setEmojiAnchorRect(null);
+            }}
+            className={`p-1.5 rounded-lg transition-colors ${
+              showMenu ? 'bg-gray-200 text-gray-700' : 'hover:bg-gray-200 text-gray-400'
+            }`}
+            title="More options"
+          >
+            <MoreHorizontal className="w-3.5 h-3.5" />
+          </button>
+
         </div>
       )}
     </div>
@@ -1150,7 +1305,7 @@ MessageComposer.displayName = 'MessageComposer';
    MESSAGE LIST (with infinite scroll)
 ===================================================== */
 
-const MessageList = memo(({ messages, currentEmpId, channelId, channelName, onEdit, onDelete, onReply, onPin, onLoadMore, hasMore, loading, highlightedMessageId = null, pinnedIds = null }) => {
+const MessageList = memo(({ messages, currentEmpId, channelId, channelName, onEdit, onDelete, onReply, onPin, onReact, onLoadMore, hasMore, loading, highlightedMessageId = null, pinnedIds = null }) => {
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
   const prevScrollHeightRef = useRef(0);
@@ -1298,6 +1453,9 @@ const MessageList = memo(({ messages, currentEmpId, channelId, channelName, onEd
             onDelete={onDelete}
             onReply={onReply}
             onPin={onPin}
+            onReact={onReact}
+            currentEmpId={currentEmpId}
+            reactions={msg.reactions || []}
             highlighted={msg.message_id === highlightedMessageId}
             isPinned={pinnedIds ? pinnedIds.has(msg.message_id) : false}
           />
@@ -2182,6 +2340,28 @@ const DiscussView = () => {
     if (channelId === activeChannelId) setPinnedMessages(pins);
   }, [activeChannelId]);
 
+  /**
+   * Emit a toggle-reaction socket event.
+   * The server toggles in DB and broadcasts message:reaction back.
+   * Local state is updated optimistically via the socket callback.
+   */
+  const handleReact = useCallback((messageId, emoji) => {
+    emit('message:react', { messageId, emoji });
+  }, [emit]);
+
+  /**
+   * Real-time reaction update broadcast from server.
+   * Replaces the reactions array on matching message in both feed and thread.
+   */
+  const handleReactionChange = useCallback(({ messageId, reactions }) => {
+    setMessages(prev =>
+      prev.map(m => m.message_id === messageId ? { ...m, reactions } : m)
+    );
+    setThreadReplies(prev =>
+      prev.map(r => r.message_id === messageId ? { ...r, reactions } : r)
+    );
+  }, []);
+
   useSocketEvent('message:new', handleNewMessage);
   useSocketEvent('message:edited', handleEditedMessage);
   useSocketEvent('message:deleted', handleDeletedMessage);
@@ -2191,6 +2371,7 @@ const DiscussView = () => {
   useSocketEvent('call:start', handleCallStartInChat);
   useSocketEvent('call:end', handleCallEndInChat);
   useSocketEvent('pin:change', handlePinChange);
+  useSocketEvent('message:reaction', handleReactionChange);
 
   /* ---------------------------------------------------
      ACTION HANDLERS
@@ -2306,6 +2487,7 @@ const DiscussView = () => {
                 onDelete={handleDelete}
                 onReply={handleReply}
                 onPin={handlePin}
+                onReact={handleReact}
                 onLoadMore={loadMore}
                 hasMore={hasMore}
                 loading={loading}

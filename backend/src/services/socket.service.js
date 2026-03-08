@@ -218,6 +218,37 @@ export const initSocketIO = (httpServer) => {
     });
 
     /* ---------------------------------------------------
+       EMOJI REACTIONS (toggle: add if absent, remove if present)
+       Rate-limited via the shared MESSAGE_RATE_LIMIT bucket.
+       Broadcasts message:reaction to all channel members with
+       the fresh aggregated reactions array for that message.
+    --------------------------------------------------- */
+
+    socket.on("message:react", async ({ messageId, emoji }, ack) => {
+      try {
+        if (!checkRateLimit(socket.id)) {
+          return ack?.({ error: "Rate limit exceeded. Slow down." });
+        }
+
+        // Fetch message first — needed for channel_id (broadcast target) and validation
+        const msg = await repo.getMessageById(messageId);
+        if (!msg) return ack?.({ error: "Message not found" });
+
+        const reactions = await discussService.toggleReaction(messageId, empId, emoji);
+
+        socket.nsp.to(`channel:${msg.channel_id}`).emit("message:reaction", {
+          messageId,
+          channelId: msg.channel_id,
+          reactions,
+        });
+
+        ack?.({ ok: true });
+      } catch (err) {
+        ack?.({ error: err.message });
+      }
+    });
+
+    /* ---------------------------------------------------
        TYPING INDICATOR (ephemeral, no DB)
        — uses per-socket timer map to auto-clear on disconnect
     --------------------------------------------------- */

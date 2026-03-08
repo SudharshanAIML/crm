@@ -453,6 +453,88 @@ export const unpinMessage = async (channelId, messageId) => {
   );
 };
 
+/* =====================================================
+   EMOJI REACTIONS
+===================================================== */
+
+/**
+ * Bulk-fetch reactions for an array of message IDs.
+ * Returns a map: { [messageId]: [{ emoji, count, empIds }] }
+ *
+ * Single query using GROUP_CONCAT — O(1) round-trip regardless of batch size.
+ * emp_ids come back as comma-separated strings and are parsed to int arrays.
+ */
+export const getReactionsForMessages = async (messageIds) => {
+  if (!messageIds || messageIds.length === 0) return {};
+
+  const placeholders = messageIds.map(() => '?').join(',');
+  const [rows] = await db.execute(
+    `SELECT   message_id,
+              emoji,
+              COUNT(*)              AS \`count\`,
+              GROUP_CONCAT(emp_id)  AS emp_ids_str
+     FROM     discuss_reactions
+     WHERE    message_id IN (${placeholders})
+     GROUP BY message_id, emoji`,
+    messageIds
+  );
+
+  const map = {};
+  for (const row of rows) {
+    const mid = row.message_id;
+    if (!map[mid]) map[mid] = [];
+    map[mid].push({
+      emoji:   row.emoji,
+      count:   row.count,
+      empIds:  row.emp_ids_str.split(',').map(Number),
+    });
+  }
+  return map;
+};
+
+/**
+ * Toggle a reaction (add if absent, remove if present).
+ * Returns the updated reaction list for that message.
+ */
+export const toggleReaction = async (messageId, empId, emoji) => {
+  const [existing] = await db.execute(
+    `SELECT id FROM discuss_reactions
+     WHERE message_id = ? AND emp_id = ? AND emoji = ?`,
+    [messageId, empId, emoji]
+  );
+
+  if (existing.length > 0) {
+    await db.execute(
+      `DELETE FROM discuss_reactions
+       WHERE message_id = ? AND emp_id = ? AND emoji = ?`,
+      [messageId, empId, emoji]
+    );
+  } else {
+    await db.execute(
+      `INSERT INTO discuss_reactions (message_id, emp_id, emoji)
+       VALUES (?, ?, ?)`,
+      [messageId, empId, emoji]
+    );
+  }
+
+  // Return updated aggregated reactions for this message
+  const [rows] = await db.execute(
+    `SELECT   emoji,
+              COUNT(*)             AS \`count\`,
+              GROUP_CONCAT(emp_id) AS emp_ids_str
+     FROM     discuss_reactions
+     WHERE    message_id = ?
+     GROUP BY emoji`,
+    [messageId]
+  );
+
+  return rows.map(r => ({
+    emoji:   r.emoji,
+    count:   r.count,
+    empIds:  r.emp_ids_str.split(',').map(Number),
+  }));
+};
+
 /**
  * Fallback search using LIKE (if FULLTEXT index not present)
  * @param {string|null} channelId - when provided, restricts results to that channel
