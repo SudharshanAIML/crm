@@ -402,6 +402,57 @@ export const searchMessages = async (companyId, empId, query, limit = 30) => {
   return rows;
 };
 
+/* =====================================================
+   PINNED MESSAGES
+===================================================== */
+
+/**
+ * Return all pinned messages for a channel, newest pin first.
+ * Joins to messages + employees so callers get a complete payload.
+ * Hard-limited to 50 rows — prevents abuse, more than enough in practice.
+ */
+export const getPinnedMessages = async (channelId) => {
+  const [rows] = await db.execute(
+    `SELECT p.id AS pin_id, p.pinned_at, p.pinned_by,
+       m.message_id, m.channel_id, m.sender_emp_id,
+       m.content, m.created_at,
+       m.attachment_url, m.attachment_type, m.attachment_name,
+       e.name  AS sender_name,
+       pb.name AS pinned_by_name
+     FROM discuss_pinned_messages p
+     JOIN discuss_messages m  ON m.message_id = p.message_id AND m.is_deleted = FALSE
+     JOIN employees e         ON e.emp_id  = m.sender_emp_id
+     JOIN employees pb        ON pb.emp_id = p.pinned_by
+     WHERE p.channel_id = ?
+     ORDER BY p.pinned_at DESC
+     LIMIT 50`,
+    [channelId]
+  );
+  return rows;
+};
+
+/**
+ * Pin a message.  INSERT IGNORE silently skips duplicate pins.
+ */
+export const pinMessage = async (channelId, messageId, empId) => {
+  await db.execute(
+    `INSERT IGNORE INTO discuss_pinned_messages (channel_id, message_id, pinned_by)
+     VALUES (?, ?, ?)`,
+    [channelId, messageId, empId]
+  );
+};
+
+/**
+ * Unpin a message.
+ */
+export const unpinMessage = async (channelId, messageId) => {
+  await db.execute(
+    `DELETE FROM discuss_pinned_messages
+     WHERE channel_id = ? AND message_id = ?`,
+    [channelId, messageId]
+  );
+};
+
 /**
  * Fallback search using LIKE (if FULLTEXT index not present)
  * @param {string|null} channelId - when provided, restricts results to that channel

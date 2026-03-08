@@ -3,7 +3,7 @@ import {
   Hash, Lock, Plus, Search, Users, X, Send, Pencil, Trash2,
   MessageSquare, AtSign, ChevronDown, UserPlus, Check, Bell,
   Paperclip, Mic, MicOff, FileDown, Music, Image as ImageIcon,
-  Phone
+  Phone, Pin
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket, useSocketEvent } from '../../context/SocketContext';
@@ -545,7 +545,7 @@ const AVATAR_COLORS = {
   default: 'bg-gradient-to-br from-sky-400 to-indigo-500',
 };
 
-const MessageBubble = memo(({ message, isOwn, onEdit, onDelete, onReply, hideReplyBtn = false, highlighted = false }) => {
+const MessageBubble = memo(({ message, isOwn, onEdit, onDelete, onReply, hideReplyBtn = false, highlighted = false, isPinned = false, onPin }) => {
   const [showActions, setShowActions] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
 
@@ -574,7 +574,9 @@ const MessageBubble = memo(({ message, isOwn, onEdit, onDelete, onReply, hideRep
       className={`group flex gap-3 px-4 py-1.5 transition-colors duration-700 ${
         isFlashing
           ? 'bg-amber-50 ring-2 ring-inset ring-amber-300'
-          : 'hover:bg-gray-50'
+          : isPinned
+            ? 'bg-amber-50 hover:bg-amber-100'
+            : 'hover:bg-gray-50'
       } ${isOwn ? 'flex-row-reverse' : ''}`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
@@ -596,6 +598,7 @@ const MessageBubble = memo(({ message, isOwn, onEdit, onDelete, onReply, hideRep
           </span>
           <span className="text-[11px] text-gray-400">{time}</span>
           {isEdited && <span className="text-[10px] text-gray-400">(edited)</span>}
+          {isPinned && <Pin className="w-2.5 h-2.5 text-amber-400 flex-shrink-0" title="Pinned" />}
         </div>
         {/* Bubble */}
         <div
@@ -738,6 +741,15 @@ const MessageBubble = memo(({ message, isOwn, onEdit, onDelete, onReply, hideRep
       {/* Hover Actions */}
       {showActions && !message.is_deleted && (
         <div className={`flex items-center gap-0.5 self-center ${isOwn ? 'flex-row-reverse' : ''}`}>
+          {onPin && (
+            <button
+              onClick={() => onPin(message)}
+              className={`p-1 rounded ${isPinned ? 'hover:bg-amber-100' : 'hover:bg-gray-200'}`}
+              title={isPinned ? 'Unpin message' : 'Pin message'}
+            >
+              <Pin className={`w-3.5 h-3.5 ${isPinned ? 'text-amber-500' : 'text-gray-400'}`} />
+            </button>
+          )}
           {!hideReplyBtn && (
             <button onClick={() => onReply(message)} className="p-1 hover:bg-gray-200 rounded" title="Reply in thread">
               <MessageSquare className="w-3.5 h-3.5 text-gray-400" />
@@ -1138,7 +1150,7 @@ MessageComposer.displayName = 'MessageComposer';
    MESSAGE LIST (with infinite scroll)
 ===================================================== */
 
-const MessageList = memo(({ messages, currentEmpId, channelId, channelName, onEdit, onDelete, onReply, onLoadMore, hasMore, loading, highlightedMessageId = null }) => {
+const MessageList = memo(({ messages, currentEmpId, channelId, channelName, onEdit, onDelete, onReply, onPin, onLoadMore, hasMore, loading, highlightedMessageId = null, pinnedIds = null }) => {
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
   const prevScrollHeightRef = useRef(0);
@@ -1285,7 +1297,9 @@ const MessageList = memo(({ messages, currentEmpId, channelId, channelName, onEd
             onEdit={onEdit}
             onDelete={onDelete}
             onReply={onReply}
+            onPin={onPin}
             highlighted={msg.message_id === highlightedMessageId}
+            isPinned={pinnedIds ? pinnedIds.has(msg.message_id) : false}
           />
         );
       })}
@@ -1483,10 +1497,95 @@ const MessageSearchPanel = memo(({ channelId, channelName, onClose, onJump }) =>
 MessageSearchPanel.displayName = 'MessageSearchPanel';
 
 /* =====================================================
+   PINNED MESSAGES PANEL (slide-over)
+===================================================== */
+
+const PinnedMessagesPanel = memo(({ pins, onClose, onJump, onUnpin }) => (
+  <div className="w-80 flex-shrink-0 border-l border-gray-200 bg-white flex flex-col overflow-hidden">
+    {/* Header */}
+    <div className="h-14 border-b border-gray-200 flex items-center justify-between px-4 flex-shrink-0">
+      <div className="flex items-center gap-2">
+        <Pin className="w-4 h-4 text-amber-500" />
+        <span className="font-semibold text-gray-900 text-sm">Pinned Messages</span>
+        {pins.length > 0 && (
+          <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+            {pins.length}
+          </span>
+        )}
+      </div>
+      <button
+        onClick={onClose}
+        className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+        title="Close"
+      >
+        <X className="w-4 h-4 text-gray-500" />
+      </button>
+    </div>
+
+    {/* List */}
+    <div className="flex-1 overflow-y-auto">
+      {pins.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+          <Pin className="w-10 h-10 text-gray-200 mb-3" />
+          <p className="text-sm font-medium text-gray-500">No pinned messages</p>
+          <p className="text-xs text-gray-400 mt-1">Hover a message and click the pin icon</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-gray-50">
+          {pins.map(pin => (
+            <div key={pin.pin_id} className="group px-4 py-3 hover:bg-amber-50 transition-colors">
+              {/* Pinned-by row */}
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Pin className="w-3 h-3 text-amber-400 flex-shrink-0" />
+                  <span className="text-[10px] text-amber-600 font-medium truncate">
+                    {pin.pinned_by_name}
+                    {' · '}
+                    {new Date(pin.pinned_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  </span>
+                </div>
+                <button
+                  onClick={() => onUnpin(pin.message_id)}
+                  className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-all ml-2"
+                  title="Unpin"
+                >
+                  <X className="w-3 h-3 text-red-400" />
+                </button>
+              </div>
+
+              {/* Message snippet — click to jump */}
+              <button
+                className="w-full text-left"
+                onClick={() => { onJump(pin.message_id); onClose(); }}
+                title="Jump to message"
+              >
+                <div className="flex items-center gap-1.5 mb-1">
+                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0">
+                    {(pin.sender_name || '?')[0].toUpperCase()}
+                  </div>
+                  <span className="text-xs font-semibold text-gray-800">{pin.sender_name}</span>
+                  <span className="text-[10px] text-gray-400 ml-auto">
+                    {new Date(pin.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-600 line-clamp-3 pl-6 leading-relaxed hover:text-gray-900 transition-colors">
+                  {pin.content || <em className="text-gray-400">Attachment</em>}
+                </p>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+));
+PinnedMessagesPanel.displayName = 'PinnedMessagesPanel';
+
+/* =====================================================
    CHANNEL HEADER
 ===================================================== */
 
-const ChannelHeader = memo(({ channel, memberCount, onMembersClick, onSearchClick, isSearchOpen, onCallClick, isInCall }) => {
+const ChannelHeader = memo(({ channel, memberCount, onMembersClick, onSearchClick, isSearchOpen, onPinsClick, isPinsOpen, pinnedCount, onCallClick, isInCall }) => {
   if (!channel) return null;
   const Icon = channel.channel_type === 'PRIVATE' ? Lock : Hash;
 
@@ -1525,6 +1624,22 @@ const ChannelHeader = memo(({ channel, memberCount, onMembersClick, onSearchClic
           title={isSearchOpen ? 'Close search' : 'Search messages'}
         >
           <Search className="w-4 h-4" />
+        </button>
+        <button
+          onClick={onPinsClick}
+          className={`relative p-2 rounded-lg transition-colors ${
+            isPinsOpen
+              ? 'bg-amber-100 text-amber-600 hover:bg-amber-200'
+              : 'hover:bg-gray-100 text-gray-500'
+          }`}
+          title={isPinsOpen ? 'Close pins' : 'Pinned messages'}
+        >
+          <Pin className="w-4 h-4" />
+          {!isPinsOpen && pinnedCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+              {pinnedCount > 9 ? '9+' : pinnedCount}
+            </span>
+          )}
         </button>
         <button onClick={onMembersClick} className="flex items-center gap-1 px-2 py-1.5 hover:bg-gray-100 rounded-lg transition-colors" title="Members">
           <Users className="w-4 h-4 text-gray-500" />
@@ -1762,6 +1877,8 @@ const DiscussView = () => {
   const [showMembers, setShowMembers] = useState(false);
   const [showBrowse, setShowBrowse] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [showPins, setShowPins] = useState(false);
+  const [pinnedMessages, setPinnedMessages] = useState([]);
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const [isJumpContext, setIsJumpContext] = useState(false);
   const [editingMessage, setEditingMessage] = useState(null);
@@ -1842,16 +1959,19 @@ const DiscussView = () => {
     setOpenThread(null);
     setThreadReplies([]);
     setShowSearch(false);
+    setShowPins(false);
+    setPinnedMessages([]);
     setHighlightedMessageId(null);
     setIsJumpContext(false);
 
     try {
       setLoading(true);
-      const [channelData, messagesData, membersData, callLogsData] = await Promise.all([
+      const [channelData, messagesData, membersData, callLogsData, pinsData] = await Promise.all([
         discussService.getChannel(channelId),
         discussService.getMessages(channelId),
         discussService.getChannelMembers(channelId),
         discussService.getCallLogs(channelId).catch(() => []),
+        discussService.getPins(channelId).catch(() => []),
       ]);
 
       setActiveChannel(channelData);
@@ -1894,6 +2014,7 @@ const DiscussView = () => {
 
       setMessages(merged);
       setMembers(membersData);
+      setPinnedMessages(pinsData || []);
       setHasMore(messagesData.length >= 50);
 
       // channel:join is handled by the useEffect below that watches activeChannelId + connected
@@ -2057,6 +2178,10 @@ const DiscussView = () => {
     setMessages(prev => [...prev, callMsg]);
   }, [activeChannelId]);
 
+  const handlePinChange = useCallback(({ channelId, pins }) => {
+    if (channelId === activeChannelId) setPinnedMessages(pins);
+  }, [activeChannelId]);
+
   useSocketEvent('message:new', handleNewMessage);
   useSocketEvent('message:edited', handleEditedMessage);
   useSocketEvent('message:deleted', handleDeletedMessage);
@@ -2065,6 +2190,7 @@ const DiscussView = () => {
   useSocketEvent('member:invited', handleMemberInvited);
   useSocketEvent('call:start', handleCallStartInChat);
   useSocketEvent('call:end', handleCallEndInChat);
+  useSocketEvent('pin:change', handlePinChange);
 
   /* ---------------------------------------------------
      ACTION HANDLERS
@@ -2081,17 +2207,33 @@ const DiscussView = () => {
   const handleReply = useCallback((msg) => {
     // Toggle: clicking the same parent message again closes the panel
     setOpenThread(prev => prev?.message_id === msg.message_id ? null : msg);
-    setShowSearch(false); // mutually exclusive with search panel
+    setShowSearch(false); // mutually exclusive panels
+    setShowPins(false);
   }, []);
+
+  /**
+   * Toggle pin/unpin on a message. Any channel member can pin/unpin.
+   * Calls REST API; the controller broadcasts pin:change back to all channel
+   * members (including this socket) so every client stays in sync.
+   */
+  const handlePin = useCallback(async (msg) => {
+    if (!activeChannelId) return;
+    try {
+      const alreadyPinned = pinnedMessages.some(p => p.message_id === msg.message_id);
+      const updated = alreadyPinned
+        ? await discussService.unpinMessage(activeChannelId, msg.message_id)
+        : await discussService.pinMessage(activeChannelId, msg.message_id);
+      // Optimistic local update — socket broadcast also arrives and is idempotent
+      setPinnedMessages(updated);
+    } catch (err) {
+      console.error('Failed to toggle pin:', err);
+    }
+  }, [pinnedMessages, activeChannelId]);
 
   const handleChannelCreated = () => {
     loadChannels();
   };
 
-  /**
-   * Called after successfully inviting members via the InviteModal
-   * Refreshes member list for the current channel
-   */
   const handleMembersInvited = async () => {
     if (!activeChannelId) return;
     try {
@@ -2109,6 +2251,11 @@ const DiscussView = () => {
       ));
     }
   }, [activeChannelId]);
+
+  const pinnedIds = useMemo(
+    () => new Set(pinnedMessages.map(p => p.message_id)),
+    [pinnedMessages]
+  );
 
   const typingNames = useMemo(() =>
     typingUsers
@@ -2138,8 +2285,11 @@ const DiscussView = () => {
                 channel={activeChannel}
                 memberCount={members.length}
                 onMembersClick={() => setShowMembers(prev => !prev)}
-                onSearchClick={() => { setShowSearch(prev => !prev); setOpenThread(null); }}
+                onSearchClick={() => { setShowSearch(prev => !prev); setOpenThread(null); setShowPins(false); }}
                 isSearchOpen={showSearch}
+                onPinsClick={() => { setShowPins(prev => !prev); setOpenThread(null); setShowSearch(false); }}
+                isPinsOpen={showPins}
+                pinnedCount={pinnedMessages.length}
                 onCallClick={handleStartCall}
                 isInCall={audioCall?.callState === 'active' && audioCall?.callChannelId === activeChannelId}
               />
@@ -2155,10 +2305,12 @@ const DiscussView = () => {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onReply={handleReply}
+                onPin={handlePin}
                 onLoadMore={loadMore}
                 hasMore={hasMore}
                 loading={loading}
                 highlightedMessageId={highlightedMessageId}
+                pinnedIds={pinnedIds}
               />
 
               {/* Jump-context banner — shown when user jumped to a historical message */}
@@ -2221,6 +2373,16 @@ const DiscussView = () => {
             channelName={activeChannel.name}
             onClose={() => setShowSearch(false)}
             onJump={(id) => { jumpToMessage(id); setShowSearch(false); }}
+          />
+        )}
+
+        {/* Pinned Messages Panel — mutually exclusive with all other panels */}
+        {showPins && activeChannel && (
+          <PinnedMessagesPanel
+            pins={pinnedMessages}
+            onClose={() => setShowPins(false)}
+            onJump={(id) => { jumpToMessage(id); setShowPins(false); }}
+            onUnpin={(messageId) => handlePin({ message_id: messageId })}
           />
         )}
       </div>

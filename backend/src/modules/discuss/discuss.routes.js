@@ -116,6 +116,19 @@ router.delete("/messages/:messageId", discussController.deleteMessage);
 router.get("/messages/:messageId/thread", discussController.getThread);
 
 /* =====================================================
+   PINNED MESSAGE ROUTES
+===================================================== */
+
+// Get all pinned messages for a channel
+router.get("/channels/:channelId/pins", discussController.getPins);
+
+// Pin a message  (body: { messageId })
+router.post("/channels/:channelId/pins", discussController.pinMessage);
+
+// Unpin a specific message
+router.delete("/channels/:channelId/pins/:messageId", discussController.unpinMessage);
+
+/* =====================================================
    CALL ROUTES (LiveKit Audio Calls)
 ===================================================== */
 

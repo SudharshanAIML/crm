@@ -261,6 +261,62 @@ export const searchMessages = async (req, res, next) => {
 };
 
 /* =====================================================
+   PINNED MESSAGES CONTROLLERS
+===================================================== */
+
+export const getPins = async (req, res, next) => {
+  try {
+    const pins = await discussService.getPins(
+      parseInt(req.params.channelId),
+      req.user.empId
+    );
+    res.json(pins);
+  } catch (error) { next(error); }
+};
+
+export const pinMessage = async (req, res, next) => {
+  try {
+    const { messageId } = req.body;
+    if (!messageId) return res.status(400).json({ message: 'messageId required' });
+
+    const pins = await discussService.pinMessage(
+      parseInt(req.params.channelId),
+      parseInt(messageId),
+      req.user.empId
+    );
+
+    // Broadcast updated pin list to every member in this channel
+    const io = getIO();
+    if (io) {
+      io.of(`/org/${req.user.companyId}`)
+        .to(`channel:${req.params.channelId}`)
+        .emit('pin:change', { channelId: parseInt(req.params.channelId), pins });
+    }
+
+    res.json(pins);
+  } catch (error) { next(error); }
+};
+
+export const unpinMessage = async (req, res, next) => {
+  try {
+    const pins = await discussService.unpinMessage(
+      parseInt(req.params.channelId),
+      parseInt(req.params.messageId),
+      req.user.empId
+    );
+
+    const io = getIO();
+    if (io) {
+      io.of(`/org/${req.user.companyId}`)
+        .to(`channel:${req.params.channelId}`)
+        .emit('pin:change', { channelId: parseInt(req.params.channelId), pins });
+    }
+
+    res.json(pins);
+  } catch (error) { next(error); }
+};
+
+/* =====================================================
    CALL CONTROLLERS (LiveKit Audio Calls)
 ===================================================== */
 

@@ -128,6 +128,23 @@ export const searchMessages = async (query, channelId = null) => {
   return data;
 };
 
+// ---- Pinned Messages ----
+
+export const getPins = async (channelId) => {
+  const { data } = await api.get(`/discuss/channels/${channelId}/pins`);
+  return data;
+};
+
+export const pinMessage = async (channelId, messageId) => {
+  const { data } = await api.post(`/discuss/channels/${channelId}/pins`, { messageId });
+  return data;
+};
+
+export const unpinMessage = async (channelId, messageId) => {
+  const { data } = await api.delete(`/discuss/channels/${channelId}/pins/${messageId}`);
+  return data;
+};
+
 // ---- Audio Calls (LiveKit) ----
 
 /**

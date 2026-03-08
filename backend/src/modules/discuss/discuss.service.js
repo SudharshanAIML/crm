@@ -248,3 +248,34 @@ export const searchMessages = async (companyId, empId, query, channelId = null) 
   const clean = sanitiseText(query).slice(0, 100);
   return repo.searchMessagesLike(companyId, empId, clean, channelId);
 };
+
+/* =====================================================
+   PINNED MESSAGE SERVICES
+===================================================== */
+
+export const getPins = async (channelId, empId) => {
+  const member = await repo.isMember(channelId, empId);
+  if (!member) throw new Error('Not a member of this channel');
+  return repo.getPinnedMessages(channelId);
+};
+
+export const pinMessage = async (channelId, messageId, empId) => {
+  const member = await repo.isMember(channelId, empId);
+  if (!member) throw new Error('Not a member of this channel');
+
+  const msg = await repo.getMessageById(messageId);
+  if (!msg) throw new Error('Message not found');
+  if (msg.channel_id !== channelId) throw new Error('Message does not belong to this channel');
+  if (msg.parent_message_id) throw new Error('Thread replies cannot be pinned');
+  if (msg.is_deleted) throw new Error('Cannot pin a deleted message');
+
+  await repo.pinMessage(channelId, messageId, empId);
+  return repo.getPinnedMessages(channelId);
+};
+
+export const unpinMessage = async (channelId, messageId, empId) => {
+  const member = await repo.isMember(channelId, empId);
+  if (!member) throw new Error('Not a member of this channel');
+  await repo.unpinMessage(channelId, messageId);
+  return repo.getPinnedMessages(channelId);
+};
