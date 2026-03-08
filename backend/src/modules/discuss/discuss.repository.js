@@ -769,11 +769,13 @@ export const getOrCreateDmChannel = async (companyId, empIdA, empIdB, createdBy)
   const emp1 = Math.min(empIdA, empIdB);
   const emp2 = Math.max(empIdA, empIdB);
 
-  // INSERT IGNORE — if the pair already exists, nothing changes
+  // INSERT IGNORE — if the pair already exists, nothing changes.
+  // name is NULL for DMs so the uq_company_channel(company_id, name) unique key
+  // doesn't block multiple DM pairs (NULL != NULL in MySQL unique indexes).
   await db.execute(
     `INSERT IGNORE INTO discuss_channels
        (company_id, name, channel_type, dm_emp1_id, dm_emp2_id, description, is_default, created_by)
-     VALUES (?, '', 'DM', ?, ?, NULL, 0, ?)`,
+     VALUES (?, NULL, 'DM', ?, ?, NULL, 0, ?)`,
     [companyId, emp1, emp2, createdBy]
   );
 

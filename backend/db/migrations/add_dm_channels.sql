@@ -11,6 +11,12 @@
 ALTER TABLE discuss_channels
   MODIFY COLUMN channel_type ENUM('PUBLIC','PRIVATE','DM') NOT NULL DEFAULT 'PUBLIC';
 
+-- 1b. Make name nullable so DM channels (which have no name) don't collide
+--     on the uq_company_channel (company_id, name) unique key.
+--     In MySQL, NULL != NULL in unique indexes, so each DM row is always unique.
+ALTER TABLE discuss_channels
+  MODIFY COLUMN name VARCHAR(80) NULL DEFAULT NULL;
+
 -- 2. Add DM peer columns to discuss_channels so we can enforce
 --    one DM thread per pair per company atomically
 ALTER TABLE discuss_channels
