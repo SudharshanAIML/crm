@@ -25,7 +25,7 @@ import {
 import { useEmailCache } from '../../context/EmailCacheContext';
 import EmailList from './EmailList';
 import EmailDetail from './EmailDetail';
-import ComposeEmail from './ComposeEmail';
+import { EmailComposer } from '../email';
 
 // Lazy load heavy components for better initial load performance
 const AIOutreach = lazy(() => import('../outreach/AIOutreach'));
@@ -47,7 +47,7 @@ const TABS = [
     { id: 'autopilot', label: 'Auto Pilot', icon: Plane },
 ];
 
-const GmailView = ({ isAdmin = false }) => {
+const EmailView = ({ isAdmin = false }) => {
     // Theme colors based on admin status - admin uses softer amber/warm tones
     const themeColors = isAdmin ? {
         primary: 'from-amber-500 to-orange-600',
@@ -187,7 +187,7 @@ const GmailView = ({ isAdmin = false }) => {
             const { authUrl } = await getConnectUrl();
             window.location.href = authUrl;
         } catch (err) {
-            setError('Failed to initiate Gmail connection');
+            setError('Failed to initiate email connection');
         }
     };
 
@@ -348,7 +348,7 @@ const GmailView = ({ isAdmin = false }) => {
         return (
             <div className="flex items-center justify-center h-96">
                 <Loader2 className={`w-8 h-8 animate-spin ${themeColors.spinner}`} />
-                <span className="ml-3 text-gray-600">Checking Gmail connection...</span>
+                <span className="ml-3 text-gray-600">Checking email connection...</span>
             </div>
         );
     }
@@ -361,15 +361,15 @@ const GmailView = ({ isAdmin = false }) => {
                     <div className={`w-20 h-20 mx-auto rounded-full bg-gradient-to-br ${isAdmin ? 'from-orange-100 to-amber-100' : 'from-sky-100 to-blue-100'} flex items-center justify-center mb-6`}>
                         <Mail className={`w-10 h-10 ${isAdmin ? 'text-orange-600' : 'text-sky-600'}`} />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-800 mb-3">Connect Your Gmail</h2>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-3">Connect Your Email</h2>
                     <p className="text-gray-600 mb-6">
-                        Connect your Gmail account to read, compose, and manage your emails directly from the CRM.
+                        Connect your email account to read, compose, and manage your emails directly from the CRM.
                     </p>
                     <button
                         onClick={handleConnectEmail}
                         className={`inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r ${themeColors.buttonGradient} text-white rounded-xl font-medium ${themeColors.buttonHover} transition-all shadow-lg ${themeColors.shadow}`}
                     >
-                        Connect Gmail
+                        Connect Email
                         <ExternalLink className="w-4 h-4" />
                     </button>
                     <p className="text-xs text-gray-500 mt-4">
@@ -398,7 +398,7 @@ const GmailView = ({ isAdmin = false }) => {
                             <Mail className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-semibold text-gray-800">Gmail</h2>
+                            <h2 className="text-lg font-semibold text-gray-800">Email</h2>
                             <p className="text-sm text-gray-500">Manage your emails</p>
                         </div>
                     </div>
@@ -532,17 +532,16 @@ const GmailView = ({ isAdmin = false }) => {
 
             {/* Compose Modal */}
             {showCompose && (
-                <ComposeEmail
+                <EmailComposer
                     isOpen={showCompose}
                     draft={editingDraft}
                     onClose={handleComposeClose}
-                    onSent={handleEmailSent}
+                    onSuccess={handleEmailSent}
                     onDraftSaved={handleDraftSaved}
-                    onDraftDeleted={handleDraftDeleted}
                 />
             )}
         </div>
     );
 };
 
-export default GmailView;
+export default EmailView;

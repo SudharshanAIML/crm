@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Minus, Maximize2, Minimize2, Send, Paperclip, Smile, Link2, Trash2, Bold, Italic, Underline, AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
-import { sendEmail, getConnectionStatus, getConnectUrl } from '../../services/emailService';
+import { X, Minus, Maximize2, Minimize2, Send, Paperclip, Smile, Link2, Trash2, Bold, Italic, Underline, AlertCircle, ExternalLink, Loader2, Save } from 'lucide-react';
+import { sendEmail, getConnectionStatus, getConnectUrl, createGmailDraft, updateGmailDraft, deleteGmailDraft } from '../../services/emailService';
 //nishithaaa
 const EMOJI_LIST = [
   '😀', '😃', '😄', '😁', '😊', '🙂', '😉', '😍',
@@ -48,6 +48,8 @@ const EmailComposer = ({
   onClose, 
   contact,
   onSuccess,
+  onDraftSaved,
+  draft = null,
 }) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -57,9 +59,11 @@ const EmailComposer = ({
   const [linkText, setLinkText] = useState('');
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [emailConnected, setEmailConnected] = useState(null);
   const [checkingConnection, setCheckingConnection] = useState(true);
+  const [currentDraftId, setCurrentDraftId] = useState(null);
   const [formData, setFormData] = useState({
     to: '',
     subject: '',
@@ -77,16 +81,26 @@ const EmailComposer = ({
   }, [isOpen]);
 
   useEffect(() => {
-    if (contact) {
+    if (draft) {
+      setFormData({
+        to: draft.to || contact?.email || '',
+        subject: draft.subject || '',
+        body: draft.body || '',
+      });
+      setCurrentDraftId(draft.draftId || null);
+      setAttachments([]);
+      setError(null);
+    } else if (contact) {
       setFormData({
         to: contact.email || '',
         subject: '',
         body: '',
       });
+      setCurrentDraftId(null);
       setAttachments([]);
       setError(null);
     }
-  }, [contact]);
+  }, [contact, draft]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -120,6 +134,33 @@ const EmailComposer = ({
   };
 
   if (!isOpen) return null;
+
+  const handleSaveDraft = async () => {
+    if (!formData.to && !formData.subject && !formData.body) {
+      setError('Nothing to save — add a recipient, subject or body first');
+      return;
+    }
+    try {
+      setSaving(true);
+      setError(null);
+      const draftData = {
+        to: formData.to,
+        subject: formData.subject,
+        body: formData.body,
+      };
+      if (currentDraftId) {
+        await updateGmailDraft(currentDraftId, draftData);
+      } else {
+        const result = await createGmailDraft(draftData);
+        setCurrentDraftId(result.draftId);
+      }
+      onDraftSaved?.();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to save draft');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -168,9 +209,13 @@ const EmailComposer = ({
     setFormData({ ...formData, [field]: value });
   };
 
-  const handleDiscard = () => {
+  const handleDiscard = async () => {
+    if (currentDraftId) {
+      try { await deleteGmailDraft(currentDraftId); } catch (_) { /* ignore */ }
+    }
     setFormData({ to: contact?.email || '', subject: '', body: '' });
     setAttachments([]);
+    setCurrentDraftId(null);
     onClose();
   };
 
@@ -461,7 +506,7 @@ const EmailComposer = ({
             {/* Send Button */}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || saving}
               className="flex items-center gap-2 px-5 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
@@ -473,6 +518,27 @@ const EmailComposer = ({
                 <>
                   Send
                   <Send className="w-4 h-4" />
+                </>
+              )}
+            </button>
+
+            {/* Save Draft Button */}
+            <button
+              type="button"
+              onClick={handleSaveDraft}
+              disabled={saving || loading}
+              className="flex items-center gap-2 px-4 py-2 ml-1 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              title="Save as draft"
+            >
+              {saving ? (
+                <>
+                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-gray-500"></div>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Draft
                 </>
               )}
             </button>
