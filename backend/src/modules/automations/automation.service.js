@@ -131,7 +131,23 @@ export const toggleAutomation = async (automationId, companyId, active) => {
 export const getExecutionLogs = async (automationId, companyId, options = {}) => {
   const a = await automationRepo.getById(automationId);
   if (!a || a.company_id !== companyId) throw new Error("Automation not found");
-  return await automationRepo.getLogsByAutomation(automationId, options);
+  const { logs, total } = await automationRepo.getLogsByAutomation(automationId, options);
+  return {
+    logs,
+    total,
+    automation: {
+      automation_id: a.automation_id,
+      name: a.name,
+      description: a.description,
+      trigger_type: a.trigger_type,
+      is_active: a.is_active,
+      is_draft: a.is_draft,
+      total_runs: a.total_runs,
+      success_runs: a.success_runs,
+      failure_runs: a.failure_runs,
+      last_run_at: a.last_run_at,
+    },
+  };
 };
 
 export const getCompanyLogs = async (companyId, options = {}) => {

@@ -97,12 +97,13 @@ export const toggle = async (req, res, next) => {
 export const getLogs = async (req, res, next) => {
   try {
     const { companyId } = req.user;
-    const { limit = 30, offset = 0 } = req.query;
-    const logs = await automationService.getExecutionLogs(parseInt(req.params.id), companyId, {
+    const { limit = 25, offset = 0, status } = req.query;
+    const result = await automationService.getExecutionLogs(parseInt(req.params.id), companyId, {
       limit: parseInt(limit),
       offset: parseInt(offset),
+      status: status || undefined,
     });
-    res.json({ success: true, logs });
+    res.json({ success: true, ...result });
   } catch (err) { next(err); }
 };
 

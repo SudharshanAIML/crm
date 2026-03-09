@@ -137,16 +137,25 @@ export const insertLog = async (data) => {
   return result.insertId;
 };
 
-export const getLogsByAutomation = async (automationId, { limit = 30, offset = 0 } = {}) => {
-  const [rows] = await db.query(
-    `SELECT * FROM automation_logs WHERE automation_id = ? ORDER BY executed_at DESC LIMIT ? OFFSET ?`,
-    [automationId, limit, offset]
+export const getLogsByAutomation = async (automationId, { limit = 25, offset = 0, status } = {}) => {
+  const countParams = [automationId];
+  let countWhere = `WHERE automation_id = ?`;
+  if (status) { countWhere += ` AND status = ?`; countParams.push(status); }
+
+  const [[{ total }]] = await db.query(
+    `SELECT COUNT(*) as total FROM automation_logs ${countWhere}`,
+    countParams
   );
-  return rows.map((r) => {
+
+  let query = `SELECT * FROM automation_logs ${countWhere} ORDER BY executed_at DESC LIMIT ? OFFSET ?`;
+  const [rows] = await db.query(query, [...countParams, limit, offset]);
+
+  const logs = rows.map((r) => {
     r.trigger_payload = typeof r.trigger_payload === "string" ? JSON.parse(r.trigger_payload) : r.trigger_payload;
     r.steps = typeof r.steps === "string" ? JSON.parse(r.steps) : r.steps;
     return r;
   });
+  return { logs, total };
 };
 
 export const getLogsByCompany = async (companyId, { limit = 50, offset = 0, status } = {}) => {

@@ -53,6 +53,7 @@ const FollowupsPage = lazy(() => import('./pages/FollowupsPage'));
 // Automations
 const AutomationsPage = lazy(() => import('./pages/AutomationsPage'));
 const AutomationBuilderPage = lazy(() => import('./pages/AutomationBuilderPage'));
+const AutomationLogsPage = lazy(() => import('./pages/AutomationLogsPage'));
 
 // ============================================================================
 // ERROR BOUNDARY - Graceful error handling for lazy loaded components
@@ -304,6 +305,7 @@ function App() {
                           <Route path="/automations" element={<NestedSuspense><AutomationsPage /></NestedSuspense>} />
                           <Route path="/automations/new" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
                           <Route path="/automations/:id/edit" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
+                          <Route path="/automations/:id/logs" element={<NestedSuspense><AutomationLogsPage /></NestedSuspense>} />
                         </Route>
 
                         {/* ===== ADMIN DASHBOARD ROUTES ===== */}
@@ -347,6 +349,7 @@ function App() {
                           <Route path="automations" element={<NestedSuspense><AutomationsPage /></NestedSuspense>} />
                           <Route path="automations/new" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
                           <Route path="automations/:id/edit" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
+                          <Route path="automations/:id/logs" element={<NestedSuspense><AutomationLogsPage /></NestedSuspense>} />
                           
                           {/* Settings */}
                           <Route path="settings" element={<NestedSuspense><SettingsPage /></NestedSuspense>} />

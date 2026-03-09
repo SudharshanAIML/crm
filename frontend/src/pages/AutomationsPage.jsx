@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Zap, Plus, Search, ToggleLeft, ToggleRight, Trash2, Edit,
   Clock, CheckCircle, XCircle, AlertTriangle, BarChart3,
-  ChevronDown, ChevronRight, History, Play, Filter
+  History, Play
 } from 'lucide-react';
 import * as automationService from '../services/automationService';
 import { useAuth } from '../context/AuthContext';
@@ -67,24 +67,7 @@ const triggerLabel = (type) => {
 /* =====================================================
    AUTOMATION ROW
 ===================================================== */
-const AutomationRow = memo(({ automation, onToggle, onDelete, onEdit, onViewLogs, expanded, onExpand }) => {
-  const [logs, setLogs] = useState([]);
-  const [logsLoading, setLogsLoading] = useState(false);
-
-  const loadLogs = useCallback(async () => {
-    if (logs.length > 0) return;
-    setLogsLoading(true);
-    try {
-      const res = await automationService.getAutomationLogs(automation.automation_id, { limit: 5 });
-      setLogs(res.logs || []);
-    } catch { /* ignore */ }
-    setLogsLoading(false);
-  }, [automation.automation_id, logs.length]);
-
-  useEffect(() => {
-    if (expanded) loadLogs();
-  }, [expanded, loadLogs]);
-
+const AutomationRow = memo(({ automation, onToggle, onDelete, onEdit, onViewLogs }) => {
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       <div className="flex items-center gap-4 p-4">
@@ -127,8 +110,8 @@ const AutomationRow = memo(({ automation, onToggle, onDelete, onEdit, onViewLogs
 
         {/* Actions */}
         <div className="flex items-center gap-1">
-          <button onClick={() => onExpand(automation.automation_id)} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Logs">
-            {expanded ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
+          <button onClick={() => onViewLogs(automation.automation_id)} className="p-1.5 hover:bg-gray-100 rounded-lg" title="View execution logs">
+            <History className="w-4 h-4 text-gray-500" />
           </button>
           <button onClick={() => onEdit(automation)} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Edit">
             <Edit className="w-4 h-4 text-gray-500" />
@@ -138,32 +121,6 @@ const AutomationRow = memo(({ automation, onToggle, onDelete, onEdit, onViewLogs
           </button>
         </div>
       </div>
-
-      {/* Expanded Logs */}
-      {expanded && (
-        <div className="border-t border-gray-100 bg-gray-50 p-4">
-          <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Recent Executions</h4>
-          {logsLoading ? (
-            <div className="flex items-center gap-2 text-xs text-gray-400">
-              <div className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
-              Loading...
-            </div>
-          ) : logs.length === 0 ? (
-            <p className="text-xs text-gray-400">No executions yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {logs.map(log => (
-                <div key={log.log_id} className="flex items-center gap-3 text-xs">
-                  <StatusBadge status={log.status} />
-                  <span className="text-gray-500">{new Date(log.executed_at).toLocaleString()}</span>
-                  <span className="text-gray-400">{log.duration_ms}ms</span>
-                  {log.error_message && <span className="text-red-500 truncate max-w-[200px]">{log.error_message}</span>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 });
@@ -181,7 +138,6 @@ const AutomationsPage = () => {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [expandedId, setExpandedId] = useState(null);
   const [tab, setTab] = useState('all'); // all | active | drafts
 
   const load = useCallback(async () => {
@@ -224,9 +180,9 @@ const AutomationsPage = () => {
     navigate(`${basePath}/automations/${automation.automation_id}/edit`);
   }, [navigate, basePath]);
 
-  const handleExpand = useCallback((id) => {
-    setExpandedId(prev => prev === id ? null : id);
-  }, []);
+  const handleViewLogs = useCallback((id) => {
+    navigate(`${basePath}/automations/${id}/logs`);
+  }, [navigate, basePath]);
 
   // Filter
   const filtered = automations.filter(a => {
@@ -331,9 +287,7 @@ const AutomationsPage = () => {
               onToggle={handleToggle}
               onDelete={handleDelete}
               onEdit={handleEdit}
-              onViewLogs={() => {}}
-              expanded={expandedId === a.automation_id}
-              onExpand={handleExpand}
+              onViewLogs={handleViewLogs}
             />
           ))}
         </div>
