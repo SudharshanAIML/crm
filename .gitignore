@@ -8,4 +8,4 @@ dist/
 *.json
 backend/db/migrations/*.js
 *.yaml
-uploads
+uploads/
