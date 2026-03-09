@@ -856,7 +856,9 @@ const MessageBubble = memo(({ message, isOwn, onEdit, onDelete, onReply, hideRep
 
           {/* Attachment */}
           {!isDeleted && message.attachment_url && (() => {
-            const url = `${API_BASE}${message.attachment_url}`;
+            const url = /^https?:\/\//.test(message.attachment_url)
+              ? message.attachment_url
+              : `${API_BASE}${message.attachment_url}`;
             const mime = message.attachment_type || '';
             const isImg = mime.startsWith('image/');
             const isAudio = mime.startsWith('audio/') || mime === 'video/webm' || /voice/i.test(message.attachment_name || '');

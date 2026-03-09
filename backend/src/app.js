@@ -14,7 +14,8 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Ensure uploads directory exists
+// Legacy: keep serving old local uploads — new uploads go to Cloudinary
+// Ensure uploads directory exists (for legacy files that may still be referenced)
 const UPLOADS_DIR = path.join(__dirname, '../../uploads/discuss');
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
