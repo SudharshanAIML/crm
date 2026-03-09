@@ -17,7 +17,6 @@ import {
   Mail,
   ClipboardList,
   UsersRound,
-  FileText,
   MessageCircle,
   Zap,
   NotebookText
@@ -116,7 +115,6 @@ const WORKSPACE_ITEMS = [
   { id: 'discuss', path: '/discuss', icon: MessageCircle, label: 'Discuss' },
   { id: 'gmail', path: '/gmail', icon: Mail, label: 'Gmail' },
   { id: 'calendar', path: '/calendar', icon: CalendarDays, label: 'Calendar' },
-  { id: 'pages', path: '/pages', icon: FileText, label: 'Pages' },
   { id: 'templates', path: '/templates', icon: NotebookText, label: 'Templates' },
   { id: 'automations', path: '/automations', icon: Zap, label: 'Automations' },
   { id: 'analytics', path: '/analytics', icon: BarChart3, label: 'Analytics' },
@@ -268,7 +266,7 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle, isAdmin
     if (path === '/admin/gmail') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'gmail', currentAdminView: null, isAdminRoute: true };
     if (path === '/admin/calendar') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'calendar', currentAdminView: null, isAdminRoute: true };
     if (path === '/admin/analytics') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'analytics', currentAdminView: null, isAdminRoute: true };
-    if (path.startsWith('/admin/pages')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'pages', currentAdminView: null, isAdminRoute: true };
+    if (path.startsWith('/admin/pages')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'templates', currentAdminView: null, isAdminRoute: true };
     if (path === '/admin/discuss') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'discuss', currentAdminView: null, isAdminRoute: true };
     if (path.startsWith('/admin/templates')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'templates', currentAdminView: null, isAdminRoute: true };
     if (path.startsWith('/admin/automations')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'automations', currentAdminView: null, isAdminRoute: true };
@@ -305,7 +303,7 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle, isAdmin
     if (path === '/gmail') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'gmail', currentAdminView: null, isAdminRoute: false };
     if (path === '/calendar') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'calendar', currentAdminView: null, isAdminRoute: false };
     if (path === '/analytics') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'analytics', currentAdminView: null, isAdminRoute: false };
-    if (path.startsWith('/pages')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'pages', currentAdminView: null, isAdminRoute: false };
+    if (path.startsWith('/pages')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'templates', currentAdminView: null, isAdminRoute: false };
     if (path === '/discuss') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'discuss', currentAdminView: null, isAdminRoute: false };
     if (path.startsWith('/templates')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'templates', currentAdminView: null, isAdminRoute: false };
     if (path.startsWith('/automations')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'automations', currentAdminView: null, isAdminRoute: false };

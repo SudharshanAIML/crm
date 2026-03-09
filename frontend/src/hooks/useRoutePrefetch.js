@@ -38,7 +38,7 @@ const PREFETCH_MAP = {
     () => import('../pages/ContactsPage'),
     () => import('../pages/FollowupsPage'),
   ],
-  '/pages': [
+  '/templates': [
     () => import('../pages/PageBuilderPage'),
     () => import('../pages/PageResponsesPage'),
   ],
@@ -114,7 +114,7 @@ export const prefetchRoute = (routeName) => {
     'followups': () => import('../pages/FollowupsPage'),
     'sessions': () => import('../pages/StageFollowupsPage'),
     'settings': () => import('../pages/SettingsPage'),
-    'pages': () => import('../pages/PagesListPage'),
+    'templates': () => import('../pages/TemplatesPage'),
     'page-builder': () => import('../pages/PageBuilderPage'),
     'admin-team': () => import('../pages/AdminTeamPage'),
     'admin-analytics': () => import('../pages/AdminAnalyticsPage'),

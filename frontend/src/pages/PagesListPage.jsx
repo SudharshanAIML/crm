@@ -45,7 +45,7 @@ const TEMPLATES = [
   { id: 'contact', label: 'Contact Page', icon: FileText, description: 'Simple contact form' }
 ];
 
-export default function PagesListPage() {
+export function PagesListContent() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   
@@ -199,10 +199,9 @@ export default function PagesListPage() {
   }, []);
   
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+    <>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-gray-800">Landing Pages</h1>
             <p className="text-gray-500 mt-1">Create and manage landing pages for your outreach campaigns</p>
@@ -313,7 +312,6 @@ export default function PagesListPage() {
             ))}
           </div>
         )}
-      </div>
       
       {/* New Page Modal */}
       {showNewPageModal && (
@@ -353,9 +351,11 @@ export default function PagesListPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
+
+export default PagesListContent;
 
 // Memoized PageCard component to prevent unnecessary re-renders
 const PageCard = memo(({ 
