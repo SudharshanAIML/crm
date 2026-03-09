@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import XLSX from "xlsx";
 import * as contactRepo from "./contact.repo.js";
 import * as sessionRepo from "../sessions/session.repo.js";
 import * as opportunityRepo from "../opportunities/opportunity.repo.js";
@@ -444,12 +445,27 @@ const toCSV = (rows) => {
 };
 
 /**
- * Import contacts from CSV buffer. Returns summary { imported, failed[], createdIds }.
+ * Parse an XLSX buffer into a 2D array of rows (same format as parseCSV).
  */
-export const importContacts = async (csvBuffer, companyId = 1, options = {}) => {
-  const rows = parseCSV(csvBuffer);
+const parseXLSX = (buffer) => {
+  const workbook = XLSX.read(buffer, { type: 'buffer' });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) return [];
+  const sheet = workbook.Sheets[sheetName];
+  return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+    .map(r => r.map(c => String(c ?? '').trim()));
+};
+
+/**
+ * Import contacts from CSV/XLSX buffer. Returns summary { imported, failed[], createdIds }.
+ */
+export const importContacts = async (fileBuffer, companyId = 1, options = {}) => {
+  const filename = (options.filename || '').toLowerCase();
+  const rows = filename.endsWith('.xlsx') || filename.endsWith('.xls')
+    ? parseXLSX(fileBuffer)
+    : parseCSV(fileBuffer);
   if (!rows || rows.length <= 1) {
-    return { imported: 0, failed: [{ row: 0, error: 'Empty or invalid CSV' }] };
+    return { imported: 0, failed: [{ row: 0, error: 'Empty or invalid file' }] };
   }
   const headers = rows[0].map(h => h.toLowerCase());
   const results = { imported: 0, failed: [], createdIds: [] };
@@ -459,21 +475,26 @@ export const importContacts = async (csvBuffer, companyId = 1, options = {}) => 
     const record = {};
     for (let j = 0; j < headers.length; j++) record[headers[j]] = cols[j] ?? '';
     const name = record.name || `${record.first_name||''} ${record.last_name||''}`.trim();
-    const email = (record.email||'').toLowerCase() || null;
-    const phone = record.phone || null;
+    const email = (record.email||'').toLowerCase().trim() || null;
+    const phone = (record.phone||'').trim() || null;
     if (!name || (!email && !phone)) {
       results.failed.push({ row: i+1, error: 'Missing required fields (name and email/phone)' });
       continue;
     }
+    // email column is NOT NULL in DB — if missing, use a placeholder
+    const safeEmail = email || `no-email-${Date.now()}-${i}@placeholder.local`;
     try {
       const data = {
         company_id: companyId,
-        assigned_emp_id: record.assigned_emp_id ? parseInt(record.assigned_emp_id) : null,
+        assigned_emp_id: record.assigned_emp_id ? parseInt(record.assigned_emp_id) : (options.importedByEmpId || null),
         name,
-        email,
+        email: safeEmail,
         phone,
         job_title: record.job_title || null,
-        status: (record.status || 'LEAD').toUpperCase(),
+        // defaultStatus (from page context) overrides the CSV column value
+        status: options.defaultStatus
+          ? options.defaultStatus
+          : (record.status || 'LEAD').toUpperCase(),
         source: record.source || null,
         temperature: record.temperature || 'COLD',
         interest_score: record.interest_score ? parseInt(record.interest_score) : 0,

@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getConnectionStatus, getConnectUrl, disconnectEmail } from '../services/emailService';
-import { exportContacts } from '../services/contactService';
 import {
   SettingsSidebar,
   ProfileTab,
@@ -10,6 +9,7 @@ import {
   NotificationsTab,
   SecurityTab,
   PreferencesTab,
+  ExportTab,
   SuccessMessage,
 } from '../components/settings';
 
@@ -38,14 +38,6 @@ const SettingsPage = () => {
   
   // UI state
   const [successMessage, setSuccessMessage] = useState(null);
-  const [exportLoading, setExportLoading] = useState(false);
-  const [exportParams, setExportParams] = useState({
-    period: 'monthly',
-    year: new Date().getFullYear(),
-    month: new Date().getMonth() + 1,
-    quarter: Math.floor(new Date().getMonth() / 3) + 1,
-    status: '',
-  });
   
   // Dynamic back navigation based on user role
   const backPath = isAdmin ? '/admin' : '/dashboard';
@@ -123,39 +115,6 @@ const SettingsPage = () => {
     }
   }, []);
 
-  const handleExportDownload = useCallback(async () => {
-    try {
-      setExportLoading(true);
-
-      const params = {
-        period: exportParams.period,
-        year: exportParams.year || undefined,
-        month: exportParams.period === 'monthly' ? exportParams.month : undefined,
-        quarter: exportParams.period === 'quarterly' ? exportParams.quarter : undefined,
-        status: exportParams.status || undefined,
-      };
-
-      const blob = await exportContacts(params);
-
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const filename = `contacts-${params.period}-${params.year || 'all'}.csv`;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-
-      setSuccessMessage('Export prepared — download should begin shortly.');
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (err) {
-      console.error('Export failed:', err);
-      alert(err.response?.data?.message || err.message || 'Export failed');
-    } finally {
-      setExportLoading(false);
-    }
-  }, [exportParams]);
   /**
    * Navigate back to dashboard
    */
@@ -207,6 +166,9 @@ const SettingsPage = () => {
       
       case 'preferences':
         return <PreferencesTab />;
+
+      case 'export':
+        return <ExportTab />;
       
       default:
         return <ProfileTab user={user} />;
@@ -236,84 +198,6 @@ const SettingsPage = () => {
         {/* Content */}
         <div className="p-4 lg:p-6">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 lg:p-6">
-            {isAdmin && (
-              <div className="mb-4 border border-gray-100 rounded-lg p-4 bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-semibold">Admin — Export contacts</h3>
-                    <p className="text-xs text-gray-500">Download contacts by month, quarter or year. Leave year blank for a full-yearly export (includes created_year).</p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={exportParams.period}
-                      onChange={(e) => setExportParams(p => ({ ...p, period: e.target.value }))}
-                      className="border rounded px-2 py-1 text-sm"
-                    >
-                      <option value="monthly">Monthly</option>
-                      <option value="quarterly">Quarterly</option>
-                      <option value="yearly">Yearly</option>
-                    </select>
-
-                    {exportParams.period === 'monthly' && (
-                      <input
-                        type="number"
-                        min="1"
-                        max="12"
-                        placeholder="Month"
-                        value={exportParams.month || ''}
-                        onChange={(e) => setExportParams(p => ({ ...p, month: e.target.value ? parseInt(e.target.value) : undefined }))}
-                        className="w-20 border rounded px-2 py-1 text-sm"
-                      />
-                    )}
-
-                    {exportParams.period === 'quarterly' && (
-                      <input
-                        type="number"
-                        min="1"
-                        max="4"
-                        placeholder="Quarter"
-                        value={exportParams.quarter || ''}
-                        onChange={(e) => setExportParams(p => ({ ...p, quarter: e.target.value ? parseInt(e.target.value) : undefined }))}
-                        className="w-24 border rounded px-2 py-1 text-sm"
-                      />
-                    )}
-
-                    <input
-                      type="number"
-                      placeholder="Year (optional)"
-                      value={exportParams.year || ''}
-                      onChange={(e) => setExportParams(p => ({ ...p, year: e.target.value ? parseInt(e.target.value) : undefined }))}
-                      className="w-28 border rounded px-2 py-1 text-sm"
-                    />
-
-                    <select
-                      value={exportParams.status}
-                      onChange={(e) => setExportParams(p => ({ ...p, status: e.target.value }))}
-                      className="border rounded px-2 py-1 text-sm"
-                    >
-                      <option value="">All</option>
-                      <option value="LEAD">LEAD</option>
-                      <option value="MQL">MQL</option>
-                      <option value="SQL">SQL</option>
-                      <option value="OPPORTUNITY">OPPORTUNITY</option>
-                      <option value="CUSTOMER">CUSTOMER</option>
-                      <option value="EVANGELIST">EVANGELIST</option>
-                      <option value="DORMANT">DORMANT</option>
-                    </select>
-
-                    <button
-                      onClick={handleExportDownload}
-                      disabled={exportLoading}
-                      className="bg-sky-500 text-white px-3 py-1 rounded text-sm"
-                    >
-                      {exportLoading ? 'Preparing...' : 'Download'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {renderTabContent()}
           </div>
         </div>
