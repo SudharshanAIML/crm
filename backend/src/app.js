@@ -43,6 +43,7 @@ import notificationRoutes from "./modules/notifications/notification.routes.js";
 import discussRoutes from "./modules/discuss/discuss.routes.js";
 import callRoutes from "./modules/calls/call.routes.js";
 import automationRoutes from "./modules/automations/automation.routes.js";
+import emailTemplateRoutes from "./modules/email-templates/emailTemplate.routes.js";
 
 // Initialize Express app
 const app = express();
@@ -273,6 +274,9 @@ app.use("/api/calls", callRoutes);
 
 // Automation engine routes
 app.use("/api/automations", automationRoutes);
+
+// Email template routes
+app.use("/api/email-templates", emailTemplateRoutes);
 
 /* =====================================================
    404 HANDLER

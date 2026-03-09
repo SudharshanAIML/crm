@@ -19,7 +19,8 @@ import {
   UsersRound,
   FileText,
   MessageCircle,
-  Zap
+  Zap,
+  NotebookText
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -116,6 +117,7 @@ const WORKSPACE_ITEMS = [
   { id: 'gmail', path: '/gmail', icon: Mail, label: 'Gmail' },
   { id: 'calendar', path: '/calendar', icon: CalendarDays, label: 'Calendar' },
   { id: 'pages', path: '/pages', icon: FileText, label: 'Pages' },
+  { id: 'templates', path: '/templates', icon: NotebookText, label: 'Templates' },
   { id: 'automations', path: '/automations', icon: Zap, label: 'Automations' },
   { id: 'analytics', path: '/analytics', icon: BarChart3, label: 'Analytics' },
 ];
@@ -268,6 +270,7 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle, isAdmin
     if (path === '/admin/analytics') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'analytics', currentAdminView: null, isAdminRoute: true };
     if (path.startsWith('/admin/pages')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'pages', currentAdminView: null, isAdminRoute: true };
     if (path === '/admin/discuss') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'discuss', currentAdminView: null, isAdminRoute: true };
+    if (path.startsWith('/admin/templates')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'templates', currentAdminView: null, isAdminRoute: true };
     if (path.startsWith('/admin/automations')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'automations', currentAdminView: null, isAdminRoute: true };
     
     // Check if we're in sessions mode (/sessions/:stage)
@@ -304,6 +307,7 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle, isAdmin
     if (path === '/analytics') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'analytics', currentAdminView: null, isAdminRoute: false };
     if (path.startsWith('/pages')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'pages', currentAdminView: null, isAdminRoute: false };
     if (path === '/discuss') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'discuss', currentAdminView: null, isAdminRoute: false };
+    if (path.startsWith('/templates')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'templates', currentAdminView: null, isAdminRoute: false };
     if (path.startsWith('/automations')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'automations', currentAdminView: null, isAdminRoute: false };
     
     // Default to contacts mode

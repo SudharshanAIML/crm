@@ -50,6 +50,9 @@ const DiscussPage = lazy(() => import('./pages/DiscussPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const FollowupsPage = lazy(() => import('./pages/FollowupsPage'));
 
+// Email Templates
+const EmailTemplatesPage = lazy(() => import('./pages/EmailTemplatesPage'));
+
 // Automations
 const AutomationsPage = lazy(() => import('./pages/AutomationsPage'));
 const AutomationBuilderPage = lazy(() => import('./pages/AutomationBuilderPage'));
@@ -298,6 +301,9 @@ function App() {
                           <Route path="/pages/:pageId/edit" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
                           <Route path="/pages/:pageId/responses" element={<NestedSuspense><PageResponsesPage /></NestedSuspense>} />
                           
+                          {/* Email Templates */}
+                          <Route path="/templates" element={<NestedSuspense><EmailTemplatesPage /></NestedSuspense>} />
+
                           {/* Discuss (Team Chat) */}
                           <Route path="/discuss" element={<NestedSuspense><DiscussPage /></NestedSuspense>} />
 
@@ -342,6 +348,9 @@ function App() {
                           <Route path="pages/:pageId/edit" element={<NestedSuspense><PageBuilderPage /></NestedSuspense>} />
                           <Route path="pages/:pageId/responses" element={<NestedSuspense><PageResponsesPage /></NestedSuspense>} />
                           
+                          {/* Email Templates - Admin */}
+                          <Route path="templates" element={<NestedSuspense><EmailTemplatesPage /></NestedSuspense>} />
+
                           {/* Discuss (Team Chat) - Admin */}
                           <Route path="discuss" element={<NestedSuspense><DiscussPage /></NestedSuspense>} />
 
