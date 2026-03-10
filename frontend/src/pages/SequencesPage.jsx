@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback, memo } from 'react';
 import {
   ListOrdered, Plus, Search, Trash2, Edit, Users, Play, Pause,
   Archive, BarChart2, ChevronRight, Loader2, AlertCircle, X,
-  CheckCircle2, Clock, Mail
+  CheckCircle2, Clock, Mail, Eye
 } from 'lucide-react';
 import * as seqService from '../services/sequenceService';
 import SequenceBuilderModal from '../components/sequences/SequenceBuilderModal';
 import EnrollContactsModal from '../components/sequences/EnrollContactsModal';
+import SequenceEnrollmentsModal from '../components/sequences/SequenceEnrollmentsModal';
 
 /* ── constants ───────────────────────────────────── */
 const STATUS_OPTIONS = [
@@ -39,7 +40,7 @@ const StatCard = memo(({ icon: Icon, label, value, color }) => (
 StatCard.displayName = 'StatCard';
 
 /* ── sequence card ───────────────────────────────── */
-const SequenceCard = memo(({ seq, onEdit, onDelete, onEnroll, onToggleStatus }) => {
+const SequenceCard = memo(({ seq, onEdit, onDelete, onEnroll, onToggleStatus, onViewEnrollments }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const stepCount = seq.step_count ?? 0;
@@ -91,6 +92,14 @@ const SequenceCard = memo(({ seq, onEdit, onDelete, onEnroll, onToggleStatus }) 
       {/* Footer actions */}
       <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => onViewEnrollments(seq)}
+            className="p-1.5 hover:bg-sky-50 rounded-lg transition-colors text-gray-400 hover:text-sky-600"
+            title="View enrolled contacts"
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+
           <button
             onClick={() => onEdit(seq)}
             className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-500 hover:text-sky-600"
@@ -159,6 +168,7 @@ export default function SequencesPage() {
   const [showBuilder, setShowBuilder] = useState(false);
   const [editing, setEditing]         = useState(null);   // sequence being edited
   const [enrollTarget, setEnroll]     = useState(null);   // sequence to enroll into
+  const [viewTarget, setViewTarget]   = useState(null);   // sequence to view enrollments for
 
   const load = useCallback(async () => {
     try {
@@ -307,6 +317,7 @@ export default function SequencesPage() {
                 onDelete={handleDelete}
                 onEnroll={(s) => setEnroll(s)}
                 onToggleStatus={handleToggleStatus}
+                onViewEnrollments={(s) => setViewTarget(s)}
               />
             ))}
           </div>
@@ -326,6 +337,14 @@ export default function SequencesPage() {
         <EnrollContactsModal
           sequence={enrollTarget}
           onClose={() => setEnroll(null)}
+          onEnrolled={() => { load(); setEnroll(null); }}
+        />
+      )}
+
+      {viewTarget && (
+        <SequenceEnrollmentsModal
+          sequence={viewTarget}
+          onClose={() => setViewTarget(null)}
         />
       )}
     </div>

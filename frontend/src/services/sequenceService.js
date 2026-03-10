@@ -13,6 +13,7 @@ export const getEnrollments   = (seqId, params = {})      => api.get(`/sequences
 export const cancelEnrollment = (seqId, enrollmentId)     => api.delete(`/sequences/${seqId}/enrollments/${enrollmentId}`).then(r => r.data);
 export const pauseEnrollment  = (seqId, enrollmentId, reason) => api.post(`/sequences/${seqId}/enrollments/${enrollmentId}/pause`, { reason }).then(r => r.data);
 export const resumeEnrollment = (seqId, enrollmentId)     => api.post(`/sequences/${seqId}/enrollments/${enrollmentId}/resume`).then(r => r.data);
+export const getEnrollmentLog = (seqId, enrollmentId)     => api.get(`/sequences/${seqId}/enrollments/${enrollmentId}/log`).then(r => r.data);
 
 /* ── contact-level ─────────────────────────────────── */
 export const getContactEnrollments = (contactId) => api.get(`/sequences/contact/${contactId}/enrollments`).then(r => r.data);

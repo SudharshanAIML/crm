@@ -23,7 +23,7 @@ const STAGE_COLOR = {
   DORMANT:     'bg-red-100 text-red-600',
 };
 
-export default function EnrollContactsModal({ sequence, onClose }) {
+export default function EnrollContactsModal({ sequence, onClose, onEnrolled }) {
   const [contacts, setContacts]   = useState([]);
   const [loading, setLoading]     = useState(true);
   const [enrolling, setEnrolling] = useState(false);
@@ -83,6 +83,10 @@ export default function EnrollContactsModal({ sequence, onClose }) {
       const { enrolled = [], skipped = [] } = result;
       setSuccess(`Enrolled ${enrolled.length} contact${enrolled.length !== 1 ? 's' : ''}${skipped.length ? ` (${skipped.length} skipped — already enrolled or not found)` : ''}.`);
       setSelected(new Set());
+      // Notify parent so it can refresh sequence stats
+      if (enrolled.length > 0 && onEnrolled) {
+        setTimeout(() => onEnrolled(result), 1200);
+      }
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to enroll contacts');
     } finally {

@@ -95,6 +95,14 @@ export const resumeEnrollment = async (req, res, next) => {
   } catch (e) { next(e); }
 };
 
+/* ── execution log ─────────────────────────────────── */
+export const getEnrollmentLog = async (req, res, next) => {
+  try {
+    const log = await svc.getEnrollmentLog(+req.params.enrollmentId, req.user.companyId);
+    res.json(log);
+  } catch (e) { next(e); }
+};
+
 /* ── contact-level view ────────────────────────────── */
 export const getContactEnrollments = async (req, res, next) => {
   try {

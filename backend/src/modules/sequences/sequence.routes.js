@@ -20,6 +20,7 @@ router.get("/:id/enrollments",                       ctrl.getEnrollments);
 router.delete("/:id/enrollments/:enrollmentId",      ctrl.cancelEnrollment);
 router.post("/:id/enrollments/:enrollmentId/pause",  ctrl.pauseEnrollment);
 router.post("/:id/enrollments/:enrollmentId/resume", ctrl.resumeEnrollment);
+router.get("/:id/enrollments/:enrollmentId/log",    ctrl.getEnrollmentLog);
 
 /* ── contact-level view (used in contact detail panel) */
 router.get("/contact/:contactId/enrollments", ctrl.getContactEnrollments);

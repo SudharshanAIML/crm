@@ -1,5 +1,4 @@
 import * as repo from "./sequence.repo.js";
-import * as contactRepo from "../contacts/contact.repo.js";
 
 /* =====================================================
    VALIDATION HELPERS
@@ -90,40 +89,32 @@ export const enrollContacts = async (sequenceId, companyId, empId, contactIds) =
   const steps = await repo.getStepsBySequence(sequenceId);
   if (!steps.length) throw new Error("Sequence has no steps");
 
-  const firstStep = steps[0];
-  // next_send_at = NOW() + delay_days of first step
-  const nextSend = addDays(new Date(), firstStep.delay_days);
+  const nextSend = addDays(new Date(), steps[0].delay_days);
 
-  const results = { enrolled: [], skipped: [] };
+  // ── Batch validation (3 queries total, regardless of contactIds.length) ──
+  const [validRows, alreadyRows] = await Promise.all([
+    repo.getContactsByIds(contactIds, companyId),
+    repo.getActiveEnrollmentsForContacts(sequenceId, contactIds),
+  ]);
 
-  for (const contactId of contactIds) {
-    // Verify contact belongs to company
-    const contact = await contactRepo.getById(contactId);
-    if (!contact || contact.company_id !== companyId) {
-      results.skipped.push({ contactId, reason: "Contact not found" });
-      continue;
-    }
+  const validIds    = new Set(validRows.map((r) => r.contact_id));
+  const enrolledIds = new Set(alreadyRows.map((r) => r.contact_id));
 
-    // Check existing active/paused enrollment
-    const existing = await repo.getEnrollment(sequenceId, contactId);
-    if (existing && ["ACTIVE", "PAUSED"].includes(existing.status)) {
-      results.skipped.push({ contactId, reason: "Already enrolled" });
-      continue;
-    }
+  const toEnroll = contactIds.filter((id) => validIds.has(id) && !enrolledIds.has(id));
 
-    await repo.createEnrollment({
-      sequence_id: sequenceId,
-      contact_id: contactId,
-      enrolled_by: empId,
-      company_id: companyId,
-      next_send_at: nextSend,
-    });
+  const skipped = [
+    ...contactIds.filter((id) => !validIds.has(id))   .map((id) => ({ contactId: id, reason: "Contact not found" })),
+    ...contactIds.filter((id) => enrolledIds.has(id)) .map((id) => ({ contactId: id, reason: "Already enrolled" })),
+  ];
 
-    await repo.incrementEnrollmentCount(sequenceId);
-    results.enrolled.push(contactId);
+  if (toEnroll.length > 0) {
+    await repo.bulkCreateEnrollments(
+      toEnroll.map((contactId) => ({ sequence_id: sequenceId, contact_id: contactId, enrolled_by: empId, company_id: companyId, next_send_at: nextSend }))
+    );
+    await repo.incrementEnrollmentCountBy(sequenceId, toEnroll.length);
   }
 
-  return results;
+  return { enrolled: toEnroll, skipped };
 };
 
 export const cancelEnrollment = async (enrollmentId, companyId) => {
@@ -139,18 +130,14 @@ export const pauseEnrollment = async (enrollmentId, reason) => {
 };
 
 export const resumeEnrollment = async (enrollmentId, sequenceId) => {
-  const steps = await repo.getStepsBySequence(sequenceId);
-  const enrollment = await repo.getEnrollment(sequenceId, null); // we look up by enrollmentId
-  // Re-fetch directly
-  const [rows] = await (await import("../../config/db.js")).db.query(
-    `SELECT * FROM sequence_enrollments WHERE enrollment_id = ?`, [enrollmentId]
-  );
-  const enr = rows[0];
+  const [enr, steps] = await Promise.all([
+    repo.getEnrollmentById(enrollmentId),
+    repo.getStepsBySequence(sequenceId),
+  ]);
   if (!enr) throw new Error("Enrollment not found");
 
-  const nextStepOrder = enr.current_step + 1;
-  const nextStep = steps.find((s) => s.step_order === nextStepOrder);
-  if (!nextStep) throw new Error("No more steps to resume");
+  const nextStep = steps.find((s) => s.step_order === enr.current_step + 1);
+  if (!nextStep) throw new Error("No more steps to resume — sequence is complete");
 
   await repo.updateEnrollment(enrollmentId, {
     status: "ACTIVE",
@@ -169,6 +156,13 @@ export const listEnrollments = async (sequenceId, companyId, filters = {}) => {
 
 export const listContactEnrollments = async (contactId) => {
   return repo.listEnrollmentsByContact(contactId);
+};
+
+export const getEnrollmentLog = async (enrollmentId, companyId) => {
+  const enr = await repo.getEnrollmentById(enrollmentId);
+  if (!enr) throw new Error("Enrollment not found");
+  if (enr.company_id !== companyId) throw new Error("Access denied");
+  return repo.getExecutionLog(enrollmentId);
 };
 
 /* =====================================================

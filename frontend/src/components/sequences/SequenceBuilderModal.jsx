@@ -127,19 +127,35 @@ export default function SequenceBuilderModal({ sequence = null, onClose, onSaved
   const [steps, setSteps]         = useState([blankStep()]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading]     = useState(false);
+  const [seeding, setSeeding]     = useState(isEdit);   // true while fetching existing data
   const [error, setError]         = useState(null);
 
-  // Seed form when editing an existing sequence
+  // When editing, always fetch the full sequence (list rows don't include steps)
   useEffect(() => {
-    if (sequence) {
-      setName(sequence.name || '');
-      setDesc(sequence.description || '');
-      setStatus(sequence.status || 'DRAFT');
-      if (Array.isArray(sequence.steps) && sequence.steps.length) {
-        setSteps(sequence.steps.map((s) => ({ ...s, _key: s.step_id ? String(s.step_id) : crypto.randomUUID() })));
+    if (!isEdit) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setSeeding(true);
+        const full = await seqService.getSequence(sequence.sequence_id);
+        if (cancelled) return;
+        setName(full.name || '');
+        setDesc(full.description || '');
+        setStatus(full.status || 'DRAFT');
+        if (Array.isArray(full.steps) && full.steps.length) {
+          setSteps(full.steps.map((s) => ({ ...s, _key: s.step_id ? String(s.step_id) : crypto.randomUUID() })));
+        } else {
+          setSteps([blankStep()]);
+        }
+      } catch {
+        if (!cancelled) setError('Failed to load sequence data');
+      } finally {
+        if (!cancelled) setSeeding(false);
       }
-    }
-  }, [sequence]);
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sequence?.sequence_id]);
 
   // Load templates for the template picker inside step rows
   useEffect(() => {
@@ -211,6 +227,13 @@ export default function SequenceBuilderModal({ sequence = null, onClose, onSaved
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Seeding spinner — shown while fetching existing sequence data */}
+        {seeding ? (
+          <div className="flex-1 flex items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 text-sky-400 animate-spin" />
+          </div>
+        ) : (
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
@@ -315,6 +338,7 @@ export default function SequenceBuilderModal({ sequence = null, onClose, onSaved
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );
