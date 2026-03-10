@@ -628,6 +628,20 @@ export const missCallLog = async (channelId) => {
 };
 
 /**
+ * Get the active (started) call for a channel, if any
+ */
+export const getActiveCallForChannel = async (channelId) => {
+  const [rows] = await db.execute(
+    `SELECT call_id, channel_id, caller_emp_id, caller_name, channel_name, started_at
+     FROM discuss_call_logs
+     WHERE channel_id = ? AND status = 'started'
+     ORDER BY call_id DESC LIMIT 1`,
+    [channelId]
+  );
+  return rows.length > 0 ? rows[0] : null;
+};
+
+/**
  * Get call logs for a channel (for display in chat)
  */
 export const getCallLogsByChannel = async (channelId, limit = 50) => {

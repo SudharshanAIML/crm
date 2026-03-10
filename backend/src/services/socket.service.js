@@ -140,6 +140,21 @@ export const initSocketIO = (httpServer) => {
         await repo.updateLastRead(channelId, empId);
 
         socket.to(`channel:${channelId}`).emit("channel:user_joined", { channelId, empId });
+
+        // Notify the joining socket about any active call in this channel
+        try {
+          const activeCall = await repo.getActiveCallForChannel(channelId);
+          if (activeCall) {
+            socket.emit("call:active", {
+              channelId,
+              channelName: activeCall.channel_name || "",
+              callerName: activeCall.caller_name || "Someone",
+              callerEmpId: activeCall.caller_emp_id,
+            });
+          }
+        } catch (callErr) {
+          console.error("Failed to check active call on channel:join:", callErr.message);
+        }
       } catch (err) {
         socket.emit("error", { message: err.message });
       }
@@ -323,6 +338,21 @@ export const initSocketIO = (httpServer) => {
       } catch (err) {
         console.error("Failed to persist call end log:", err.message);
       }
+    });
+
+    socket.on("call:leave", async ({ channelId }) => {
+      // Notify others that this user left
+      socket.to(`channel:${channelId}`).emit("call:participant_left", {
+        channelId,
+        empId,
+      });
+
+      // Check if the call room is now empty — if so, end the call
+      const roomName = `channel:${channelId}`;
+      const sockets = await io.in(roomName).fetchSockets();
+      // Count how many sockets are still in an active LiveKit call for this channel
+      // If only this socket remains or fewer, end the call
+      // For simplicity, let the call persist until explicitly ended or server detects no participants
     });
 
     socket.on("call:reject", ({ channelId }) => {

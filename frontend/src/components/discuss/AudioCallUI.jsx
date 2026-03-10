@@ -1,5 +1,5 @@
-import { memo, useMemo } from 'react';
-import { Phone, PhoneOff, PhoneIncoming, Mic, MicOff, Volume2, VolumeX, User, Users } from 'lucide-react';
+import { memo, useMemo, useState, useRef, useCallback } from 'react';
+import { Phone, PhoneOff, PhoneIncoming, Mic, MicOff, Volume2, VolumeX, User, Users, GripHorizontal, LogOut } from 'lucide-react';
 import { useAudioCall } from './AudioCallProvider';
 
 /* =====================================================
@@ -120,16 +120,66 @@ export const ActiveCallWidget = memo(() => {
     toggleMute,
     toggleSpeaker,
     leaveCall,
+    endCall,
   } = useAudioCall();
 
   const formattedDuration = useMemo(() => formatDuration(callDuration), [callDuration]);
 
+  /* ---- Drag logic ---- */
+  const [pos, setPos] = useState({ x: 16, y: 16 }); // top-right offset initially
+  const [useCustomPos, setUseCustomPos] = useState(false);
+  const dragRef = useRef(null);
+  const dragging = useRef(false);
+  const offset = useRef({ x: 0, y: 0 });
+
+  const onPointerDown = useCallback((e) => {
+    dragging.current = true;
+    const rect = dragRef.current?.closest('[data-call-widget]')?.getBoundingClientRect();
+    if (!rect) return;
+    offset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }, []);
+
+  const onPointerMove = useCallback((e) => {
+    if (!dragging.current) return;
+    const el = dragRef.current?.closest('[data-call-widget]');
+    if (!el) return;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const nx = Math.max(0, Math.min(window.innerWidth - w, e.clientX - offset.current.x));
+    const ny = Math.max(0, Math.min(window.innerHeight - h, e.clientY - offset.current.y));
+    setPos({ x: nx, y: ny });
+    setUseCustomPos(true);
+  }, []);
+
+  const onPointerUp = useCallback(() => {
+    dragging.current = false;
+  }, []);
+
   if (callState !== 'active') return null;
 
+  const style = useCustomPos
+    ? { left: pos.x, top: pos.y, right: 'auto' }
+    : { top: 16, right: 16 };
+
   return (
-    <div className="fixed top-4 right-4 z-[60] w-72 bg-gray-900 rounded-2xl shadow-2xl shadow-black/40 border border-gray-700 overflow-hidden animate-slide-in">
-      {/* Green gradient header */}
+    <div
+      data-call-widget
+      className="fixed z-[60] w-72 bg-gray-900 rounded-2xl shadow-2xl shadow-black/40 border border-gray-700 overflow-hidden animate-slide-in"
+      style={style}
+    >
+      {/* Drag handle + Green gradient header */}
       <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-2.5 flex items-center gap-2">
+        {/* Drag handle */}
+        <div
+          ref={dragRef}
+          className="cursor-grab active:cursor-grabbing touch-none flex-shrink-0 text-white/60 hover:text-white/90 transition-colors"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+        >
+          <GripHorizontal className="w-4 h-4" />
+        </div>
         {/* Sound wave */}
         <div className="flex items-center gap-0.5 flex-shrink-0">
           <div className="w-0.5 h-2.5 bg-white/80 rounded-full animate-sound-wave-1" />
@@ -203,8 +253,15 @@ export const ActiveCallWidget = memo(() => {
           </button>
           <button
             onClick={leaveCall}
-            className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors flex items-center gap-1.5"
+            className="p-2 rounded-xl transition-colors bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25"
             title="Leave call"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+          <button
+            onClick={endCall}
+            className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors flex items-center gap-1.5"
+            title="End call for everyone"
           >
             <PhoneOff className="w-4 h-4" />
             <span className="text-xs font-medium">End</span>
