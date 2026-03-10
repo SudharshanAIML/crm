@@ -99,7 +99,7 @@ const AdminLayout = memo(() => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen overflow-hidden bg-gray-50">
       {/* Sidebar - Desktop */}
       <div
         className={`hidden lg:block fixed left-0 top-0 h-screen z-30 transition-all duration-300 ${
@@ -122,7 +122,7 @@ const AdminLayout = memo(() => {
 
       {/* Main Content Area */}
       <div
-        className={`transition-all duration-300 ${
+        className={`h-full flex flex-col transition-all duration-300 ${
           sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
         }`}
       >
@@ -143,7 +143,7 @@ const AdminLayout = memo(() => {
         <ErrorAlert error={error} onDismiss={clearError} />
 
         {/* Page Content - Rendered by nested routes */}
-        <main className="p-4 lg:p-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <Outlet context={{ setError, clearError }} />
         </main>
       </div>

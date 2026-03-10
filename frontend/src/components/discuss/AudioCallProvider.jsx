@@ -79,6 +79,8 @@ export const AudioCallProvider = ({ children }) => {
   const [participants, setParticipants] = useState([]);
   const [callDuration, setCallDuration] = useState(0);
   const [incomingCall, setIncomingCall] = useState(null);
+  // Stores the last channel the user manually left (so they can rejoin)
+  const [lastLeftChannel, setLastLeftChannel] = useState(null);
 
   // Track channels with ongoing calls (Map<channelId, { callerName, callerEmpId, startedAt }>)
   const [activeCallChannels, setActiveCallChannels] = useState({});
@@ -249,6 +251,9 @@ export const AudioCallProvider = ({ children }) => {
   const startCall = useCallback(async (channelId, channelName, callerName) => {
     if (callState !== 'idle') return false;
 
+    // Clear any pending rejoin prompt
+    setLastLeftChannel(null);
+
     setCallState('ringing-out');
     setCallChannelId(channelId);
     setCallChannelName(channelName || `Channel ${channelId}`);
@@ -281,7 +286,7 @@ export const AudioCallProvider = ({ children }) => {
     ringingTimerRef.current = setTimeout(() => {
       if (roomRef.current && roomRef.current.remoteParticipants.size === 0) {
         emit('call:missed', { channelId });
-        leaveCall();
+        endCall();
       }
     }, 60000);
 
@@ -316,6 +321,9 @@ export const AudioCallProvider = ({ children }) => {
   const joinCall = useCallback(async (channelId, channelName) => {
     if (callState !== 'idle') return false;
 
+    // Clear any pending rejoin prompt
+    setLastLeftChannel(null);
+
     setCallChannelId(channelId);
     setCallChannelName(channelName || `Channel ${channelId}`);
 
@@ -341,12 +349,39 @@ export const AudioCallProvider = ({ children }) => {
   }, [incomingCall, emit]);
 
   /**
-   * Leave / end the current call
+   * Leave the current call (user steps out — call continues for others).
+   * Saves the channel so the user can rejoin from the floating popup.
    */
   const leaveCall = useCallback(() => {
     const channelId = callChannelId;
+    const channelName = callChannelName;
 
-    // Guard against re-entrant disconnect
+    disconnectingRef.current = true;
+
+    if (roomRef.current) {
+      roomRef.current.disconnect();
+      roomRef.current = null;
+    }
+
+    // Remember last left channel for the rejoin popup
+    if (channelId) {
+      setLastLeftChannel({ channelId, channelName });
+    }
+
+    resetLocalState();
+    disconnectingRef.current = false;
+  }, [callChannelId, callChannelName, resetLocalState]);
+
+  /**
+   * End the call — if other participants are still connected, just leave
+   * gracefully (preserving the call for them) and show the rejoin popup.
+   * Only truly terminate the call (emit call:end) when you're the last one.
+   */
+  const endCall = useCallback(() => {
+    const channelId = callChannelId;
+    const channelName = callChannelName;
+    const hasOthers = roomRef.current?.remoteParticipants?.size > 0;
+
     disconnectingRef.current = true;
 
     if (roomRef.current) {
@@ -355,18 +390,30 @@ export const AudioCallProvider = ({ children }) => {
     }
 
     if (channelId) {
-      emit('call:end', { channelId });
-      // Remove from active call channels
-      setActiveCallChannels((prev) => {
-        const next = { ...prev };
-        delete next[channelId];
-        return next;
-      });
+      if (hasOthers) {
+        // Others still in the call — leave silently, offer rejoin
+        setLastLeftChannel({ channelId, channelName });
+      } else {
+        // Last participant — end the call for real
+        emit('call:end', { channelId });
+        setActiveCallChannels((prev) => {
+          const next = { ...prev };
+          delete next[channelId];
+          return next;
+        });
+      }
     }
 
     resetLocalState();
     disconnectingRef.current = false;
-  }, [callChannelId, emit, resetLocalState]);
+  }, [callChannelId, callChannelName, emit, resetLocalState]);
+
+  /**
+   * Dismiss the rejoin prompt without rejoining.
+   */
+  const dismissRejoin = useCallback(() => {
+    setLastLeftChannel(null);
+  }, []);
 
   const toggleMute = useCallback(async () => {
     const room = roomRef.current;
@@ -435,19 +482,28 @@ export const AudioCallProvider = ({ children }) => {
       return next;
     });
 
+    // Clear the rejoin prompt if it pointed to this channel
+    setLastLeftChannel((prev) =>
+      prev?.channelId === data.channelId ? null : prev
+    );
+
     // If we have an incoming call for this channel, dismiss it
     if (incomingCall?.channelId === data.channelId && callState === 'ringing-in') {
       resetLocalState();
       return;
     }
 
-    // If we're in a call on this channel, check if we should auto-leave
+    // If we're in a call on this channel and we're the last one, clean up
     if (callChannelId === data.channelId && roomRef.current) {
       if (roomRef.current.remoteParticipants.size === 0) {
-        leaveCall();
+        disconnectingRef.current = true;
+        roomRef.current.disconnect();
+        roomRef.current = null;
+        resetLocalState();
+        disconnectingRef.current = false;
       }
     }
-  }, [incomingCall, callState, callChannelId, resetLocalState, leaveCall]);
+  }, [incomingCall, callState, callChannelId, resetLocalState]);
 
   useSocketEvent('call:start', handleIncomingCall);
   useSocketEvent('call:end', handleCallEnded);
@@ -470,8 +526,12 @@ export const AudioCallProvider = ({ children }) => {
     rejectCall,
     joinCall,
     leaveCall,
+    endCall,
+    dismissRejoin,
     toggleMute,
     toggleSpeaker,
+    // Rejoin state
+    lastLeftChannel,
   };
 
   return (

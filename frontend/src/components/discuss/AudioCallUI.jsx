@@ -1,6 +1,47 @@
-import { memo, useMemo } from 'react';
-import { Phone, PhoneOff, PhoneIncoming, Mic, MicOff, Volume2, VolumeX, User, Users } from 'lucide-react';
+import { memo, useMemo, useState, useRef, useCallback } from 'react';
+import { Phone, PhoneOff, PhoneIncoming, Mic, MicOff, Volume2, VolumeX, User, Users, GripHorizontal, LogOut } from 'lucide-react';
 import { useAudioCall } from './AudioCallProvider';
+
+/* =====================================================
+   HOOK: reusable drag-to-reposition logic
+===================================================== */
+const useDraggable = () => {
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [useCustomPos, setUseCustomPos] = useState(false);
+  const dragRef = useRef(null);
+  const dragging = useRef(false);
+  const offset = useRef({ x: 0, y: 0 });
+
+  const onPointerDown = useCallback((e) => {
+    dragging.current = true;
+    const rect = dragRef.current?.closest('[data-draggable-popup]')?.getBoundingClientRect();
+    if (!rect) return;
+    offset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }, []);
+
+  const onPointerMove = useCallback((e) => {
+    if (!dragging.current) return;
+    const el = dragRef.current?.closest('[data-draggable-popup]');
+    if (!el) return;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const nx = Math.max(0, Math.min(window.innerWidth - w, e.clientX - offset.current.x));
+    const ny = Math.max(0, Math.min(window.innerHeight - h, e.clientY - offset.current.y));
+    setPos({ x: nx, y: ny });
+    setUseCustomPos(true);
+  }, []);
+
+  const onPointerUp = useCallback(() => {
+    dragging.current = false;
+  }, []);
+
+  const style = useCustomPos
+    ? { left: pos.x, top: pos.y, right: 'auto' }
+    : { top: 16, right: 16 };
+
+  return { dragRef, onPointerDown, onPointerMove, onPointerUp, style };
+};
 
 /* =====================================================
    HELPER: format seconds → "00:00"
@@ -16,13 +57,29 @@ const formatDuration = (seconds) => {
 ===================================================== */
 export const IncomingCallPopup = memo(() => {
   const { callState, incomingCall, acceptCall, rejectCall } = useAudioCall();
+  const { dragRef, onPointerDown, onPointerMove, onPointerUp, style } = useDraggable();
 
   if (callState !== 'ringing-in' || !incomingCall) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-[60] w-72 bg-gray-900 rounded-2xl shadow-2xl shadow-black/40 border border-gray-700 overflow-hidden animate-slide-in">
-      {/* Green accent bar at top */}
-      <div className="h-1 bg-gradient-to-r from-green-400 to-emerald-500" />
+    <div
+      data-draggable-popup
+      className="fixed z-[60] w-72 bg-gray-900 rounded-2xl shadow-2xl shadow-black/40 border border-gray-700 overflow-hidden animate-slide-in"
+      style={style}
+    >
+      {/* Drag handle + Green accent bar at top */}
+      <div className="h-7 bg-gradient-to-r from-green-400 to-emerald-500 flex items-center px-3 gap-2">
+        <div
+          ref={dragRef}
+          className="cursor-grab active:cursor-grabbing touch-none text-white/70 hover:text-white transition-colors"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+        >
+          <GripHorizontal className="w-4 h-4" />
+        </div>
+        <span className="text-white/80 text-[10px] font-medium select-none">Incoming Call</span>
+      </div>
 
       <div className="p-4">
         {/* Caller info */}
@@ -68,13 +125,29 @@ IncomingCallPopup.displayName = 'IncomingCallPopup';
 ===================================================== */
 export const OutgoingCallPopup = memo(() => {
   const { callState, callChannelName, leaveCall } = useAudioCall();
+  const { dragRef, onPointerDown, onPointerMove, onPointerUp, style } = useDraggable();
 
   if (callState !== 'ringing-out' && callState !== 'connecting') return null;
 
   return (
-    <div className="fixed top-4 right-4 z-[60] w-72 bg-gray-900 rounded-2xl shadow-2xl shadow-black/40 border border-gray-700 overflow-hidden animate-slide-in">
-      {/* Emerald accent bar */}
-      <div className="h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
+    <div
+      data-draggable-popup
+      className="fixed z-[60] w-72 bg-gray-900 rounded-2xl shadow-2xl shadow-black/40 border border-gray-700 overflow-hidden animate-slide-in"
+      style={style}
+    >
+      {/* Drag handle + Emerald accent bar */}
+      <div className="h-7 bg-gradient-to-r from-emerald-400 to-teal-500 flex items-center px-3 gap-2">
+        <div
+          ref={dragRef}
+          className="cursor-grab active:cursor-grabbing touch-none text-white/70 hover:text-white transition-colors"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+        >
+          <GripHorizontal className="w-4 h-4" />
+        </div>
+        <span className="text-white/80 text-[10px] font-medium select-none">Outgoing Call</span>
+      </div>
 
       <div className="p-4">
         <div className="flex items-center gap-3 mb-3">
@@ -120,16 +193,32 @@ export const ActiveCallWidget = memo(() => {
     toggleMute,
     toggleSpeaker,
     leaveCall,
+    endCall,
   } = useAudioCall();
 
   const formattedDuration = useMemo(() => formatDuration(callDuration), [callDuration]);
+  const { dragRef, onPointerDown, onPointerMove, onPointerUp, style } = useDraggable();
 
   if (callState !== 'active') return null;
 
   return (
-    <div className="fixed top-4 right-4 z-[60] w-72 bg-gray-900 rounded-2xl shadow-2xl shadow-black/40 border border-gray-700 overflow-hidden animate-slide-in">
-      {/* Green gradient header */}
+    <div
+      data-draggable-popup
+      className="fixed z-[60] w-72 bg-gray-900 rounded-2xl shadow-2xl shadow-black/40 border border-gray-700 overflow-hidden animate-slide-in"
+      style={style}
+    >
+      {/* Drag handle + Green gradient header */}
       <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-4 py-2.5 flex items-center gap-2">
+        {/* Drag handle */}
+        <div
+          ref={dragRef}
+          className="cursor-grab active:cursor-grabbing touch-none flex-shrink-0 text-white/60 hover:text-white/90 transition-colors"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+        >
+          <GripHorizontal className="w-4 h-4" />
+        </div>
         {/* Sound wave */}
         <div className="flex items-center gap-0.5 flex-shrink-0">
           <div className="w-0.5 h-2.5 bg-white/80 rounded-full animate-sound-wave-1" />
@@ -203,8 +292,15 @@ export const ActiveCallWidget = memo(() => {
           </button>
           <button
             onClick={leaveCall}
-            className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors flex items-center gap-1.5"
+            className="p-2 rounded-xl transition-colors bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25"
             title="Leave call"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+          <button
+            onClick={endCall}
+            className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors flex items-center gap-1.5"
+            title="End call for everyone"
           >
             <PhoneOff className="w-4 h-4" />
             <span className="text-xs font-medium">End</span>
@@ -215,6 +311,78 @@ export const ActiveCallWidget = memo(() => {
   );
 });
 ActiveCallWidget.displayName = 'ActiveCallWidget';
+
+/* =====================================================
+   REJOIN CALL POPUP — shown after the user leaves a
+   call that is still ongoing in that channel.
+===================================================== */
+export const RejoinCallPopup = memo(() => {
+  const { callState, lastLeftChannel, activeCallChannels, joinCall, dismissRejoin } = useAudioCall();
+  const { dragRef, onPointerDown, onPointerMove, onPointerUp, style } = useDraggable();
+
+  // Only show when idle AND the channel the user left is still active
+  const channelStillActive =
+    lastLeftChannel && !!activeCallChannels[lastLeftChannel.channelId];
+
+  if (callState !== 'idle' || !channelStillActive) return null;
+
+  const handleRejoin = () => {
+    joinCall(lastLeftChannel.channelId, lastLeftChannel.channelName);
+  };
+
+  return (
+    <div
+      data-draggable-popup
+      className="fixed z-[60] w-72 bg-gray-900 rounded-2xl shadow-2xl shadow-black/40 border border-gray-700 overflow-hidden animate-slide-in"
+      style={style}
+    >
+      {/* Drag handle bar */}
+      <div className="h-7 bg-gradient-to-r from-yellow-500 to-orange-500 flex items-center px-3 gap-2">
+        <div
+          ref={dragRef}
+          className="cursor-grab active:cursor-grabbing touch-none text-white/70 hover:text-white transition-colors"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+        >
+          <GripHorizontal className="w-4 h-4" />
+        </div>
+        <span className="text-white/80 text-[10px] font-medium select-none">Call still active</span>
+      </div>
+
+      <div className="p-4">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
+            <Phone className="w-5 h-5 text-yellow-400" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-white text-sm font-semibold truncate">
+              #{lastLeftChannel.channelName || 'channel'}
+            </p>
+            <p className="text-gray-400 text-xs">You left — call is still going</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={dismissRejoin}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-400 rounded-xl text-xs font-medium transition-colors"
+          >
+            Dismiss
+          </button>
+          <button
+            onClick={handleRejoin}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-xl text-xs font-medium transition-colors"
+          >
+            <Phone className="w-3.5 h-3.5" />
+            Rejoin
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+RejoinCallPopup.displayName = 'RejoinCallPopup';
 
 /* =====================================================
    ACTIVE CALL BAR — Inline banner within the channel
@@ -343,6 +511,7 @@ export const CallOverlay = memo(() => {
       <IncomingCallPopup />
       <OutgoingCallPopup />
       <ActiveCallWidget />
+      <RejoinCallPopup />
     </>
   );
 });

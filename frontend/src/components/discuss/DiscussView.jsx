@@ -821,7 +821,7 @@ const MessageBubble = memo(({ message, isOwn, onEdit, onDelete, onReply, hideRep
       {/* Content */}
       <div className={`flex-1 min-w-0 flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
         {/* Name + time */}
-        <div className={`flex items-baseline gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}>
+        <div className="flex items-baseline gap-2">
           <span className={`font-semibold text-sm ${isOwn ? 'text-indigo-700' : 'text-gray-900'}`}>
             {message.sender_name}
             {message.sender_role === 'ADMIN' && (
@@ -998,7 +998,7 @@ const MessageBubble = memo(({ message, isOwn, onEdit, onDelete, onReply, hideRep
 
       {/* Hover Actions — emoji button + 3-dot menu */}
       {showActions && !message.is_deleted && (
-        <div className={`flex items-center gap-0.5 self-center ${isOwn ? 'flex-row-reverse' : ''}`}>
+        <div className="flex items-center gap-0.5 self-center">
 
           {/* Emoji picker — rendered via portal to escape overflow clipping */}
           <FloatingPortal anchorRect={emojiAnchorRect} alignRight={isOwn}>
