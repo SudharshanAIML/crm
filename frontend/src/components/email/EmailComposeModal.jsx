@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Send, Loader2, AlertCircle, Mail, ExternalLink } from 'lucide-react';
 import { sendEmail, getConnectionStatus, getConnectUrl } from '../../services/emailService';
+import TemplatePicker from '../email-templates/TemplatePicker';
 
 /**
  * EmailComposeModal
@@ -240,30 +241,18 @@ const EmailComposeModal = ({ isOpen, contact, onClose, onSuccess }) => {
                 />
               </div>
 
-              {/* Email Templates (Quick Insert) */}
-              <div className="flex flex-wrap gap-2">
-                <span className="text-xs text-gray-500 py-1">Quick templates:</span>
-                <button
-                  type="button"
-                  onClick={() => setBody(`Hi ${contact?.name?.split(' ')[0] || 'there'},\n\nI hope this email finds you well.\n\n`)}
-                  className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
-                >
-                  Greeting
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBody(prev => prev + '\n\nBest regards,\n')}
-                  className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
-                >
-                  Sign-off
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBody(`Hi ${contact?.name?.split(' ')[0] || 'there'},\n\nI wanted to follow up on our previous conversation. Do you have any questions or need additional information?\n\nLooking forward to hearing from you.\n\nBest regards,\n`)}
-                  className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
-                >
-                  Follow-up
-                </button>
+              {/* Email Templates - pick from saved templates */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Templates:</span>
+                <TemplatePicker
+                  contact={contact}
+                  onApply={(tplSubject, tplBody) => {
+                    setSubject(tplSubject);
+                    setBody(tplBody);
+                  }}
+                  placement="up"
+                  buttonVariant="outlined"
+                />
               </div>
             </div>
           )}

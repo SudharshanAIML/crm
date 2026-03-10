@@ -19,7 +19,8 @@ import {
   UsersRound,
   MessageCircle,
   Zap,
-  NotebookText
+  NotebookText,
+  ListOrdered
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -116,6 +117,7 @@ const WORKSPACE_ITEMS = [
   { id: 'gmail', path: '/gmail', icon: Mail, label: 'Gmail' },
   { id: 'calendar', path: '/calendar', icon: CalendarDays, label: 'Calendar' },
   { id: 'templates', path: '/templates', icon: NotebookText, label: 'Templates' },
+  { id: 'sequences', path: '/sequences', icon: ListOrdered, label: 'Sequences' },
   { id: 'automations', path: '/automations', icon: Zap, label: 'Automations' },
   { id: 'analytics', path: '/analytics', icon: BarChart3, label: 'Analytics' },
 ];
@@ -270,6 +272,7 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle, isAdmin
     if (path === '/admin/discuss') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'discuss', currentAdminView: null, isAdminRoute: true };
     if (path.startsWith('/admin/templates')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'templates', currentAdminView: null, isAdminRoute: true };
     if (path.startsWith('/admin/automations')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'automations', currentAdminView: null, isAdminRoute: true };
+    if (path.startsWith('/admin/sequences')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'sequences', currentAdminView: null, isAdminRoute: true };
     
     // Check if we're in sessions mode (/sessions/:stage)
     const sessionsMatch = path.match(/^\/sessions\/([\w]+)$/);
@@ -307,6 +310,7 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle, isAdmin
     if (path === '/discuss') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'discuss', currentAdminView: null, isAdminRoute: false };
     if (path.startsWith('/templates')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'templates', currentAdminView: null, isAdminRoute: false };
     if (path.startsWith('/automations')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'automations', currentAdminView: null, isAdminRoute: false };
+    if (path.startsWith('/sequences')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'sequences', currentAdminView: null, isAdminRoute: false };
     
     // Default to contacts mode
     return {

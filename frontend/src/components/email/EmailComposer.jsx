@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import TemplatePicker from '../email-templates/TemplatePicker';
 import { X, Minus, Maximize2, Minimize2, Send, Paperclip, Smile, Link2, Trash2, Bold, Italic, Underline, AlertCircle, ExternalLink, Loader2, Save } from 'lucide-react';
-import { sendEmail, getConnectionStatus, getConnectUrl, createGmailDraft, updateGmailDraft, deleteGmailDraft } from '../../services/emailService';
-
+import { sendEmail, getConnectionStatus, getConnectUrl, createGmailDraft, updateGmailDraft, deleteGmailDraft, sendGmailDraft } from '../../services/emailService';
+//nishithaaa
 const EMOJI_LIST = [
   '😀', '😃', '😄', '😁', '😊', '🙂', '😉', '😍',
   '🤔', '😎', '👍', '👋', '🎉', '✨', '💯', '🔥',
@@ -176,24 +177,37 @@ const EmailComposer = ({
       // Convert markdown-style content to HTML for proper email rendering
       const htmlBody = convertToHtml(formData.body);
 
-      const result = await sendEmail({
-        contactId: contact?.contact_id,
-        subject: formData.subject,
-        body: htmlBody,
-        isHtml: true,
-        attachments: attachments.map(({ name, type, base64 }) => ({
-          name,
-          type,
-          base64,
-        })),
-      });
+      if (contact?.contact_id) {
+        // Contact-scoped send — tracked, queued, stored against the contact record
+        await sendEmail({
+          contactId: contact.contact_id,
+          subject: formData.subject,
+          body: htmlBody,
+          isHtml: true,
+          attachments: attachments.map(({ name, type, base64 }) => ({ name, type, base64 })),
+        });
+      } else {
+        // Free-compose (Gmail page) — use Gmail draft → send flow
+        // This path works without a contactId and goes directly through the Gmail API
+        const draftPayload = {
+          to: formData.to,
+          subject: formData.subject,
+          body: htmlBody,
+        };
+        if (currentDraftId) {
+          await updateGmailDraft(currentDraftId, draftPayload);
+          await sendGmailDraft(currentDraftId);
+        } else {
+          const { draftId } = await createGmailDraft(draftPayload);
+          await sendGmailDraft(draftId);
+        }
+      }
 
-      // Email is now queued for background sending
-      // Close immediately for better UX - email sends in background
       onSuccess?.();
       onClose();
       setFormData({ to: contact?.email || '', subject: '', body: '' });
       setAttachments([]);
+      setCurrentDraftId(null);
     } catch (err) {
       if (err.response?.data?.code === 'EMAIL_NOT_CONNECTED') {
         setEmailConnected(false);
@@ -642,6 +656,15 @@ const EmailComposer = ({
                   </div>
                 )}
               </div>
+
+              {/* Template Picker */}
+              <TemplatePicker
+                contact={contact}
+                onApply={(subject, body) => {
+                  setFormData((prev) => ({ ...prev, subject, body }));
+                }}
+                placement="up"
+              />
             </div>
           </div>
 

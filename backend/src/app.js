@@ -45,6 +45,7 @@ import discussRoutes from "./modules/discuss/discuss.routes.js";
 import callRoutes from "./modules/calls/call.routes.js";
 import automationRoutes from "./modules/automations/automation.routes.js";
 import emailTemplateRoutes from "./modules/email-templates/emailTemplate.routes.js";
+import sequenceRoutes from "./modules/sequences/sequence.routes.js";
 
 // Initialize Express app
 const app = express();
@@ -279,6 +280,9 @@ app.use("/api/automations", automationRoutes);
 // Email template routes
 app.use("/api/email-templates", emailTemplateRoutes);
 
+// Email sequence routes
+app.use("/api/sequences", sequenceRoutes);
+
 /* =====================================================
    404 HANDLER
 ===================================================== */
@@ -304,6 +308,7 @@ import * as emailQueue from "./services/emailQueue.service.js";
 import { restoreAutopilotSessions } from "./modules/outreach/autopilot.service.js";
 import { initSocketIO } from "./services/socket.service.js";
 import { initAutomationEngine } from "./modules/automations/automation.engine.js";
+import { startScheduler, stopScheduler } from "./services/sequenceScheduler.service.js";
 
 /* =====================================================
    GRACEFUL SHUTDOWN
@@ -312,6 +317,9 @@ import { initAutomationEngine } from "./modules/automations/automation.engine.js
 const gracefulShutdown = async (signal) => {
   console.log(`\n🛑 Received ${signal}. Shutting down gracefully...`);
   
+  // Stop the sequence scheduler first
+  stopScheduler();
+
   // Wait for email queue to finish
   await emailQueue.shutdown();
   
@@ -403,6 +411,13 @@ const server = httpServer.listen(PORT, HOST, async () => {
     await restoreAutopilotSessions();
   } catch (err) {
     console.error("⚠️ Failed to restore autopilot sessions:", err.message);
+  }
+
+  // Start sequence scheduler
+  try {
+    startScheduler();
+  } catch (err) {
+    console.error("⚠️ Failed to start sequence scheduler:", err.message);
   }
 });
 

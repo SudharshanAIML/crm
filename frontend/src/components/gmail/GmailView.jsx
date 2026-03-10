@@ -47,7 +47,7 @@ const TABS = [
     { id: 'autopilot', label: 'Auto Pilot', icon: Plane },
 ];
 
-const EmailView = ({ isAdmin = false }) => {
+const GmailView = ({ isAdmin = false }) => {
     // Theme colors based on admin status - admin uses softer amber/warm tones
     const themeColors = isAdmin ? {
         primary: 'from-amber-500 to-orange-600',
@@ -544,4 +544,4 @@ const EmailView = ({ isAdmin = false }) => {
     );
 };
 
-export default EmailView;
+export default GmailView;

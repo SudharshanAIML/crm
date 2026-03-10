@@ -127,6 +127,20 @@ export const preview = async (req, res, next) => {
 };
 
 /* ---------------------------------------------------
+   RECORD USAGE (fire-and-forget — no ownership check needed beyond auth)
+   POST /api/email-templates/:id/use
+--------------------------------------------------- */
+export const recordUse = async (req, res, next) => {
+  try {
+    await service.recordUsage(parseInt(req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    // Never fail the caller — usage tracking is non-critical
+    res.json({ success: false });
+  }
+};
+
+/* ---------------------------------------------------
    GET AVAILABLE VARIABLES
    GET /api/email-templates/variables
 --------------------------------------------------- */

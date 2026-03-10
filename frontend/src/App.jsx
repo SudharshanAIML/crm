@@ -52,6 +52,9 @@ const FollowupsPage = lazy(() => import('./pages/FollowupsPage'));
 // Unified Templates page (landing pages + email templates)
 const TemplatesPage = lazy(() => import('./pages/TemplatesPage'));
 
+// Sequences
+const SequencesPage = lazy(() => import('./pages/SequencesPage'));
+
 // Automations
 const AutomationsPage = lazy(() => import('./pages/AutomationsPage'));
 const AutomationBuilderPage = lazy(() => import('./pages/AutomationBuilderPage'));
@@ -311,6 +314,9 @@ function App() {
                           <Route path="/automations/new" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
                           <Route path="/automations/:id/edit" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
                           <Route path="/automations/:id/logs" element={<NestedSuspense><AutomationLogsPage /></NestedSuspense>} />
+
+                          {/* Sequences */}
+                          <Route path="/sequences" element={<NestedSuspense><SequencesPage /></NestedSuspense>} />
                         </Route>
 
                         {/* ===== ADMIN DASHBOARD ROUTES ===== */}
@@ -358,6 +364,9 @@ function App() {
                           <Route path="automations/new" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
                           <Route path="automations/:id/edit" element={<NestedSuspense><AutomationBuilderPage /></NestedSuspense>} />
                           <Route path="automations/:id/logs" element={<NestedSuspense><AutomationLogsPage /></NestedSuspense>} />
+
+                          {/* Sequences - Admin */}
+                          <Route path="sequences" element={<NestedSuspense><SequencesPage /></NestedSuspense>} />
                           
                           {/* Settings */}
                           <Route path="settings" element={<NestedSuspense><SettingsPage /></NestedSuspense>} />

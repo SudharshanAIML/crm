@@ -79,6 +79,16 @@ router.delete("/:id", authenticateEmployee, ctrl.remove);
 router.post("/:id/duplicate", authenticateEmployee, ctrl.duplicate);
 
 /* ---------------------------------------------------
+   RECORD TEMPLATE USAGE (fire-and-forget)
+--------------------------------------------------- */
+/**
+ * @route   POST /api/email-templates/:id/use
+ * @desc    Increment usage counter when a template is applied in compose
+ * @access  Employee
+ */
+router.post("/:id/use", authenticateEmployee, ctrl.recordUse);
+
+/* ---------------------------------------------------
    PREVIEW TEMPLATE
 --------------------------------------------------- */
 /**
