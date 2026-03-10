@@ -233,6 +233,38 @@ export const getDueEnrollments = async () => {
 };
 
 /**
+ * Reply-check candidates — enrollments whose reply status should be polled
+ * even though no send is due yet:
+ *   • ACTIVE enrollments that have sent ≥1 step but the next send is still
+ *     in the future (reply between steps window)
+ *   • COMPLETED enrollments within the last 30 days (catch late replies after
+ *     the final step)
+ * Excludes REPLIED/CANCELLED/PAUSED — they are already stopped.
+ * LIMIT 200 per tick; runs as a second independent pass in the scheduler.
+ */
+export const getEnrollmentsForReplyCheck = async () => {
+  const [rows] = await db.query(
+    `SELECT e.*,
+            c.name  AS contact_name,
+            c.email AS contact_email
+     FROM sequence_enrollments e
+     JOIN contacts c ON c.contact_id = e.contact_id
+     WHERE (
+       -- Waiting for next step but already sent ≥1 email
+       (e.status = 'ACTIVE' AND e.current_step > 0
+        AND (e.next_send_at IS NULL OR e.next_send_at > NOW()))
+       OR
+       -- Completed in last 30 days (handle replies to the final step)
+       (e.status = 'COMPLETED'
+        AND e.completed_at >= NOW() - INTERVAL 30 DAY)
+     )
+     ORDER BY e.enrolled_at DESC
+     LIMIT 200`
+  );
+  return rows;
+};
+
+/**
  * Fetch a single enrollment by its PK (used by service / scheduler).
  */
 export const getEnrollmentById = async (enrollmentId) => {

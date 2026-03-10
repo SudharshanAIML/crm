@@ -220,23 +220,68 @@ const processEnrollment = async (enrollment) => {
 };
 
 /* =====================================================
-   TICK — process all due enrollments
+   REPLY-CHECK PASS
+   Runs every tick alongside the send pass.
+   Targets contacts that are BETWEEN steps or have COMPLETED the sequence —
+   i.e., enrollments that getDueEnrollments() never touches.
+   This catches two gaps:
+     1. Contact replies after step N but before step N+1 is due.
+     2. Contact replies after the very last step (enrollment already COMPLETED).
+===================================================== */
+const replyCheckPass = async () => {
+  const candidates = await repo.getEnrollmentsForReplyCheck();
+  if (!candidates.length) return;
+
+  for (let i = 0; i < candidates.length; i += MAX_PARALLEL) {
+    const batch = candidates.slice(i, i + MAX_PARALLEL);
+    await Promise.allSettled(
+      batch.map(async (enrollment) => {
+        try {
+          const {
+            enrollment_id, sequence_id, enrolled_by,
+            contact_email, enrolled_at,
+          } = enrollment;
+
+          const replied = await hasContactReplied(enrolled_by, contact_email, enrolled_at);
+          if (!replied) return;
+
+          await repo.updateEnrollment(enrollment_id, {
+            status: "REPLIED",
+            paused_at: new Date(),
+            pause_reason: "Contact replied to email",
+            next_send_at: null,
+          });
+          await repo.incrementRepliedCount(sequence_id);
+          console.log(`💬 Reply detected — enrollment ${enrollment_id} (${contact_email}) marked REPLIED`);
+        } catch (err) {
+          // Per-enrollment failure — never blocks others
+          console.error(`Reply-check error for enrollment ${enrollment.enrollment_id}:`, err.message);
+        }
+      })
+    );
+  }
+};
+
+/* =====================================================
+   TICK — send due emails + scan for replies
 ===================================================== */
 const tick = async () => {
   if (isRunning) return;
   isRunning = true;
 
   try {
+    // Pass 1: send any due step emails
     const due = await repo.getDueEnrollments();
-    if (!due.length) return;
-
-    console.log(`📬 Sequence scheduler: ${due.length} enrollment(s) due`);
-
-    // Bounded parallel processing to avoid overwhelming the DB / Gmail API
-    for (let i = 0; i < due.length; i += MAX_PARALLEL) {
-      const batch = due.slice(i, i + MAX_PARALLEL);
-      await Promise.allSettled(batch.map(processEnrollment));
+    if (due.length) {
+      console.log(`📬 Sequence scheduler: ${due.length} enrollment(s) due`);
+      for (let i = 0; i < due.length; i += MAX_PARALLEL) {
+        const batch = due.slice(i, i + MAX_PARALLEL);
+        await Promise.allSettled(batch.map(processEnrollment));
+      }
     }
+
+    // Pass 2: check for replies on waiting / completed enrollments
+    await replyCheckPass();
   } catch (err) {
     console.error("❌ Sequence scheduler tick error:", err.message);
   } finally {
