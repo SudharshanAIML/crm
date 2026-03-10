@@ -2,11 +2,7 @@ import * as discussService from "./discuss.service.js";
 import * as repo from "./discuss.repository.js";
 import { getIO } from "../../services/socket.service.js";
 import * as livekitService from "../../services/livekit.service.js";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { uploadToCloudinary } from "../../services/cloudinary.service.js";
 
 /* =====================================================
    FILE UPLOAD CONTROLLER
@@ -22,10 +18,14 @@ export const uploadAttachment = async (req, res, next) => {
     if (!req.file) {
       return res.status(400).json({ message: 'No file provided' });
     }
-    // Build the public URL — served by express.static('/uploads')
-    const relativePath = `/uploads/discuss/${req.file.filename}`;
+    // Upload the in-memory buffer to Cloudinary
+    const { url } = await uploadToCloudinary(
+      req.file.buffer,
+      req.file.originalname,
+      req.file.mimetype
+    );
     res.json({
-      url: relativePath,
+      url,
       type: req.file.mimetype,
       name: req.file.originalname,
       size: req.file.size,

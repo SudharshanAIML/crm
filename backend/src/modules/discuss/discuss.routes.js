@@ -1,12 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
-import path from "path";
-import { fileURLToPath } from "url";
 import * as discussController from "./discuss.controller.js";
 import { authenticateEmployee } from "../../middlewares/auth.middleware.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const router = Router();
 
@@ -14,7 +9,7 @@ const router = Router();
 router.use(authenticateEmployee);
 
 /* =====================================================
-   FILE UPLOAD (multer disk storage)
+   FILE UPLOAD (multer memory storage → Cloudinary)
 ===================================================== */
 
 const ALLOWED_MIME = [
@@ -32,16 +27,8 @@ const ALLOWED_MIME = [
   'text/plain', 'text/csv',
 ];
 
-const diskStorage = multer.diskStorage({
-  destination: path.join(__dirname, '../../../../uploads/discuss'),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  },
-});
-
 const upload = multer({
-  storage: diskStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_MIME.includes(file.mimetype)) cb(null, true);
