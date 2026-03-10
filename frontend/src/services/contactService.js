@@ -110,10 +110,11 @@ export const moveToDormant = async (contactId, reason = null) => {
 };
 
 // Bulk import contacts
-export const importContacts = async (file) => {
+export const importContacts = async (file, defaultStatus) => {
   const form = new FormData();
   form.append('file', file);
-  const response = await api.post('/contacts/admin/import', form, {
+  const qs = defaultStatus ? `?defaultStatus=${encodeURIComponent(defaultStatus)}` : '';
+  const response = await api.post(`/contacts/admin/import${qs}`, form, {
     headers: { 'Content-Type': 'multipart/form-data' }
   });
   return response.data;

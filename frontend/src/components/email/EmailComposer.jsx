@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Minus, Maximize2, Minimize2, Send, Paperclip, Smile, Link2, Trash2, Bold, Italic, Underline, AlertCircle, ExternalLink, Loader2, Save } from 'lucide-react';
 import { sendEmail, getConnectionStatus, getConnectUrl, createGmailDraft, updateGmailDraft, deleteGmailDraft } from '../../services/emailService';
-//nishithaaa
+
 const EMOJI_LIST = [
   '😀', '😃', '😄', '😁', '😊', '🙂', '😉', '😍',
   '🤔', '😎', '👍', '👋', '🎉', '✨', '💯', '🔥',

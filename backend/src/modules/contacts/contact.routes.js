@@ -5,26 +5,24 @@ import { requireAdmin } from "../../middlewares/role.middleware.js";
 import availabilityRoutes from "./availability.routes.js";
 import multer from "multer";
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage() });
 const router = Router();
 /* ---------------------------------------------------
    ADMIN ROUTES (Place before :id routes)
 --------------------------------------------------- */
 
-// Bulk import contacts (Admin only)
+// Bulk import contacts (all employees)
 router.post(
   "/admin/import",
   authenticateEmployee,
-  requireAdmin,
   upload.single('file'),
   contactController.bulkImportContacts
 );
 
-// Export contacts (Admin only)
+// Export contacts (all employees)
 router.get(
   "/admin/export",
   authenticateEmployee,
-  requireAdmin,
   contactController.bulkExportContacts
 );
 

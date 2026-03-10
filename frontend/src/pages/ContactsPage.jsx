@@ -188,6 +188,11 @@ const ContactsPage = memo(() => {
     fetchContacts(true);
   }, [fetchContacts, invalidateContactsCache, activeStage]);
 
+  const handleImportComplete = useCallback(() => {
+    invalidateContactsCache(activeStage);
+    fetchContacts(true);
+  }, [fetchContacts, invalidateContactsCache, activeStage]);
+
   return (
     <>
       {/* Contact Grid */}
@@ -197,6 +202,7 @@ const ContactsPage = memo(() => {
         onEmailClick={handleEmailClick}
         onFollowupsClick={handleFollowupsClick}
         onAddContact={() => setShowAddModal(true)}
+        onImportComplete={handleImportComplete}
         loading={loading}
         activeStage={activeStage}
         isAdmin={isAdminRoute}

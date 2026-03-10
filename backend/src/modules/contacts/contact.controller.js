@@ -312,13 +312,18 @@ export const moveToDormant = async (req, res, next) => {
 export const bulkImportContacts = async (req, res, next) => {
   try {
     if (!req.file || !req.file.buffer) {
-      return res.status(400).json({ message: 'CSV file is required (field name: file)' });
+      return res.status(400).json({ message: 'A CSV or XLSX file is required (field name: file)' });
     }
 
     const companyId = req.user?.companyId || 1;
-    const options = { skipEmailNotify: true };
-    const csvBuffer = req.file.buffer;
-    const result = await contactService.importContacts(csvBuffer, companyId, options);
+    const { defaultStatus } = req.query;
+    const options = {
+      skipEmailNotify: true,
+      defaultStatus: defaultStatus ? defaultStatus.toUpperCase() : undefined,
+      filename: req.file.originalname || '',
+      importedByEmpId: req.user?.empId || null,
+    };
+    const result = await contactService.importContacts(req.file.buffer, companyId, options);
     res.json({ message: 'Import completed', summary: result });
   } catch (error) {
     next(error);
