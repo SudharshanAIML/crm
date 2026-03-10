@@ -9,6 +9,8 @@ import { SessionsCacheProvider } from './context/SessionsCacheContext';
 import { SocketProvider } from './context/SocketContext';
 import { AudioCallProvider } from './components/discuss/AudioCallProvider';
 import { CallOverlay } from './components/discuss/AudioCallUI';
+import { CallProvider } from './context/CallContext';
+import ActiveCallPopup from './components/contacts/ActiveCallPopup';
 import { useRoutePrefetch } from './hooks/useRoutePrefetch';
 import { lazy, Suspense, Component, memo } from 'react';
 
@@ -240,6 +242,7 @@ function App() {
                 <SessionsCacheProvider>
                   <SocketProvider>
                   <AudioCallProvider>
+                  <CallProvider>
                   <BrowserRouter>
                     <RoutePrefetchWrapper>
                       <Routes>
@@ -427,6 +430,8 @@ function App() {
                       </Routes>
                     </RoutePrefetchWrapper>
                   </BrowserRouter>
+                  <ActiveCallPopup />
+                  </CallProvider>
                   <CallOverlay />
                   </AudioCallProvider>
                   </SocketProvider>

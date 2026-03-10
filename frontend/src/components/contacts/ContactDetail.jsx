@@ -43,7 +43,7 @@ import {
   setWeeklySchedule
 } from '../../services/contactService';
 import { getTasksByContact } from '../../services/taskService';
-import { initiateCall } from '../../services/callService';
+import { useCall } from '../../context/CallContext';
 import { useCurrency } from '../../context/CurrencyContext';
 
 const ContactDetail = ({ 
@@ -68,9 +68,11 @@ const ContactDetail = ({
   const [availability, setAvailability] = useState(null);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [showAvailabilityEditor, setShowAvailabilityEditor] = useState(false);
-  const [isCalling, setIsCalling] = useState(false);
-  const [callStatus, setCallStatus] = useState(null);
   const sidebarRef = useRef(null);
+  
+  // Global call context
+  const { activeCall, startCall } = useCall();
+  const isCalling = !!activeCall;
   
   // Use centralized currency formatting
   const { formatCompact, formatFull } = useCurrency();
@@ -173,27 +175,11 @@ const ContactDetail = ({
     }
 
     try {
-      setIsCalling(true);
-      setCallStatus('Initiating call...');
-      
-      const result = await initiateCall(contact.contact_id);
-      
-      setCallStatus(`Call connected! Status: ${result.data.status}`);
-      
-      // Auto-clear status after 5 seconds
-      setTimeout(() => {
-        setCallStatus(null);
-      }, 5000);
+      await startCall(contact.contact_id, contact.name, contact.phone);
     } catch (error) {
       console.error('Error initiating call:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Failed to initiate call';
-      setCallStatus(errorMessage);
       alert(errorMessage);
-      setTimeout(() => {
-        setCallStatus(null);
-      }, 5000);
-    } finally {
-      setIsCalling(false);
     }
   };
 
@@ -1476,13 +1462,8 @@ const ContactDetail = ({
             >
               <Phone className={`w-5 h-5 ${isCalling ? 'text-emerald-600 animate-pulse' : 'text-gray-600 group-hover:text-emerald-600'} transition-colors`} />
               <span className="text-xs font-medium text-gray-600">
-                {isCalling ? 'Calling...' : 'Call'}
+                {isCalling ? 'On Call' : 'Call'}
               </span>
-              {callStatus && (
-                <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap">
-                  {callStatus}
-                </span>
-              )}
             </button>
             <button
               onClick={() => onFollowupsClick?.(contact)}

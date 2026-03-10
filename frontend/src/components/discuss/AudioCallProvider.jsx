@@ -281,7 +281,20 @@ export const AudioCallProvider = ({ children }) => {
     ringingTimerRef.current = setTimeout(() => {
       if (roomRef.current && roomRef.current.remoteParticipants.size === 0) {
         emit('call:missed', { channelId });
-        leaveCall();
+        // End the call inline (can't reference endCall due to hook ordering)
+        disconnectingRef.current = true;
+        if (roomRef.current) {
+          roomRef.current.disconnect();
+          roomRef.current = null;
+        }
+        emit('call:end', { channelId });
+        setActiveCallChannels((prev) => {
+          const next = { ...prev };
+          delete next[channelId];
+          return next;
+        });
+        resetLocalState();
+        disconnectingRef.current = false;
       }
     }, 60000);
 
@@ -341,7 +354,7 @@ export const AudioCallProvider = ({ children }) => {
   }, [incomingCall, emit]);
 
   /**
-   * Leave / end the current call
+   * Leave the current call (doesn't end the call for others)
    */
   const leaveCall = useCallback(() => {
     const channelId = callChannelId;
@@ -355,8 +368,28 @@ export const AudioCallProvider = ({ children }) => {
     }
 
     if (channelId) {
+      emit('call:leave', { channelId });
+    }
+
+    resetLocalState();
+    disconnectingRef.current = false;
+  }, [callChannelId, emit, resetLocalState]);
+
+  /**
+   * End the call for everyone — terminates the call globally
+   */
+  const endCall = useCallback(() => {
+    const channelId = callChannelId;
+
+    disconnectingRef.current = true;
+
+    if (roomRef.current) {
+      roomRef.current.disconnect();
+      roomRef.current = null;
+    }
+
+    if (channelId) {
       emit('call:end', { channelId });
-      // Remove from active call channels
       setActiveCallChannels((prev) => {
         const next = { ...prev };
         delete next[channelId];
@@ -370,12 +403,18 @@ export const AudioCallProvider = ({ children }) => {
 
   const toggleMute = useCallback(async () => {
     const room = roomRef.current;
-    if (!room) return;
-    const newMuted = !isMuted;
-    await room.localParticipant.setMicrophoneEnabled(!newMuted);
-    setIsMuted(newMuted);
-    syncParticipants();
-  }, [isMuted, syncParticipants]);
+    if (!room?.localParticipant) return;
+    try {
+      const currentlyMuted = !room.localParticipant.isMicrophoneEnabled;
+      // Toggle: if currently muted, enable mic; if unmuted, disable mic
+      const shouldEnable = currentlyMuted;
+      await room.localParticipant.setMicrophoneEnabled(shouldEnable);
+      setIsMuted(!shouldEnable);
+      syncParticipants();
+    } catch (err) {
+      console.error('toggleMute failed:', err);
+    }
+  }, [syncParticipants]);
 
   const toggleSpeaker = useCallback(() => {
     setIsSpeaker((prev) => !prev);
@@ -449,8 +488,25 @@ export const AudioCallProvider = ({ children }) => {
     }
   }, [incomingCall, callState, callChannelId, resetLocalState, leaveCall]);
 
+  // Handle call:active — sent by server when joining a channel that has an ongoing call
+  const handleActiveCall = useCallback((data) => {
+    setActiveCallChannels((prev) => {
+      if (prev[data.channelId]) return prev; // already tracked
+      return {
+        ...prev,
+        [data.channelId]: {
+          callerName: data.callerName || 'Someone',
+          callerEmpId: data.callerEmpId,
+          channelName: data.channelName || '',
+          startedAt: Date.now(),
+        },
+      };
+    });
+  }, []);
+
   useSocketEvent('call:start', handleIncomingCall);
   useSocketEvent('call:end', handleCallEnded);
+  useSocketEvent('call:active', handleActiveCall);
 
   const value = {
     // State
@@ -470,6 +526,7 @@ export const AudioCallProvider = ({ children }) => {
     rejectCall,
     joinCall,
     leaveCall,
+    endCall,
     toggleMute,
     toggleSpeaker,
   };
