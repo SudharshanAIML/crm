@@ -42,7 +42,8 @@
     "nodemailer": "^7.0.12",
     "pdf-parse": "^2.4.5",
     "socket.io": "^4.8.3",
-    "twilio": "^5.12.1"
+    "twilio": "^5.12.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "esbuild": "^0.27.2",

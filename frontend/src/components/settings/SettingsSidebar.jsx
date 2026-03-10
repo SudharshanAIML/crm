@@ -1,11 +1,11 @@
 import { memo } from 'react';
-import { ArrowLeft, User, Link2, Bell, Shield, Sliders, LogOut } from 'lucide-react';
+import { ArrowLeft, User, Link2, Bell, Shield, Sliders, LogOut, FileDown } from 'lucide-react';
 import { getInitials, SETTINGS_TABS } from './utils/settingsHelpers';
 
 /**
  * Icon mapping for dynamic icon rendering
  */
-const ICONS = { User, Link2, Bell, Shield, Sliders };
+const ICONS = { User, Link2, Bell, Shield, Sliders, FileDown };
 
 /**
  * Navigation tab item component

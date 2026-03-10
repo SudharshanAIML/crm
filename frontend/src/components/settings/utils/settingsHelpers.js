@@ -46,6 +46,12 @@ export const SETTINGS_TABS = [
     icon: 'Sliders', 
     description: 'App settings' 
   },
+  {
+    id: 'export',
+    label: 'Export',
+    icon: 'FileDown',
+    description: 'Download contact data',
+  },
 ];
 
 /**
