@@ -55,6 +55,9 @@ const TemplatesPage = lazy(() => import('./pages/TemplatesPage'));
 // Sequences
 const SequencesPage = lazy(() => import('./pages/SequencesPage'));
 
+// A/B Tests
+const ABTestsPage = lazy(() => import('./pages/ABTestsPage'));
+
 // Automations
 const AutomationsPage = lazy(() => import('./pages/AutomationsPage'));
 const AutomationBuilderPage = lazy(() => import('./pages/AutomationBuilderPage'));
@@ -317,6 +320,9 @@ function App() {
 
                           {/* Sequences */}
                           <Route path="/sequences" element={<NestedSuspense><SequencesPage /></NestedSuspense>} />
+
+                          {/* A/B Tests */}
+                          <Route path="/ab-tests" element={<NestedSuspense><ABTestsPage /></NestedSuspense>} />
                         </Route>
 
                         {/* ===== ADMIN DASHBOARD ROUTES ===== */}
@@ -367,6 +373,9 @@ function App() {
 
                           {/* Sequences - Admin */}
                           <Route path="sequences" element={<NestedSuspense><SequencesPage /></NestedSuspense>} />
+
+                          {/* A/B Tests - Admin */}
+                          <Route path="ab-tests" element={<NestedSuspense><ABTestsPage /></NestedSuspense>} />
                           
                           {/* Settings */}
                           <Route path="settings" element={<NestedSuspense><SettingsPage /></NestedSuspense>} />

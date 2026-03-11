@@ -46,6 +46,7 @@ import callRoutes from "./modules/calls/call.routes.js";
 import automationRoutes from "./modules/automations/automation.routes.js";
 import emailTemplateRoutes from "./modules/email-templates/emailTemplate.routes.js";
 import sequenceRoutes from "./modules/sequences/sequence.routes.js";
+import abTestRoutes from "./modules/ab-tests/abTest.routes.js";
 
 // Initialize Express app
 const app = express();
@@ -282,6 +283,12 @@ app.use("/api/email-templates", emailTemplateRoutes);
 
 // Email sequence routes
 app.use("/api/sequences", sequenceRoutes);
+
+// A/B testing routes
+app.use("/api/ab-tests", abTestRoutes);
+
+// A/B test tracking routes (public — no auth)
+app.use("/api/ab-track", abTestRoutes);
 
 /* =====================================================
    404 HANDLER
