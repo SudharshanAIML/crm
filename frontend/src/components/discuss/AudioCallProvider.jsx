@@ -320,34 +320,6 @@ export const AudioCallProvider = ({ children }) => {
   }, [syncParticipants, resetLocalState]);
 
   /**
-   * Reset only local UI state — does NOT disconnect the room or emit socket events.
-   */
-  const resetLocalState = useCallback(() => {
-    if (durationTimerRef.current) {
-      clearInterval(durationTimerRef.current);
-      durationTimerRef.current = null;
-    }
-    if (ringingTimerRef.current) {
-      clearTimeout(ringingTimerRef.current);
-      ringingTimerRef.current = null;
-    }
-    // Remove all attached LiveKit audio elements
-    const audioContainer = document.getElementById('livekit-audio-container');
-    if (audioContainer) audioContainer.innerHTML = '';
-    // Stop any ringing sound
-    if (ringtoneRef.current) { ringtoneRef.current.stop(); ringtoneRef.current = null; }
-    roomRef.current = null;
-    setCallState('idle');
-    setCallChannelId(null);
-    setCallChannelName('');
-    setParticipants([]);
-    setCallDuration(0);
-    setIsMuted(false);
-    setIsSpeaker(false);
-    setIncomingCall(null);
-  }, []);
-
-  /**
    * Start a new outgoing call
    */
   const startCall = useCallback(async (channelId, channelName, callerName) => {
