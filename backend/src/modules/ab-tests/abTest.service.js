@@ -2,8 +2,40 @@ import crypto from "crypto";
 import * as repo from "./abTest.repo.js";
 import * as emailService from "../emails/email.service.js";
 import * as gmailService from "../../services/gmail.service.js";
+import { db } from "../../config/db.js";
 
 const APP_URL = process.env.APP_URL || "http://localhost:3000";
+
+/* =====================================================
+   VARIABLE INTERPOLATION
+   Resolves {{contact_name}}, {{employee_name}}, etc.
+===================================================== */
+const interpolate = (text, vars = {}) => {
+  if (!text) return "";
+  return text.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? `{{${k}}}`);
+};
+
+const buildVars = (contact, employee) => ({
+  contact_name:      contact?.name       || "",
+  contact_email:     contact?.email      || "",
+  contact_phone:     contact?.phone      || "",
+  contact_job_title: contact?.job_title  || "",
+  contact_status:    contact?.status     || "",
+  company_name:      employee?.company_name || "",
+  employee_name:     employee?.name      || "",
+  employee_email:    employee?.email     || "",
+});
+
+const getEmployee = async (empId) => {
+  const [rows] = await db.query(
+    `SELECT e.emp_id, e.name, e.email, c.company_name
+     FROM employees e
+     JOIN companies c ON c.company_id = e.company_id
+     WHERE e.emp_id = ?`,
+    [empId]
+  );
+  return rows[0] || null;
+};
 
 /* =====================================================
    VALIDATION
@@ -176,8 +208,11 @@ export const sendTest = async (testId, companyId, empId, contactIds) => {
     // Bulk insert recipients
     await repo.bulkInsertRecipients(recipientRows);
 
-    // Fetch them back to get recipient_ids
+    // Fetch them back to get recipient_ids (includes contact_name, contact_email, contact_stage)
     const recipients = await repo.getRecipientsByTest(testId);
+
+    // Fetch employee data once for template interpolation
+    const employee = await getEmployee(empId);
 
     // Send in bounded batches of 5
     const BATCH_SIZE = 5;
@@ -187,8 +222,18 @@ export const sendTest = async (testId, companyId, empId, contactIds) => {
       const batch = recipients.slice(i, i + BATCH_SIZE);
       const results = await Promise.allSettled(
         batch.map(async (r) => {
-          const subject = r.variant === "A" ? test.subject_a : test.subject_b;
-          const body    = r.variant === "A" ? test.body_a    : test.body_b;
+          const rawSubject = r.variant === "A" ? test.subject_a : test.subject_b;
+          const rawBody    = r.variant === "A" ? test.body_a    : test.body_b;
+
+          // Interpolate template variables ({{contact_name}}, {{employee_name}}, etc.)
+          const vars = buildVars(
+            { name: r.contact_name, email: r.contact_email, status: r.contact_stage,
+              phone: r.contact_phone, job_title: r.contact_job_title },
+            employee
+          );
+          const subject = interpolate(rawSubject, vars);
+          const body    = interpolate(rawBody, vars);
+
           const htmlBody = buildTrackedHtml(body, r.tracking_token);
 
           const result = await emailService.sendCustomEmail({

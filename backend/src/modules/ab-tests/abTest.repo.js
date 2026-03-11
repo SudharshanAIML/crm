@@ -88,7 +88,8 @@ export const bulkInsertRecipients = async (rows) => {
 
 export const getRecipientsByTest = async (testId) => {
   const [rows] = await db.query(
-    `SELECT r.*, c.name AS contact_name, c.email AS contact_email, c.status AS contact_stage
+    `SELECT r.*, c.name AS contact_name, c.email AS contact_email, c.status AS contact_stage,
+            c.phone AS contact_phone, c.job_title AS contact_job_title
      FROM ab_test_recipients r
      JOIN contacts c ON c.contact_id = r.contact_id
      WHERE r.test_id = ?
