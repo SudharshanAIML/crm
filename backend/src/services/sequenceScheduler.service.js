@@ -22,6 +22,7 @@ import * as repo           from "../modules/sequences/sequence.repo.js";
 import * as emailService   from "../modules/emails/email.service.js";
 import * as gmailService   from "./gmail.service.js";
 import { db }              from "../config/db.js";
+import { checkReplies as checkAbTestReplies } from "../modules/ab-tests/abTest.service.js";
 
 const TICK_MS       = 60_000;   // poll every 60 seconds
 const MAX_PARALLEL  = 10;       // concurrent enrollments processed per tick
@@ -282,6 +283,16 @@ const tick = async () => {
 
     // Pass 2: check for replies on waiting / completed enrollments
     await replyCheckPass();
+
+    // Pass 3: check for replies on A/B test emails
+    try {
+      const abReplies = await checkAbTestReplies();
+      if (abReplies > 0) {
+        console.log(`📬 A/B test reply check: ${abReplies} reply(ies) detected`);
+      }
+    } catch (err) {
+      console.error("⚠️ A/B test reply check error:", err.message);
+    }
   } catch (err) {
     console.error("❌ Sequence scheduler tick error:", err.message);
   } finally {
