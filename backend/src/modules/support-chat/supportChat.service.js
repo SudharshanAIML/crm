@@ -53,44 +53,37 @@ const toSqlAlchemyMySqlUrl = (url) => {
   return url;
 };
 
-const toBooleanString = (value) => {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (["1", "true", "yes", "y", "on"].includes(normalized)) return "true";
-  if (["0", "false", "no", "n", "off"].includes(normalized)) return "false";
-  return null;
+const stripQueryFromUrl = (url) => {
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url);
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return url.split("?")[0].split("#")[0];
+  }
 };
 
 const buildSupportChatDbUrl = (sourceUrl) => {
-  const converted = toSqlAlchemyMySqlUrl(sourceUrl);
+  const converted = stripQueryFromUrl(toSqlAlchemyMySqlUrl(sourceUrl));
+  if (!converted) return null;
+  return converted;
+};
+
+const buildInsecureSupportChatDbUrl = (sourceUrl) => {
+  const converted = buildSupportChatDbUrl(sourceUrl);
   if (!converted) return null;
 
   let parsed;
   try {
     parsed = new URL(converted);
   } catch {
-    return converted;
+    return `${converted}?ssl_verify=false`;
   }
 
-  const explicitSslVerify = parsed.searchParams.get("ssl_verify");
-  const explicitCa = parsed.searchParams.get("ssl_ca_b64");
-  const envSslVerify = toBooleanString(process.env.SUPPORT_CHAT_DB_SSL_VERIFY);
-  const envCaB64 = process.env.SUPPORT_CHAT_DB_SSL_CA_B64 || "";
-
-  if (!explicitSslVerify && !explicitCa) {
-    if (envCaB64) {
-      parsed.searchParams.set("ssl_ca_b64", envCaB64);
-    } else if (envSslVerify) {
-      parsed.searchParams.set("ssl_verify", envSslVerify);
-    } else {
-      // Aiven/managed MySQL commonly uses ssl-mode=REQUIRED with self-signed CAs.
-      // In support-chat, this should map to encrypted transport without CA verification
-      // unless an explicit CA is provided.
-      const sslMode = String(parsed.searchParams.get("ssl-mode") || "").toUpperCase();
-      if (sslMode === "REQUIRED") {
-        parsed.searchParams.set("ssl_verify", "false");
-      }
-    }
-  }
+  parsed.searchParams.set("ssl_verify", "false");
 
   return parsed.toString();
 };
@@ -159,6 +152,16 @@ const shouldFallbackToSchemaContext = (error) => {
     "Schema introspection failed",
     "CERTIFICATE_VERIFY_FAILED",
     "ssl",
+  ].some((needle) => message.includes(needle));
+};
+
+const isCertificateVerifyError = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+  return [
+    "certificate_verify_failed",
+    "self-signed certificate",
+    "unable to get local issuer certificate",
+    "tlsv1 alert unknown ca",
   ].some((needle) => message.includes(needle));
 };
 
@@ -261,6 +264,10 @@ const getDefaultInstructions = () => {
     "Prefer read-only SQL with explicit SELECT and safe filters.",
     "When dealing with employee-specific requests, scope by company_id first.",
     "When counting conversions, preserve stage semantics and avoid double-counting contacts.",
+    "Schema truth: there is NO customers table. Customer means contacts rows with status = 'CUSTOMER'.",
+    "Schema truth: deals has deal_value and opportunity_id; opportunities has opportunity_id and contact_id; contacts has contact_id and company_id.",
+    "For tenant-scoped deal analytics, join deals -> opportunities -> contacts and filter contacts.company_id = tenant.",
+    "Do not reference non-existent columns like customers.company_id or tables like customers unless they exist in schema_context.",
     "Never generate INSERT/UPDATE/DELETE/DDL statements.",
   ].join(" ");
 };
@@ -271,28 +278,81 @@ export const health = async () => {
 
 export const createSession = async ({ queryType = "mysql", systemInstructions = "", companyId }) => {
   const dbUrl = buildSupportChatDbUrl(process.env.DATABASE_URL);
+  const insecureDbUrl = buildInsecureSupportChatDbUrl(process.env.DATABASE_URL);
   const fullInstructions = [getDefaultInstructions(), systemInstructions].filter(Boolean).join(" ");
 
   // Primary path: let support-chat introspect DB directly when DB URL exists.
   if (dbUrl) {
+    let activeDbUrl = dbUrl;
+
     try {
       return await supportChatFetch("/sessions", {
         method: "POST",
         body: JSON.stringify({
           query_type: queryType,
           schema_context: [],
-          db_url: dbUrl,
+          db_url: activeDbUrl,
           system_instructions: fullInstructions,
         }),
       });
     } catch (error) {
+      // Certificate-specific retry: keep encryption but skip CA verification when certs are unavailable.
+      if (isCertificateVerifyError(error) && insecureDbUrl && insecureDbUrl !== activeDbUrl) {
+        try {
+          const insecureSession = await supportChatFetch("/sessions", {
+            method: "POST",
+            body: JSON.stringify({
+              query_type: queryType,
+              schema_context: [],
+              db_url: insecureDbUrl,
+              system_instructions: fullInstructions,
+            }),
+          });
+
+          return {
+            ...insecureSession,
+            fallback_mode: "ssl_verify_disabled",
+            fallback_reason: error.message,
+          };
+        } catch (insecureError) {
+          if (!shouldFallbackToSchemaContext(insecureError)) {
+            throw insecureError;
+          }
+          activeDbUrl = insecureDbUrl;
+        }
+      }
+
       if (!shouldFallbackToSchemaContext(error)) {
         throw error;
       }
 
-      // Fallback path: still create a usable assistant session with explicit schema,
-      // even if remote DB introspection fails (SSL CA/cert mismatch, permissions, etc.).
       const schemaContext = await getSchemaContext(companyId);
+
+      // Retry path: keep db_url and provide explicit schema_context to maximize chances
+      // of successful execution even when remote auto-introspection is flaky.
+      try {
+        const hybrid = await supportChatFetch("/sessions", {
+          method: "POST",
+          body: JSON.stringify({
+            query_type: queryType,
+            schema_context: schemaContext,
+            db_url: activeDbUrl,
+            system_instructions: fullInstructions,
+          }),
+        });
+
+        return {
+          ...hybrid,
+          fallback_mode: "schema_context_with_db_url",
+          fallback_reason: error.message,
+        };
+      } catch (hybridError) {
+        if (!shouldFallbackToSchemaContext(hybridError)) {
+          throw hybridError;
+        }
+      }
+
+      // Last-resort fallback: query-generation mode only.
       const fallbackInstructions = [
         fullInstructions,
         "Database auto-discovery failed, so operate in query-generation mode using provided schema_context.",

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import {
   createAssistantSession,
+  getAssistantSession,
   getAssistantHistory,
   sendAssistantMessage,
   deleteAssistantSession,
@@ -82,6 +83,7 @@ const AIAssistantPage = () => {
   const [sending, setSending] = useState(false);
   const [executeQuery, setExecuteQuery] = useState(true);
   const [generateInsight, setGenerateInsight] = useState(true);
+  const [hasDbConnection, setHasDbConnection] = useState(true);
   const [error, setError] = useState("");
 
   const endRef = useRef(null);
@@ -108,7 +110,18 @@ const AIAssistantPage = () => {
     setLoadingSession(true);
     setError("");
     try {
-      const data = await getAssistantHistory(token);
+      const [historyData, sessionData] = await Promise.all([
+        getAssistantHistory(token),
+        getAssistantSession(token).catch(() => null),
+      ]);
+
+      const dbConnected = Boolean(sessionData?.session?.hasDbConnection ?? true);
+      setHasDbConnection(dbConnected);
+      if (!dbConnected) {
+        setExecuteQuery(false);
+      }
+
+      const data = historyData;
       setMessages(data.messages || []);
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to load session history.");
@@ -136,6 +149,16 @@ const AIAssistantPage = () => {
       });
 
       setActiveToken(data.sessionToken);
+      const dbConnected = Boolean(data?.session?.hasDbConnection);
+      setHasDbConnection(dbConnected);
+      setExecuteQuery(dbConnected);
+
+      if (!dbConnected) {
+        setError(
+          "This session is running in query-generation mode because DB connectivity is unavailable. Query execution is disabled."
+        );
+      }
+
       setMessages([]);
       setTimeout(() => textareaRef.current?.focus(), 0);
     } catch (err) {
@@ -157,6 +180,8 @@ const AIAssistantPage = () => {
     setActiveToken("");
     setMessages([]);
     setPrompt("");
+    setHasDbConnection(true);
+    setExecuteQuery(true);
   }, [activeToken]);
 
   const handleSend = useCallback(async () => {
@@ -180,7 +205,7 @@ const AIAssistantPage = () => {
     try {
       const data = await sendAssistantMessage(activeToken, {
         message: userText,
-        executeQuery,
+        executeQuery: hasDbConnection && executeQuery,
         generateInsight,
       });
 
@@ -240,7 +265,12 @@ const AIAssistantPage = () => {
             </div>
             <div className="flex items-center gap-3 text-xs text-slate-500">
               <label className="inline-flex items-center gap-1.5">
-                <input type="checkbox" checked={executeQuery} onChange={(e) => setExecuteQuery(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={executeQuery}
+                  disabled={!hasDbConnection}
+                  onChange={(e) => setExecuteQuery(e.target.checked)}
+                />
                 Execute
               </label>
               <label className="inline-flex items-center gap-1.5">
@@ -249,6 +279,12 @@ const AIAssistantPage = () => {
               </label>
             </div>
         </div>
+
+        {!hasDbConnection && (
+          <div className="px-4 sm:px-5 py-2 border-b border-amber-100 bg-amber-50 text-xs text-amber-800">
+            Session is in query-generation mode only. SQL execution is currently unavailable.
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 bg-slate-50/70">
             {!activeToken && (

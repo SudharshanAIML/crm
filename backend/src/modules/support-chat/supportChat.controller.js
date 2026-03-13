@@ -9,6 +9,8 @@ const buildGuardrailInstructions = ({ companyId, empId, role }) => {
   return [
     `Tenant isolation is mandatory: only read rows where company_id = ${companyId} whenever that column exists.`,
     `Current user context: emp_id = ${empId}, role = ${role}.`,
+    `Important schema mapping for this CRM: "customers" refers to contacts with status = 'CUSTOMER', not a separate customers table.`,
+    "When querying deal_value by customer, join deals -> opportunities -> contacts and apply tenant filter on contacts.company_id.",
     "Never expose data from other companies or infer hidden records.",
     "Prefer aggregated summaries unless the user explicitly asks for row-level details.",
   ].join(" ");
