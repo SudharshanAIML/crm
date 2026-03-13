@@ -514,6 +514,26 @@ export const getActiveCall = async (req, res, next) => {
 };
 
 /**
+ * GET /discuss/channels/:channelId/call-logs
+ * Returns recent call logs for this channel to be rendered in chat timeline.
+ */
+export const getCallLogs = async (req, res, next) => {
+  try {
+    const { empId } = req.user;
+    const channelId = parseInt(req.params.channelId);
+    const limit = parseInt(req.query.limit || '50');
+
+    const member = await repo.isMember(channelId, empId);
+    if (!member) return res.status(403).json({ message: "Not a channel member" });
+
+    const logs = await repo.getCallLogsByChannel(channelId, limit);
+    return res.json(logs);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * POST /discuss/channels/:channelId/call-end
  * Called when the last person leaves the call to update DB state.
  */

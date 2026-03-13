@@ -168,6 +168,18 @@ export const getActiveCall = async (channelId) => {
 };
 
 /**
+ * Get recent call logs for rendering in chat timeline.
+ * @param {number} channelId
+ * @param {number} limit
+ */
+export const getCallLogs = async (channelId, limit = 50) => {
+  const { data } = await api.get(`/discuss/channels/${channelId}/call-logs`, {
+    params: { limit },
+  });
+  return data;
+};
+
+/**
  * Notify backend that the call has ended.
  * @param {number} channelId
  */
