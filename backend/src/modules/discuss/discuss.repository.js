@@ -158,6 +158,14 @@ export const getChannelMembers = async (channelId) => {
   return rows;
 };
 
+export const getEmployeeNameById = async (empId) => {
+  const [rows] = await db.execute(
+    `SELECT name FROM employees WHERE emp_id = ? LIMIT 1`,
+    [empId]
+  );
+  return rows[0]?.name || null;
+};
+
 export const isMember = async (channelId, empId) => {
   const [rows] = await db.execute(
     `SELECT 1 FROM discuss_channel_members WHERE channel_id = ? AND emp_id = ?`,

@@ -149,6 +149,7 @@ export const inviteMembers = async (req, res, next) => {
   try {
     const channelId = parseInt(req.params.channelId);
     const { empIds } = req.body;
+    const inviterName = req.user.name || await repo.getEmployeeNameById(req.user.empId) || "A teammate";
 
     const addedEmployees = await discussService.inviteMembers(
       channelId,
@@ -161,7 +162,7 @@ export const inviteMembers = async (req, res, next) => {
     const io = getIO();
     if (io && addedEmployees.length > 0) {
       // Fetch minimal channel info to include in the notification
-      const channelInfo = { channelId, inviterName: req.user.name || "A teammate" };
+      const channelInfo = { channelId, inviterName };
 
       addedEmployees.forEach(emp => {
         io.of(`/org/${req.user.companyId}`)
@@ -388,6 +389,7 @@ export const getCallToken = async (req, res, next) => {
   try {
     const { empId, companyId, name } = req.user;
     const channelId = parseInt(req.params.channelId);
+    const callerName = name || await repo.getEmployeeNameById(empId) || `Employee ${empId}`;
 
     // Auth: must be a channel member
     const member = await repo.isMember(channelId, empId);
@@ -406,7 +408,7 @@ export const getCallToken = async (req, res, next) => {
       process.env.LIVEKIT_API_SECRET,
       {
         identity,
-        name: name || `Employee ${empId}`,
+        name: callerName,
         ttl: "2h",
       }
     );
@@ -429,7 +431,7 @@ export const getCallToken = async (req, res, next) => {
       callId = await repo.createCallLog(
         channelId,
         empId,
-        name || `Employee ${empId}`,
+        callerName,
         channel.name || "Direct Message",
         companyId
       );
@@ -447,7 +449,7 @@ export const getCallToken = async (req, res, next) => {
                 channelId,
                 callId,
                 roomName,
-                callerName: name || `Employee ${empId}`,
+                callerName,
                 callerEmpId: empId,
                 channelName: channel.name || "Direct Message",
               });
@@ -461,7 +463,7 @@ export const getCallToken = async (req, res, next) => {
             channelId,
             callId,
             roomName,
-            callerName: name || `Employee ${empId}`,
+            callerName,
             callerEmpId: empId,
           });
       }
