@@ -2627,6 +2627,21 @@ const DiscussView = ({ initialIncomingCall = null, autoJoinIncoming = false }) =
       .slice(0, 3),
   [typingUsers, members, user?.emp_id]);
 
+  const callParticipantNameMap = useMemo(() => {
+    const map = {};
+    members.forEach((member) => {
+      if (member?.emp_id != null && member?.name) {
+        map[String(member.emp_id)] = member.name;
+      }
+    });
+
+    if (user?.emp_id != null && user?.name) {
+      map[String(user.emp_id)] = user.name;
+    }
+
+    return map;
+  }, [members, user?.emp_id, user?.name]);
+
   // ---- LIVEKIT CALL STATE ----
   const [callToken, setCallToken] = useState(null);
   const [callRoomName, setCallRoomName] = useState(null);
@@ -2867,6 +2882,7 @@ const DiscussView = ({ initialIncomingCall = null, autoJoinIncoming = false }) =
               token={callToken}
               roomName={callRoomName}
               channelName={activeChannel?.name || 'Call'}
+              participantNameMap={callParticipantNameMap}
               channelId={callChannelId}
               onLeave={handleLeaveCall}
             />
