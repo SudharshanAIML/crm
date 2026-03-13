@@ -2216,7 +2216,7 @@ ThreadPanel.displayName = 'ThreadPanel';
    MAIN DISCUSS COMPONENT
 ===================================================== */
 
-const DiscussView = () => {
+const DiscussView = ({ initialIncomingCall = null, autoJoinIncoming = false }) => {
   const { user } = useAuth();
   const { connected, emit } = useSocket();
 
@@ -2691,6 +2691,23 @@ const DiscussView = () => {
     selectChannel(channelId);
     handleStartCall(channelId);
   }, [incomingCall, selectChannel, handleStartCall]);
+
+  // If user navigates here from a global incoming-call popup, resume the flow.
+  useEffect(() => {
+    if (!initialIncomingCall) return;
+
+    const { channelId } = initialIncomingCall;
+    if (!channelId) return;
+
+    if (autoJoinIncoming) {
+      setIncomingCall(null);
+      selectChannel(channelId);
+      handleStartCall(channelId);
+      return;
+    }
+
+    setIncomingCall(initialIncomingCall);
+  }, [initialIncomingCall, autoJoinIncoming, selectChannel, handleStartCall]);
 
   return (
     <div className="flex h-full bg-white overflow-hidden border-t border-gray-200">

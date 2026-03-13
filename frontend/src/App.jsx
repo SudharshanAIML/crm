@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CurrencyProvider } from './context/CurrencyContext';
@@ -6,9 +6,10 @@ import { AdminProvider } from './context/AdminContext';
 import { EmailCacheProvider } from './context/EmailCacheContext';
 import { ContactsCacheProvider } from './context/ContactsCacheContext';
 import { SessionsCacheProvider } from './context/SessionsCacheContext';
-import { SocketProvider } from './context/SocketContext';
+import { SocketProvider, useSocketEvent } from './context/SocketContext';
 import { useRoutePrefetch } from './hooks/useRoutePrefetch';
-import { lazy, Suspense, Component, memo } from 'react';
+import { lazy, Suspense, Component, memo, useCallback, useState } from 'react';
+import { IncomingCallBanner } from './components/discuss/LiveKitCallView';
 
 // ============================================================================
 // LAZY LOADED COMPONENTS - All pages use code splitting for optimal performance
@@ -225,6 +226,47 @@ const RoutePrefetchWrapper = ({ children }) => {
   return children;
 };
 
+const GlobalIncomingCallOverlay = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { isAdmin } = useAuth();
+  const [incomingCall, setIncomingCall] = useState(null);
+
+  useSocketEvent('call:incoming', useCallback((data) => {
+    // Discuss page handles its own in-page call UX.
+    if (location.pathname.includes('/discuss')) return;
+    setIncomingCall(data);
+  }, [location.pathname]));
+
+  useSocketEvent('call:ended', useCallback((data) => {
+    if (incomingCall?.channelId && data?.channelId === incomingCall.channelId) {
+      setIncomingCall(null);
+    }
+  }, [incomingCall]));
+
+  const handleJoin = useCallback(() => {
+    if (!incomingCall) return;
+    const discussPath = isAdmin ? '/admin/discuss' : '/discuss';
+    navigate(discussPath, {
+      state: {
+        incomingCall,
+        autoJoinIncoming: true,
+      },
+    });
+    setIncomingCall(null);
+  }, [incomingCall, isAdmin, navigate]);
+
+  if (!incomingCall) return null;
+
+  return (
+    <IncomingCallBanner
+      callInfo={incomingCall}
+      onJoin={handleJoin}
+      onDismiss={() => setIncomingCall(null)}
+    />
+  );
+};
+
 // ============================================================================
 // MAIN APP COMPONENT
 // ============================================================================
@@ -242,6 +284,7 @@ function App() {
                   <SocketProvider>
                   <BrowserRouter>
                     <RoutePrefetchWrapper>
+                      <GlobalIncomingCallOverlay />
                       <Routes>
                         {/* ===== PUBLIC ROUTES ===== */}
                         <Route
