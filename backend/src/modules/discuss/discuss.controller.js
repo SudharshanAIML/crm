@@ -1,8 +1,8 @@
 import * as discussService from "./discuss.service.js";
 import * as repo from "./discuss.repository.js";
 import { getIO } from "../../services/socket.service.js";
-import * as livekitService from "../../services/livekit.service.js";
 import { uploadToCloudinary } from "../../services/cloudinary.service.js";
+import { AccessToken } from "livekit-server-sdk";
 
 /* =====================================================
    FILE UPLOAD CONTROLLER
@@ -316,183 +316,6 @@ export const unpinMessage = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-/* =====================================================
-   CALL CONTROLLERS (LiveKit Audio Calls)
-===================================================== */
-
-/**
- * POST /channels/:channelId/call/token
- * Generates a LiveKit access token for the requesting user to join
- * the audio call room for a specific channel.
- * Returns { token, wsUrl, roomName }
- */
-export const getCallToken = async (req, res, next) => {
-  try {
-    const channelId = parseInt(req.params.channelId);
-    const { empId, companyId, name } = req.user;
-
-    // Verify channel membership before issuing a token
-    const channel = await discussService.getChannel(channelId, empId);
-    if (!channel) {
-      return res.status(403).json({ message: "Not a member of this channel" });
-    }
-
-    const roomName = livekitService.buildRoomName(companyId, channelId);
-    const identity = `emp-${empId}`;
-    const token = await livekitService.generateToken(roomName, identity, name || `Employee ${empId}`);
-    const wsUrl = livekitService.getWsUrl();
-
-    res.json({ token, wsUrl, roomName });
-  } catch (error) { next(error); }
-};
-
-/**
- * GET /channels/:channelId/call/logs
- * Fetch persistent call logs for a channel, so call history survives page refresh.
- */
-export const getCallLogs = async (req, res, next) => {
-  try {
-    const channelId = parseInt(req.params.channelId);
-    const { empId } = req.user;
-
-    // Verify channel membership
-    const channel = await discussService.getChannel(channelId, empId);
-    if (!channel) {
-      return res.status(403).json({ message: "Not a member of this channel" });
-    }
-
-    const logs = await repo.getCallLogsByChannel(channelId);
-    res.json(logs);
-  } catch (error) { next(error); }
-};
-
-/**
- * GET /channels/:channelId/call/participants
- * Get current participants in an active audio call room.
- */
-export const getCallParticipants = async (req, res, next) => {
-  try {
-    const channelId = parseInt(req.params.channelId);
-    const { empId, companyId } = req.user;
-
-    const channel = await discussService.getChannel(channelId, empId);
-    if (!channel) {
-      return res.status(403).json({ message: "Not a member of this channel" });
-    }
-
-    const roomName = livekitService.buildRoomName(companyId, channelId);
-
-    try {
-      const participants = await livekitService.listParticipants(roomName);
-      res.json({ roomName, participants });
-    } catch {
-      // Room may not exist yet (no active call)
-      res.json({ roomName, participants: [] });
-    }
-  } catch (error) { next(error); }
-};
-
-/**
- * GET /channels/:channelId/call/info
- * Get room information for an active audio call.
- */
-export const getCallRoomInfo = async (req, res, next) => {
-  try {
-    const channelId = parseInt(req.params.channelId);
-    const { empId, companyId } = req.user;
-
-    const channel = await discussService.getChannel(channelId, empId);
-    if (!channel) {
-      return res.status(403).json({ message: "Not a member of this channel" });
-    }
-
-    const roomName = livekitService.buildRoomName(companyId, channelId);
-    const room = await livekitService.getRoomInfo(roomName);
-
-    if (!room) {
-      return res.json({ active: false, roomName });
-    }
-
-    res.json({ active: true, roomName, room });
-  } catch (error) { next(error); }
-};
-
-/**
- * POST /channels/:channelId/call/end
- * Force-end an audio call (admin / caller privilege).
- * Destroys the LiveKit room, disconnecting all participants.
- */
-export const endCall = async (req, res, next) => {
-  try {
-    const channelId = parseInt(req.params.channelId);
-    const { empId, companyId } = req.user;
-
-    const channel = await discussService.getChannel(channelId, empId);
-    if (!channel) {
-      return res.status(403).json({ message: "Not a member of this channel" });
-    }
-
-    const roomName = livekitService.buildRoomName(companyId, channelId);
-
-    try {
-      await livekitService.endRoom(roomName);
-    } catch {
-      // Room may already be gone — that's fine
-    }
-
-    // Also persist the end in DB (the webhook will fire too, but this ensures
-    // the DB is updated even if the webhook is delayed)
-    try {
-      await repo.endCallLog(channelId);
-    } catch {
-      // Already ended or no active call
-    }
-
-    res.json({ message: "Call ended", roomName });
-  } catch (error) { next(error); }
-};
-
-/**
- * DELETE /channels/:channelId/call/participants/:identity
- * Remove a specific participant from an active audio call.
- */
-export const removeCallParticipant = async (req, res, next) => {
-  try {
-    const channelId = parseInt(req.params.channelId);
-    const { identity } = req.params;
-    const { empId, companyId } = req.user;
-
-    const channel = await discussService.getChannel(channelId, empId);
-    if (!channel) {
-      return res.status(403).json({ message: "Not a member of this channel" });
-    }
-
-    const roomName = livekitService.buildRoomName(companyId, channelId);
-    await livekitService.removeParticipant(roomName, identity);
-
-    res.json({ message: "Participant removed", identity, roomName });
-  } catch (error) { next(error); }
-};
-
-/**
- * GET /channels/:channelId/call/:callId/participants
- * Get the recorded participant history for a specific (possibly ended) call.
- */
-export const getCallParticipantHistory = async (req, res, next) => {
-  try {
-    const channelId = parseInt(req.params.channelId);
-    const callId = parseInt(req.params.callId);
-    const { empId } = req.user;
-
-    const channel = await discussService.getChannel(channelId, empId);
-    if (!channel) {
-      return res.status(403).json({ message: "Not a member of this channel" });
-    }
-
-    const participants = await repo.getCallParticipants(callId);
-    res.json(participants);
-  } catch (error) { next(error); }
-};
 
 /* =====================================================
    DIRECT MESSAGE (DM) CONTROLLERS
@@ -549,4 +372,134 @@ export const getDmEmployees = async (req, res, next) => {
     res.json(employees);
   } catch (error) { next(error); }
 };
+
+
+/* =====================================================
+   LIVEKIT CALL TOKEN CONTROLLER
+===================================================== */
+
+/**
+ * POST /discuss/channels/:channelId/call-token
+ * Generates a LiveKit JWT for the requesting employee.
+ * If the caller is the first to join, logs the call and
+ * broadcasts call:incoming to all channel members in real-time.
+ */
+export const getCallToken = async (req, res, next) => {
+  try {
+    const { empId, companyId, name } = req.user;
+    const channelId = parseInt(req.params.channelId);
+
+    // Auth: must be a channel member
+    const member = await repo.isMember(channelId, empId);
+    if (!member) return res.status(403).json({ message: "Not a channel member" });
+
+    // Fetch channel info (for room name + notifications)
+    const channel = await repo.getChannelById(channelId, empId);
+    if (!channel) return res.status(404).json({ message: "Channel not found" });
+
+    const roomName = `call-${companyId}-${channelId}`;
+    const identity = `emp-${empId}`;
+
+    // Build LiveKit access token
+    const at = new AccessToken(
+      process.env.LIVEKIT_API_KEY,
+      process.env.LIVEKIT_API_SECRET,
+      {
+        identity,
+        name: name || `Employee ${empId}`,
+        ttl: "2h",
+      }
+    );
+    at.addGrant({
+      roomJoin: true,
+      room: roomName,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true,
+      roomCreate: true,
+    });
+
+    const token = await at.toJwt();
+
+    // Log the call (idempotent: only if no active call exists)
+    const existingCall = await repo.getActiveCallByRoomName(roomName);
+    let callId = existingCall?.call_id || null;
+
+    if (!existingCall) {
+      callId = await repo.createCallLog(
+        channelId,
+        empId,
+        name || `Employee ${empId}`,
+        channel.name || "Direct Message",
+        companyId
+      );
+
+      // Broadcast incoming call notification to all channel members
+      const io = getIO();
+      if (io) {
+        // Get all channel members to notify
+        const members = await repo.getChannelMembers(channelId);
+        members.forEach((m) => {
+          if (m.emp_id !== empId) {
+            io.of(`/org/${companyId}`)
+              .to(`user:${m.emp_id}`)
+              .emit("call:incoming", {
+                channelId,
+                callId,
+                roomName,
+                callerName: name || `Employee ${empId}`,
+                callerEmpId: empId,
+                channelName: channel.name || "Direct Message",
+              });
+          }
+        });
+
+        // Also broadcast to the channel room so anyone viewing it sees the active call
+        io.of(`/org/${companyId}`)
+          .to(`channel:${channelId}`)
+          .emit("call:started", {
+            channelId,
+            callId,
+            roomName,
+            callerName: name || `Employee ${empId}`,
+            callerEmpId: empId,
+          });
+      }
+    }
+
+    res.json({
+      token,
+      roomName,
+      livekitUrl: process.env.LIVEKIT_URL,
+      callId,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /discuss/channels/:channelId/call-end
+ * Called when the last person leaves the call to update DB state.
+ */
+export const endCall = async (req, res, next) => {
+  try {
+    const { empId, companyId } = req.user;
+    const channelId = parseInt(req.params.channelId);
+
+    const result = await repo.endCallLog(channelId);
+
+    const io = getIO();
+    if (io) {
+      io.of(`/org/${companyId}`)
+        .to(`channel:${channelId}`)
+        .emit("call:ended", { channelId });
+    }
+
+    res.json(result || { message: "No active call to end" });
+  } catch (error) {
+    next(error);
+  }
+};
+
 

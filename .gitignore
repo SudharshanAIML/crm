@@ -9,3 +9,4 @@ dist/
 backend/db/migrations/*.js
 *.yaml
 uploads/
+*.lock
