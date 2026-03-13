@@ -479,6 +479,39 @@ export const getCallToken = async (req, res, next) => {
 };
 
 /**
+ * GET /discuss/channels/:channelId/call-active
+ * Returns whether there is an ongoing call in this channel so late joiners
+ * can re-join from UI.
+ */
+export const getActiveCall = async (req, res, next) => {
+  try {
+    const { empId } = req.user;
+    const channelId = parseInt(req.params.channelId);
+
+    const member = await repo.isMember(channelId, empId);
+    if (!member) return res.status(403).json({ message: "Not a channel member" });
+
+    const activeCall = await repo.getActiveCallByChannel(channelId);
+    if (!activeCall) {
+      return res.json({ active: false, call: null });
+    }
+
+    return res.json({
+      active: true,
+      call: {
+        callId: activeCall.call_id,
+        channelId: activeCall.channel_id,
+        callerEmpId: activeCall.caller_emp_id,
+        callerName: activeCall.caller_name,
+        startedAt: activeCall.started_at,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * POST /discuss/channels/:channelId/call-end
  * Called when the last person leaves the call to update DB state.
  */

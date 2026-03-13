@@ -1915,7 +1915,7 @@ PinnedMessagesPanel.displayName = 'PinnedMessagesPanel';
    CHANNEL HEADER
 ===================================================== */
 
-const ChannelHeader = memo(({ channel, memberCount, onMembersClick, onSearchClick, isSearchOpen, onPinsClick, isPinsOpen, pinnedCount, dmPeer, onCallClick, callActive, callLoading }) => {
+const ChannelHeader = memo(({ channel, memberCount, onMembersClick, onSearchClick, isSearchOpen, onPinsClick, isPinsOpen, pinnedCount, dmPeer, onCallClick, callActive, callLoading, callJoinable, callRejoining }) => {
   if (!channel) return null;
   const isDm = channel.channel_type === 'DM';
   const Icon = isDm ? MessageCircle : (channel.channel_type === 'PRIVATE' ? Lock : Hash);
@@ -1944,10 +1944,10 @@ const ChannelHeader = memo(({ channel, memberCount, onMembersClick, onSearchClic
           <span className="text-sm text-gray-400 ml-2 hidden sm:inline">{channel.description}</span>
         )}
         {/* Active call live indicator */}
-        {callActive && (
+        {(callActive || callJoinable) && (
           <span className="flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full border border-green-200">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            Voice connected
+            {callActive ? 'Voice connected' : 'Voice live'}
           </span>
         )}
       </div>
@@ -1962,9 +1962,13 @@ const ChannelHeader = memo(({ channel, memberCount, onMembersClick, onSearchClic
               ? 'bg-red-100 text-red-600 hover:bg-red-200'
               : callLoading
               ? 'bg-gray-100 text-gray-400 cursor-wait'
+            : callRejoining
+              ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-300'
+              : callJoinable
+              ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-300'
               : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
           }`}
-          title={callActive ? 'Leave voice call' : 'Start voice call'}
+          title={callActive ? 'Leave voice call' : callRejoining ? 'Re-join active voice call' : callJoinable ? 'Join active voice call' : 'Start voice call'}
         >
           {callLoading
             ? <span className="w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
@@ -1972,7 +1976,7 @@ const ChannelHeader = memo(({ channel, memberCount, onMembersClick, onSearchClic
             ? <PhoneOff className="w-3.5 h-3.5" />
             : <Phone className="w-3.5 h-3.5" />
           }
-          {callActive ? 'Leave Call' : 'Voice'}
+          {callActive ? 'Leave Call' : callRejoining ? 'Re-Join' : callJoinable ? 'Join' : 'Call'}
         </button>
 
         <button
@@ -2630,6 +2634,8 @@ const DiscussView = ({ initialIncomingCall = null, autoJoinIncoming = false }) =
   const [callChannelId, setCallChannelId] = useState(null);
   const [callActive, setCallActive] = useState(false);
   const [callLoading, setCallLoading] = useState(false);
+  const [channelHasActiveCall, setChannelHasActiveCall] = useState(false);
+  const [hasLeftCallChannelId, setHasLeftCallChannelId] = useState(null); // tracks if user was in a call and left it
   const [incomingCall, setIncomingCall] = useState(null);
 
   // Incoming call notification from a peer who started calling
@@ -2644,7 +2650,18 @@ const DiscussView = ({ initialIncomingCall = null, autoJoinIncoming = false }) =
     if (data?.channelId === callChannelId && callActive) {
       // Don't force-leave — user may still be talking. LiveKit handles disconnect.
     }
-  }, [callChannelId, callActive]));
+    if (data?.channelId === activeChannelId) {
+      setChannelHasActiveCall(false);
+      setHasLeftCallChannelId(prev => prev === data.channelId ? null : prev);
+    }
+  }, [callChannelId, callActive, activeChannelId]));
+
+  // If a call starts in the currently viewed channel, expose re-join affordance.
+  useSocketEvent('call:started', useCallback((data) => {
+    if (data?.channelId === activeChannelId) {
+      setChannelHasActiveCall(true);
+    }
+  }, [activeChannelId]));
 
   const handleStartCall = useCallback(async (channelId) => {
     if (callLoading) return;
@@ -2658,6 +2675,8 @@ const DiscussView = ({ initialIncomingCall = null, autoJoinIncoming = false }) =
       setCallLivekitUrl(livekitUrl);
       setCallChannelId(channelId);
       setCallActive(true);
+      setChannelHasActiveCall(true);
+      setHasLeftCallChannelId(null); // clear re-join marker once successfully joined
     } catch (err) {
       console.error('Failed to start call:', err);
     } finally {
@@ -2665,14 +2684,17 @@ const DiscussView = ({ initialIncomingCall = null, autoJoinIncoming = false }) =
     }
   }, [callLoading, callActive, callChannelId]);
 
-  const handleLeaveCall = useCallback(async () => {
-    if (callChannelId) {
-      try { await discussService.endCall?.(callChannelId); } catch {}
-    }
+  const handleLeaveCall = useCallback(async (isLast = false) => {
+    const channelId = callChannelId;
+    setHasLeftCallChannelId(channelId); // remember user was in this channel's call
     setCallActive(false);
     setCallToken(null);
     setCallRoomName(null);
     setCallChannelId(null);
+    // Only end the call in DB when the last participant leaves
+    if (isLast && channelId) {
+      try { await discussService.endCall?.(channelId); } catch {}
+    }
   }, [callChannelId]);
 
   // If user clicks "Voice" when already in call → leave call
@@ -2708,6 +2730,32 @@ const DiscussView = ({ initialIncomingCall = null, autoJoinIncoming = false }) =
 
     setIncomingCall(initialIncomingCall);
   }, [initialIncomingCall, autoJoinIncoming, selectChannel, handleStartCall]);
+
+  // Late joiner support: whenever channel changes, ask backend if a call is still active.
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadActiveCall = async () => {
+      if (!activeChannelId) {
+        setChannelHasActiveCall(false);
+        return;
+      }
+
+      try {
+        const status = await discussService.getActiveCall(activeChannelId);
+        if (cancelled) return;
+        setChannelHasActiveCall(Boolean(status?.active));
+      } catch {
+        if (!cancelled) setChannelHasActiveCall(false);
+      }
+    };
+
+    loadActiveCall();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeChannelId]);
 
   return (
     <div className="flex h-full bg-white overflow-hidden border-t border-gray-200">
@@ -2752,6 +2800,8 @@ const DiscussView = ({ initialIncomingCall = null, autoJoinIncoming = false }) =
                 onCallClick={() => handleCallToggle(activeChannelId)}
                 callActive={callActive && callChannelId === activeChannelId}
                 callLoading={callLoading}
+                callJoinable={channelHasActiveCall && !(callActive && callChannelId === activeChannelId)}
+                callRejoining={hasLeftCallChannelId === activeChannelId && channelHasActiveCall && !(callActive && callChannelId === activeChannelId)}
               />
 
               <MessageList
