@@ -145,25 +145,24 @@ export const unpinMessage = async (channelId, messageId) => {
   return data;
 };
 
-// ---- Audio Calls (LiveKit) ----
+// ---- LiveKit Calls ----
 
 /**
- * Get a LiveKit token to join the audio call room for a channel
+ * Request a LiveKit access token for joining/starting a channel call.
  * @param {number} channelId
- * @returns {Promise<{ token: string, wsUrl: string, roomName: string }>}
+ * @returns {Promise<{ token: string, roomName: string, livekitUrl: string }>}
  */
-export const getCallToken = async (channelId) => {
-  const { data } = await api.post(`/discuss/channels/${channelId}/call/token`);
+export const requestCallToken = async (channelId) => {
+  const { data } = await api.post(`/discuss/channels/${channelId}/call-token`);
   return data;
 };
 
 /**
- * Get persistent call logs for a channel
+ * Notify backend that the call has ended.
  * @param {number} channelId
- * @returns {Promise<Array>}
  */
-export const getCallLogs = async (channelId) => {
-  const { data } = await api.get(`/discuss/channels/${channelId}/call/logs`);
+export const endCall = async (channelId) => {
+  const { data } = await api.post(`/discuss/channels/${channelId}/call-end`);
   return data;
 };
 

@@ -115,30 +115,6 @@ router.post("/channels/:channelId/pins", discussController.pinMessage);
 // Unpin a specific message
 router.delete("/channels/:channelId/pins/:messageId", discussController.unpinMessage);
 
-/* =====================================================
-   CALL ROUTES (LiveKit Audio Calls)
-===================================================== */
-
-// Get a LiveKit token to join the channel's audio call room
-router.post("/channels/:channelId/call/token", discussController.getCallToken);
-
-// Get persistent call logs for a channel
-router.get("/channels/:channelId/call/logs", discussController.getCallLogs);
-
-// Get room info for an active audio call
-router.get("/channels/:channelId/call/info", discussController.getCallRoomInfo);
-
-// Get current live participants in an active call room
-router.get("/channels/:channelId/call/participants", discussController.getCallParticipants);
-
-// Force-end an audio call (destroys the LiveKit room)
-router.post("/channels/:channelId/call/end", discussController.endCall);
-
-// Remove a specific participant from an active call
-router.delete("/channels/:channelId/call/participants/:identity", discussController.removeCallParticipant);
-
-// Get recorded participant history for a specific (possibly ended) call
-router.get("/channels/:channelId/call/:callId/participants", discussController.getCallParticipantHistory);
 
 /* =====================================================
    MENTION & SEARCH ROUTES
@@ -162,5 +138,15 @@ router.post("/dms", discussController.startDm);
 
 // List all company employees for the new-DM picker (exclude self)
 router.get("/dms/employees", discussController.getDmEmployees);
+
+/* =====================================================
+   LIVEKIT CALL ROUTES
+===================================================== */
+
+// Get a LiveKit token to join/start a call in this channel
+router.post("/channels/:channelId/call-token", discussController.getCallToken);
+
+// End the active call in this channel (update DB + notify members)
+router.post("/channels/:channelId/call-end", discussController.endCall);
 
 export default router;

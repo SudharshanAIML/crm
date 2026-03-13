@@ -283,65 +283,6 @@ export const initSocketIO = (httpServer) => {
     });
 
     /* ---------------------------------------------------
-       AUDIO CALL SIGNALING (LiveKit)
-       — Signaling only: actual audio goes through LiveKit Cloud.
-       — call:start notifies all channel members that a call has begun.
-       — call:end notifies all channel members that the call ended.
-    --------------------------------------------------- */
-
-    socket.on("call:start", async ({ channelId, callerName, channelName }) => {
-      socket.to(`channel:${channelId}`).emit("call:start", {
-        channelId,
-        channelName: channelName || "",
-        callerName: callerName || socket.user.name || "Someone",
-        callerEmpId: empId,
-      });
-
-      // Persist call log to DB
-      try {
-        await repo.createCallLog(
-          channelId,
-          empId,
-          callerName || socket.user.name || "Someone",
-          channelName || "",
-          companyId
-        );
-      } catch (err) {
-        console.error("Failed to persist call start log:", err.message);
-      }
-    });
-
-    socket.on("call:end", async ({ channelId }) => {
-      socket.to(`channel:${channelId}`).emit("call:end", {
-        channelId,
-        empId,
-      });
-
-      // Update call log in DB with ended_at and duration
-      try {
-        await repo.endCallLog(channelId);
-      } catch (err) {
-        console.error("Failed to persist call end log:", err.message);
-      }
-    });
-
-    socket.on("call:reject", ({ channelId }) => {
-      socket.to(`channel:${channelId}`).emit("call:reject", {
-        channelId,
-        empId,
-      });
-    });
-
-    // When caller's auto-timeout fires and nobody answered
-    socket.on("call:missed", async ({ channelId }) => {
-      try {
-        await repo.missCallLog(channelId);
-      } catch (err) {
-        console.error("Failed to persist call missed log:", err.message);
-      }
-    });
-
-    /* ---------------------------------------------------
        DIRECT MESSAGES — real-time new-DM notification
        
        Fired by the frontend after POST /discuss/dms resolves.

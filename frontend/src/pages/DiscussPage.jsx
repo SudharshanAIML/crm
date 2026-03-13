@@ -1,9 +1,7 @@
 import DiscussView from '../components/discuss/DiscussView';
 
 /**
- * DiscussPage — Team Chat (Discord-like) with WhatsApp-style audio calls.
- * AudioCallProvider and CallOverlay live at the App level so call state
- * persists across all pages and the floating popup is always visible.
+ * DiscussPage — Team Chat (Discord-like).
  */
 const DiscussPage = () => {
   return (

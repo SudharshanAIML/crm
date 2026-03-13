@@ -4,13 +4,13 @@ import {
   Hash, Lock, Plus, Search, Users, X, Send, Pencil, Trash2,
   MessageSquare, AtSign, ChevronDown, UserPlus, Check, Bell,
   Paperclip, Mic, MicOff, FileDown, Music, Image as ImageIcon,
-  Phone, Pin, Smile, MoreHorizontal, MessageCircle, ChevronRight
+  Pin, Smile, MoreHorizontal, MessageCircle, ChevronRight, Phone, PhoneOff, Video
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket, useSocketEvent } from '../../context/SocketContext';
-import { useAudioCall } from './AudioCallProvider';
-import { ActiveCallBar, CallSystemMessage } from './AudioCallUI';
 import * as discussService from '../../services/discussService';
+import LiveKitCallView, { IncomingCallBanner } from './LiveKitCallView';
+
 
 // Base URL for serving uploaded files (backend static route)
 // Strip the /api path suffix so file URLs become http://host:port/uploads/...
@@ -1526,7 +1526,6 @@ const MessageList = memo(({ messages, currentEmpId, channelId, channelName, onEd
 
     if (
       prevLastId !== null &&           // skip initial load
-      !lastMsg.isCallEvent &&          // skip synthetic call events
       lastMsg.message_id > prevLastId  // true append — message IDs are auto-increment
     ) {
       if (!autoScrollRef.current) {
@@ -1589,12 +1588,7 @@ const MessageList = memo(({ messages, currentEmpId, channelId, channelName, onEd
         groups.push({ type: 'date', date });
         lastDate = date;
       }
-      // Check if this is a call system message
-      if (msg.isCallEvent) {
-        groups.push({ type: 'call', data: msg });
-      } else {
-        groups.push({ type: 'message', data: msg });
-      }
+      groups.push({ type: 'message', data: msg });
     }
     return groups;
   }, [messages]);
@@ -1619,16 +1613,6 @@ const MessageList = memo(({ messages, currentEmpId, channelId, channelName, onEd
               <span className="text-[11px] font-medium text-gray-400">{item.date}</span>
               <div className="flex-1 border-t border-gray-200" />
             </div>
-          );
-        }
-        if (item.type === 'call') {
-          return (
-            <CallSystemMessage
-              key={`call-${item.data.callEventId}`}
-              message={item.data}
-              channelId={channelId}
-              channelName={channelName}
-            />
           );
         }
         const msg = item.data;
@@ -1931,7 +1915,7 @@ PinnedMessagesPanel.displayName = 'PinnedMessagesPanel';
    CHANNEL HEADER
 ===================================================== */
 
-const ChannelHeader = memo(({ channel, memberCount, onMembersClick, onSearchClick, isSearchOpen, onPinsClick, isPinsOpen, pinnedCount, onCallClick, isInCall, dmPeer }) => {
+const ChannelHeader = memo(({ channel, memberCount, onMembersClick, onSearchClick, isSearchOpen, onPinsClick, isPinsOpen, pinnedCount, dmPeer, onCallClick, callActive, callLoading }) => {
   if (!channel) return null;
   const isDm = channel.channel_type === 'DM';
   const Icon = isDm ? MessageCircle : (channel.channel_type === 'PRIVATE' ? Lock : Hash);
@@ -1959,20 +1943,38 @@ const ChannelHeader = memo(({ channel, memberCount, onMembersClick, onSearchClic
         {!isDm && channel.description && (
           <span className="text-sm text-gray-400 ml-2 hidden sm:inline">{channel.description}</span>
         )}
+        {/* Active call live indicator */}
+        {callActive && (
+          <span className="flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full border border-green-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            Voice connected
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-1">
-        {/* Audio Call Button */}
+        {/* Voice call button */}
         <button
+          id="discuss-call-btn"
           onClick={onCallClick}
-          className={`p-2 rounded-lg transition-colors ${
-            isInCall
-              ? 'bg-green-100 text-green-600 hover:bg-green-200'
-              : 'hover:bg-gray-100 text-gray-500'
+          disabled={callLoading}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            callActive
+              ? 'bg-red-100 text-red-600 hover:bg-red-200'
+              : callLoading
+              ? 'bg-gray-100 text-gray-400 cursor-wait'
+              : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
           }`}
-          title={isInCall ? 'In call' : 'Start audio call'}
+          title={callActive ? 'Leave voice call' : 'Start voice call'}
         >
-          <Phone className="w-4 h-4" />
+          {callLoading
+            ? <span className="w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+            : callActive
+            ? <PhoneOff className="w-3.5 h-3.5" />
+            : <Phone className="w-3.5 h-3.5" />
+          }
+          {callActive ? 'Leave Call' : 'Voice'}
         </button>
+
         <button
           onClick={onSearchClick}
           className={`p-2 rounded-lg transition-colors ${
@@ -2218,14 +2220,6 @@ const DiscussView = () => {
   const { user } = useAuth();
   const { connected, emit } = useSocket();
 
-  // Audio call context (provided by AudioCallProvider in DiscussPage)
-  let audioCall = null;
-  try {
-    audioCall = useAudioCall();
-  } catch {
-    // AudioCallProvider not mounted — calls disabled
-  }
-
   const [channels, setChannels] = useState([]);
   const [dmChannels, setDmChannels] = useState([]);
   const [showNewDmModal, setShowNewDmModal] = useState(false);
@@ -2273,14 +2267,7 @@ const DiscussView = () => {
       .finally(() => setThreadLoading(false));
   }, [openThread?.message_id]);
 
-  /**
-   * Start an audio call on the current channel (WhatsApp-style)
-   */
-  const handleStartCall = useCallback(async () => {
-    if (!audioCall || !activeChannelId || !activeChannel) return;
-    if (audioCall.callState !== 'idle') return;
-    await audioCall.startCall(activeChannelId, activeChannel.name, user?.name);
-  }, [audioCall, activeChannelId, activeChannel, user]);
+
 
   useEffect(() => {
     loadChannels();
@@ -2339,53 +2326,16 @@ const DiscussView = () => {
 
     try {
       setLoading(true);
-      const [channelData, messagesData, membersData, callLogsData, pinsData] = await Promise.all([
+      const [channelData, messagesData, membersData, pinsData] = await Promise.all([
         discussService.getChannel(channelId),
         discussService.getMessages(channelId),
         discussService.getChannelMembers(channelId),
-        discussService.getCallLogs(channelId).catch(() => []),
         discussService.getPins(channelId).catch(() => []),
       ]);
 
       setActiveChannel(channelData);
 
-      // Merge DB call logs into messages as virtual call events
-      const callMessages = (callLogsData || []).map(log => ({
-        isCallEvent: true,
-        callEventId: `db-call-${log.call_id}`,
-        callType: log.status === 'started' ? 'start' : 'end',
-        callerName: log.caller_name || 'Someone',
-        callerEmpId: log.caller_emp_id,
-        channelId: log.channel_id,
-        duration: log.duration || 0,
-        callStatus: log.status,
-        created_at: log.started_at,
-        // For completed calls, also add an "end" event
-        _endedAt: log.ended_at,
-      }));
-
-      // Expand completed/missed calls into start + end event pairs
-      const expandedCallMessages = [];
-      for (const cm of callMessages) {
-        // Always add the start event
-        expandedCallMessages.push({ ...cm, callType: 'start' });
-        // Add an end event if the call has been completed or missed
-        if (cm.callStatus === 'completed' || cm.callStatus === 'missed') {
-          expandedCallMessages.push({
-            ...cm,
-            callEventId: `db-call-end-${cm.callEventId}`,
-            callType: 'end',
-            created_at: cm._endedAt || cm.created_at,
-          });
-        }
-      }
-
-      // Merge messages and call events, sort by created_at
-      const merged = [...messagesData, ...expandedCallMessages].sort(
-        (a, b) => new Date(a.created_at) - new Date(b.created_at)
-      );
-
-      setMessages(merged);
+      setMessages(messagesData);
       setMembers(membersData);
       setPinnedMessages(pinsData || []);
       setHasMore(messagesData.length >= 50);
@@ -2528,37 +2478,6 @@ const DiscussView = () => {
     setPendingInvite(payload); // Show invite banner
   }, []);
 
-  /**
-   * Inject a call system message into the messages list for the active channel.
-   * These are virtual (not stored in DB) — they appear in the chat log so users
-   * can see call activity and join ongoing calls.
-   */
-  const handleCallStartInChat = useCallback((data) => {
-    if (data.channelId !== activeChannelId) return;
-    const callMsg = {
-      isCallEvent: true,
-      callEventId: `call-start-${data.channelId}-${Date.now()}`,
-      callType: 'start',
-      callerName: data.callerName || 'Someone',
-      callerEmpId: data.callerEmpId,
-      channelId: data.channelId,
-      created_at: new Date().toISOString(),
-    };
-    setMessages(prev => [...prev, callMsg]);
-  }, [activeChannelId]);
-
-  const handleCallEndInChat = useCallback((data) => {
-    if (data.channelId !== activeChannelId) return;
-    const callMsg = {
-      isCallEvent: true,
-      callEventId: `call-end-${data.channelId}-${Date.now()}`,
-      callType: 'end',
-      channelId: data.channelId,
-      created_at: new Date().toISOString(),
-    };
-    setMessages(prev => [...prev, callMsg]);
-  }, [activeChannelId]);
-
   const handlePinChange = useCallback(({ channelId, pins }) => {
     if (channelId === activeChannelId) setPinnedMessages(pins);
   }, [activeChannelId]);
@@ -2591,8 +2510,6 @@ const DiscussView = () => {
   useSocketEvent('typing:start', handleTypingStart);
   useSocketEvent('typing:stop', handleTypingStop);
   useSocketEvent('member:invited', handleMemberInvited);
-  useSocketEvent('call:start', handleCallStartInChat);
-  useSocketEvent('call:end', handleCallEndInChat);
   useSocketEvent('pin:change', handlePinChange);
   useSocketEvent('message:reaction', handleReactionChange);
 
@@ -2706,8 +2623,86 @@ const DiscussView = () => {
       .slice(0, 3),
   [typingUsers, members, user?.emp_id]);
 
+  // ---- LIVEKIT CALL STATE ----
+  const [callToken, setCallToken] = useState(null);
+  const [callRoomName, setCallRoomName] = useState(null);
+  const [callLivekitUrl, setCallLivekitUrl] = useState(null);
+  const [callChannelId, setCallChannelId] = useState(null);
+  const [callActive, setCallActive] = useState(false);
+  const [callLoading, setCallLoading] = useState(false);
+  const [incomingCall, setIncomingCall] = useState(null);
+
+  // Incoming call notification from a peer who started calling
+  useSocketEvent('call:incoming', useCallback((data) => {
+    if (!callActive) {
+      setIncomingCall(data);
+    }
+  }, [callActive]));
+
+  // If everyone leaves, clear our call state
+  useSocketEvent('call:ended', useCallback((data) => {
+    if (data?.channelId === callChannelId && callActive) {
+      // Don't force-leave — user may still be talking. LiveKit handles disconnect.
+    }
+  }, [callChannelId, callActive]));
+
+  const handleStartCall = useCallback(async (channelId) => {
+    if (callLoading) return;
+    // Already in this call — just bring panel into view (it's already showing)
+    if (callActive && callChannelId === channelId) return;
+    setCallLoading(true);
+    try {
+      const { token, roomName, livekitUrl } = await discussService.requestCallToken(channelId);
+      setCallToken(token);
+      setCallRoomName(roomName);
+      setCallLivekitUrl(livekitUrl);
+      setCallChannelId(channelId);
+      setCallActive(true);
+    } catch (err) {
+      console.error('Failed to start call:', err);
+    } finally {
+      setCallLoading(false);
+    }
+  }, [callLoading, callActive, callChannelId]);
+
+  const handleLeaveCall = useCallback(async () => {
+    if (callChannelId) {
+      try { await discussService.endCall?.(callChannelId); } catch {}
+    }
+    setCallActive(false);
+    setCallToken(null);
+    setCallRoomName(null);
+    setCallChannelId(null);
+  }, [callChannelId]);
+
+  // If user clicks "Voice" when already in call → leave call
+  const handleCallToggle = useCallback((channelId) => {
+    if (callActive && callChannelId === channelId) {
+      handleLeaveCall();
+    } else {
+      handleStartCall(channelId);
+    }
+  }, [callActive, callChannelId, handleLeaveCall, handleStartCall]);
+
+  const handleJoinIncoming = useCallback(async () => {
+    if (!incomingCall) return;
+    const { channelId } = incomingCall;
+    setIncomingCall(null);
+    selectChannel(channelId);
+    handleStartCall(channelId);
+  }, [incomingCall, selectChannel, handleStartCall]);
+
   return (
     <div className="flex h-full bg-white overflow-hidden border-t border-gray-200">
+      {/* Global incoming call notification */}
+      {incomingCall && (
+        <IncomingCallBanner
+          callInfo={incomingCall}
+          onJoin={handleJoinIncoming}
+          onDismiss={() => setIncomingCall(null)}
+        />
+      )}
+
       {/* Channel Sidebar */}
       <ChannelList
         channels={channels}
@@ -2721,8 +2716,10 @@ const DiscussView = () => {
 
       {/* Centre: chat column + thread panel side-by-side */}
       <div className="flex-1 flex min-w-0 overflow-hidden">
-        {/* Chat column */}
-        <div className="flex-1 flex flex-col min-w-0">
+        {/* Chat column — shrinks when call panel is open */}
+        <div className={`flex flex-col min-w-0 transition-all duration-300 ${
+          callActive && callChannelId === activeChannelId ? 'w-[55%]' : 'flex-1'
+        }`}>
           {activeChannel ? (
             <>
               <ChannelHeader
@@ -2734,13 +2731,11 @@ const DiscussView = () => {
                 onPinsClick={() => { setShowPins(prev => !prev); setOpenThread(null); setShowSearch(false); }}
                 isPinsOpen={showPins}
                 pinnedCount={pinnedMessages.length}
-                onCallClick={handleStartCall}
-                isInCall={audioCall?.callState === 'active' && audioCall?.callChannelId === activeChannelId}
                 dmPeer={activeDmPeer}
+                onCallClick={() => handleCallToggle(activeChannelId)}
+                callActive={callActive && callChannelId === activeChannelId}
+                callLoading={callLoading}
               />
-
-              {/* Active Call Bar — shown inline when there's an ongoing call in this channel */}
-              <ActiveCallBar channelId={activeChannelId} channelName={activeChannel?.name} />
 
               <MessageList
                 messages={messages}
@@ -2796,6 +2791,20 @@ const DiscussView = () => {
             </div>
           )}
         </div>
+
+        {/* LiveKit Call Panel — appears on the right when call is active for the current channel */}
+        {callActive && callChannelId === activeChannelId && callToken && (
+          <div className="w-[45%] border-l border-gray-200 flex flex-col min-w-0 overflow-hidden">
+            <LiveKitCallView
+              livekitUrl={callLivekitUrl}
+              token={callToken}
+              roomName={callRoomName}
+              channelName={activeChannel?.name || 'Call'}
+              channelId={callChannelId}
+              onLeave={handleLeaveCall}
+            />
+          </div>
+        )}
 
         {/* Thread Panel — slide-over within the centre area */}
         {openThread && (
