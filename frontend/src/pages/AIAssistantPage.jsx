@@ -1,16 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import {
   Bot,
-  Plus,
   Send,
   Sparkles,
-  Database,
   Trash2,
   MessageSquare,
-  Clock3,
   Loader2,
   ShieldCheck,
+  Plus,
 } from "lucide-react";
 import {
   createAssistantSession,
@@ -19,7 +17,14 @@ import {
   deleteAssistantSession,
 } from "../services/assistantService";
 
-const STORAGE_KEY = "crm_assistant_sessions_v1";
+const STORAGE_KEY = "crm_assistant_active_session_v1";
+
+const QUICK_PROMPTS = [
+  "Show me conversion rate by stage for this month",
+  "Which contacts are most likely to close this week?",
+  "Summarize overdue follow-ups by owner",
+  "What changed in pipeline since last week?",
+];
 
 const formatTime = (iso) => {
   if (!iso) return "";
@@ -27,15 +32,12 @@ const formatTime = (iso) => {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 
-const parseStoredSessions = () => {
+const parseStoredSessionToken = () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((s) => s?.token && s?.title);
+    return raw || "";
   } catch {
-    return [];
+    return "";
   }
 };
 
@@ -73,7 +75,6 @@ const AIAssistantPage = () => {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith("/admin");
 
-  const [sessions, setSessions] = useState([]);
   const [activeToken, setActiveToken] = useState("");
   const [messages, setMessages] = useState([]);
   const [prompt, setPrompt] = useState("");
@@ -84,22 +85,24 @@ const AIAssistantPage = () => {
   const [error, setError] = useState("");
 
   const endRef = useRef(null);
+  const textareaRef = useRef(null);
 
   useEffect(() => {
-    const initial = parseStoredSessions();
-    setSessions(initial);
-    if (initial[0]?.token) setActiveToken(initial[0].token);
+    const token = parseStoredSessionToken();
+    if (token) setActiveToken(token);
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
-  }, [sessions]);
+    if (activeToken) {
+      localStorage.setItem(STORAGE_KEY, activeToken);
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }, [activeToken]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, sending]);
-
-  const activeSession = useMemo(() => sessions.find((s) => s.token === activeToken) || null, [sessions, activeToken]);
 
   const loadHistory = useCallback(async (token) => {
     setLoadingSession(true);
@@ -132,44 +135,29 @@ const AIAssistantPage = () => {
         systemInstructions: "Be concise and explain assumptions before final answers.",
       });
 
-      const token = data.sessionToken;
-      const createdAt = data?.session?.createdAt || new Date().toISOString();
-      const next = [
-        {
-          token,
-          title: `Session ${new Date(createdAt).toLocaleString()}`,
-          createdAt,
-        },
-        ...sessions,
-      ];
-      setSessions(next.slice(0, 30));
-      setActiveToken(token);
+      setActiveToken(data.sessionToken);
       setMessages([]);
+      setTimeout(() => textareaRef.current?.focus(), 0);
     } catch (err) {
       setError(err?.response?.data?.message || "Could not create assistant session.");
     } finally {
       setLoadingSession(false);
     }
-  }, [sessions]);
+  }, []);
 
-  const handleDeleteSession = useCallback(
-    async (token) => {
-      try {
-        await deleteAssistantSession(token);
-      } catch {
-        // Ignore delete errors and still clean local list.
-      }
+  const handleDeleteSession = useCallback(async () => {
+    if (!activeToken) return;
 
-      const filtered = sessions.filter((s) => s.token !== token);
-      setSessions(filtered);
+    try {
+      await deleteAssistantSession(activeToken);
+    } catch {
+      // Ignore delete errors and still clear local state.
+    }
 
-      if (activeToken === token) {
-        setActiveToken(filtered[0]?.token || "");
-        if (!filtered[0]) setMessages([]);
-      }
-    },
-    [sessions, activeToken]
-  );
+    setActiveToken("");
+    setMessages([]);
+    setPrompt("");
+  }, [activeToken]);
 
   const handleSend = useCallback(async () => {
     if (!activeToken || !prompt.trim() || sending) return;
@@ -199,14 +187,6 @@ const AIAssistantPage = () => {
       if (data?.response) {
         setMessages((prev) => [...prev, data.response]);
       }
-
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.token === activeToken
-            ? { ...s, title: userText.slice(0, 42), updatedAt: new Date().toISOString() }
-            : s
-        )
-      );
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to send message.");
     } finally {
@@ -214,163 +194,145 @@ const AIAssistantPage = () => {
     }
   }, [activeToken, prompt, executeQuery, generateInsight, sending]);
 
+  const handleQuickPrompt = useCallback(
+    (value) => {
+      setPrompt(value);
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    },
+    []
+  );
+
   return (
-    <div className="h-full min-h-[calc(100vh-10rem)] grid grid-cols-1 lg:grid-cols-[280px,1fr] gap-4">
-      <aside className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col">
-        <div className={`px-4 py-3 border-b border-slate-200 ${isAdmin ? "bg-amber-50" : "bg-sky-50"}`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Bot className={`w-4 h-4 ${isAdmin ? "text-amber-600" : "text-sky-600"}`} />
-              <h2 className="text-sm font-semibold text-slate-800">AI Sessions</h2>
-            </div>
-            <button
-              onClick={handleCreateSession}
-              className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg text-white ${isAdmin ? "bg-amber-600 hover:bg-amber-700" : "bg-sky-600 hover:bg-sky-700"}`}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              New
-            </button>
+    <div className="h-full bg-slate-50 p-3 sm:p-4 lg:p-5">
+      <div className="h-full rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col overflow-hidden">
+        <header className="px-4 sm:px-5 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 flex items-center gap-2">
+              <Bot className={`w-6 h-6 ${isAdmin ? "text-orange-600" : "text-sky-600"}`} />
+              AI Assistant
+            </h1>
+            <p className="text-sm text-slate-500 mt-1 flex items-center gap-1">
+              <ShieldCheck className="w-4 h-4" /> Conversational CRM assistant for insights and operational tasks
+            </p>
           </div>
-        </div>
 
-        <div className="p-3 space-y-2 overflow-y-auto">
-          {sessions.length === 0 && (
+          <div className="flex items-center gap-2">
             <button
               onClick={handleCreateSession}
-              className="w-full border border-dashed border-slate-300 rounded-xl p-4 text-left hover:bg-slate-50"
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-xl text-white ${isAdmin ? "bg-orange-600 hover:bg-orange-700" : "bg-sky-600 hover:bg-sky-700"}`}
             >
-              <p className="text-sm font-medium text-slate-800">Create your first session</p>
-              <p className="text-xs text-slate-500 mt-1">Start asking business or CRM data questions.</p>
+              <Plus className="w-4 h-4" /> New Chat
             </button>
-          )}
-
-          {sessions.map((session) => {
-            const active = session.token === activeToken;
-            return (
-              <button
-                key={session.token}
-                onClick={() => setActiveToken(session.token)}
-                className={`w-full text-left rounded-xl border p-3 transition ${
-                  active ? "border-sky-300 bg-sky-50" : "border-slate-200 bg-white hover:bg-slate-50"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate">{session.title}</p>
-                    <p className="text-[11px] text-slate-500 mt-1 inline-flex items-center gap-1">
-                      <Clock3 className="w-3 h-3" />
-                      {new Date(session.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteSession(session.token);
-                    }}
-                    className="p-1 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </aside>
-
-      <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col">
-        <header className="px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
-          <div className="flex flex-wrap items-center gap-3 justify-between">
-            <div>
-              <h1 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                <Sparkles className={`w-5 h-5 ${isAdmin ? "text-amber-600" : "text-sky-600"}`} />
-                CRM AI Assistant
-              </h1>
-              <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                Read-only analytics assistance with tenant-aware guardrails
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 text-xs">
-              <label className="inline-flex items-center gap-2 border border-slate-200 rounded-lg px-2.5 py-1.5">
-                <Database className="w-3.5 h-3.5 text-slate-500" />
-                <input
-                  type="checkbox"
-                  checked={executeQuery}
-                  onChange={(e) => setExecuteQuery(e.target.checked)}
-                />
-                Execute Query
-              </label>
-              <label className="inline-flex items-center gap-2 border border-slate-200 rounded-lg px-2.5 py-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-slate-500" />
-                <input
-                  type="checkbox"
-                  checked={generateInsight}
-                  onChange={(e) => setGenerateInsight(e.target.checked)}
-                />
-                Insight
-              </label>
-            </div>
+            <button
+              onClick={handleDeleteSession}
+              disabled={!activeToken}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-xl border border-slate-300 text-slate-600 hover:bg-white disabled:opacity-40"
+            >
+              <Trash2 className="w-4 h-4" /> End Session
+            </button>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50/60">
-          {!activeToken && (
-            <div className="h-full grid place-items-center text-center text-slate-500">
-              <div>
-                <MessageSquare className="w-9 h-9 mx-auto mb-2 text-slate-400" />
-                <p className="text-sm">Create or select a session to start chatting.</p>
-              </div>
+        <div className="px-4 sm:px-5 py-2.5 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              <Sparkles className="w-3.5 h-3.5" />
+              Read-only mode and tenant-safe guardrails enabled
             </div>
-          )}
-
-          {loadingSession && activeToken && (
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <Loader2 className="w-4 h-4 animate-spin" /> Loading session history...
+            <div className="flex items-center gap-3 text-xs text-slate-500">
+              <label className="inline-flex items-center gap-1.5">
+                <input type="checkbox" checked={executeQuery} onChange={(e) => setExecuteQuery(e.target.checked)} />
+                Execute
+              </label>
+              <label className="inline-flex items-center gap-1.5">
+                <input type="checkbox" checked={generateInsight} onChange={(e) => setGenerateInsight(e.target.checked)} />
+                Insight
+              </label>
             </div>
-          )}
-
-          {!loadingSession && messages.map((m, idx) => <AssistantBubble key={`${m.timestamp || idx}-${idx}`} message={m} />)}
-
-          {sending && (
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <Loader2 className="w-4 h-4 animate-spin" /> Assistant is thinking...
-            </div>
-          )}
-
-          <div ref={endRef} />
         </div>
 
-        <footer className="px-4 py-3 border-t border-slate-200 bg-white">
-          {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
-          <div className="flex items-end gap-2">
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              rows={2}
-              placeholder="Ask about contacts, revenue, conversion, sessions, campaigns..."
-              className="flex-1 resize-none border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300"
-              disabled={!activeToken || sending}
-            />
-            <button
-              onClick={handleSend}
-              disabled={!activeToken || sending || !prompt.trim()}
-              className={`h-11 px-4 rounded-xl text-white inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                isAdmin ? "bg-amber-600 hover:bg-amber-700" : "bg-sky-600 hover:bg-sky-700"
-              }`}
-            >
-              <Send className="w-4 h-4" /> Send
-            </button>
-          </div>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 bg-slate-50/70">
+            {!activeToken && (
+              <div className="h-full grid place-items-center text-center">
+                <div className="max-w-md">
+                  <MessageSquare className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-700 font-medium">Start a new conversation</p>
+                  <p className="text-sm text-slate-500 mt-1">Ask naturally, like you would in ChatGPT or Gemini.</p>
+                  <button
+                    onClick={handleCreateSession}
+                    className={`mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-white ${isAdmin ? "bg-orange-600 hover:bg-orange-700" : "bg-sky-600 hover:bg-sky-700"}`}
+                  >
+                    <Plus className="w-4 h-4" /> Start Chat
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeToken && messages.length === 0 && !loadingSession && (
+              <div className="space-y-3">
+                <p className="text-sm text-slate-600">Try one of these:</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {QUICK_PROMPTS.map((item) => (
+                    <button
+                      key={item}
+                      onClick={() => handleQuickPrompt(item)}
+                      className="text-left rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {loadingSession && (
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <Loader2 className="w-4 h-4 animate-spin" /> Loading conversation...
+              </div>
+            )}
+
+            {messages.map((m, idx) => (
+              <AssistantBubble key={`${m.timestamp || idx}-${idx}`} message={m} />
+            ))}
+
+            {sending && (
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <Loader2 className="w-4 h-4 animate-spin" /> Thinking...
+              </div>
+            )}
+
+            <div ref={endRef} />
+        </div>
+
+        <footer className="p-3 sm:p-4 border-t border-slate-100 bg-white">
+            {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+            <div className="flex items-end gap-2">
+              <textarea
+                ref={textareaRef}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                rows={2}
+                placeholder={activeToken ? "Message AI Assistant..." : "Click 'New Chat' to begin"}
+                className="flex-1 resize-none border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300"
+                disabled={!activeToken || sending}
+              />
+              <button
+                onClick={handleSend}
+                disabled={!activeToken || sending || !prompt.trim()}
+                className={`h-11 px-4 rounded-xl text-white inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isAdmin ? "bg-orange-600 hover:bg-orange-700" : "bg-sky-600 hover:bg-sky-700"
+                }`}
+              >
+                <Send className="w-4 h-4" /> Send
+              </button>
+            </div>
         </footer>
-      </section>
+      </div>
     </div>
   );
 };

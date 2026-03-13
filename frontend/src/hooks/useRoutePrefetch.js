@@ -38,7 +38,7 @@ const PREFETCH_MAP = {
     () => import('../pages/ContactsPage'),
     () => import('../pages/FollowupsPage'),
   ],
-  '/assistant': [
+  '/chat': [
     () => import('../pages/ContactsPage'),
     () => import('../pages/AnalyticsPage'),
   ],

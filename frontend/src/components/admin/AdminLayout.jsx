@@ -32,7 +32,7 @@ const AdminLayout = memo(() => {
     if (path === '/admin/analytics') return { view: 'analytics', stage: null };
     if (path === '/admin/calendar') return { view: 'calendar', stage: null };
     if (path === '/admin/gmail') return { view: 'gmail', stage: null };
-    if (path === '/admin/assistant') return { view: 'assistant', stage: null };
+    if (path === '/admin/chat') return { view: 'assistant', stage: null };
     
     // Check admin sessions routes (/admin/sessions/:stage)
     const sessionsMatch = path.match(/^\/admin\/sessions\/([\w]+)$/);
@@ -144,7 +144,7 @@ const AdminLayout = memo(() => {
         <ErrorAlert error={error} onDismiss={clearError} />
 
         {/* Page Content - Rendered by nested routes */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <main className={`flex-1 ${activeView === 'assistant' ? 'overflow-hidden p-0' : 'overflow-y-auto p-4 lg:p-6'}`}>
           <Outlet context={{ setError, clearError }} />
         </main>
       </div>

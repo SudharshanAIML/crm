@@ -1,4 +1,5 @@
 import { memo, useRef, useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bell, Menu, ChevronDown, Search, Check, CheckCheck, X, Calendar, UserPlus, Trophy, AlertCircle, Clock, Settings } from 'lucide-react';
 import Profile from '../layout/Profile';
 import GlobalSearch from '../layout/GlobalSearch';
@@ -326,6 +327,7 @@ const DashboardHeader = memo(({
   onMobileMenuOpen,
   isAdmin = false,
 }) => {
+  const navigate = useNavigate();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const userMenuRef = useRef(null);
@@ -396,6 +398,18 @@ const DashboardHeader = memo(({
           </button>
 
           <NotificationBell />
+
+          <button
+            onClick={() => navigate(isAdmin ? '/admin/chat' : '/chat')}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+              isAdmin
+                ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                : 'bg-sky-100 text-sky-700 hover:bg-sky-200'
+            }`}
+            title="Open AI Assistant"
+          >
+            <span>Ask AI</span>
+          </button>
 
           {/* User Profile Dropdown */}
           <div className="relative" ref={userMenuRef}>

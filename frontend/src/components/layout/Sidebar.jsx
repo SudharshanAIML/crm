@@ -21,8 +21,7 @@ import {
   Zap,
   NotebookText,
   ListOrdered,
-  FlaskConical,
-  Bot
+  FlaskConical
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -115,7 +114,6 @@ const PRIMARY_VIEW_ITEMS = [
  * Workspace navigation items
  */
 const WORKSPACE_ITEMS = [
-  { id: 'assistant', path: '/assistant', icon: Bot, label: 'AI Assistant' },
   { id: 'discuss', path: '/discuss', icon: MessageCircle, label: 'Discuss' },
   { id: 'gmail', path: '/gmail', icon: Mail, label: 'Gmail' },
   { id: 'calendar', path: '/calendar', icon: CalendarDays, label: 'Calendar' },
@@ -272,7 +270,6 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle, isAdmin
     if (path === '/admin/gmail') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'gmail', currentAdminView: null, isAdminRoute: true };
     if (path === '/admin/calendar') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'calendar', currentAdminView: null, isAdminRoute: true };
     if (path === '/admin/analytics') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'analytics', currentAdminView: null, isAdminRoute: true };
-    if (path === '/admin/assistant') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'assistant', currentAdminView: null, isAdminRoute: true };
     if (path.startsWith('/admin/pages')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'templates', currentAdminView: null, isAdminRoute: true };
     if (path === '/admin/discuss') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'discuss', currentAdminView: null, isAdminRoute: true };
     if (path.startsWith('/admin/templates')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'templates', currentAdminView: null, isAdminRoute: true };
@@ -312,7 +309,6 @@ const Sidebar = memo(({ activeStage, onStageChange, collapsed, onToggle, isAdmin
     if (path === '/gmail') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'gmail', currentAdminView: null, isAdminRoute: false };
     if (path === '/calendar') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'calendar', currentAdminView: null, isAdminRoute: false };
     if (path === '/analytics') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'analytics', currentAdminView: null, isAdminRoute: false };
-    if (path === '/assistant') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'assistant', currentAdminView: null, isAdminRoute: false };
     if (path.startsWith('/pages')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'templates', currentAdminView: null, isAdminRoute: false };
     if (path === '/discuss') return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'discuss', currentAdminView: null, isAdminRoute: false };
     if (path.startsWith('/templates')) return { currentViewMode: null, currentStage: null, currentWorkspaceView: 'templates', currentAdminView: null, isAdminRoute: false };

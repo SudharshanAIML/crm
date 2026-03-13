@@ -354,7 +354,7 @@ function App() {
                           <Route path="/discuss" element={<NestedSuspense><DiscussPage /></NestedSuspense>} />
 
                           {/* AI Assistant */}
-                          <Route path="/assistant" element={<NestedSuspense><AIAssistantPage /></NestedSuspense>} />
+                          <Route path="/chat" element={<NestedSuspense><AIAssistantPage /></NestedSuspense>} />
 
                           {/* Automations */}
                           <Route path="/automations" element={<NestedSuspense><AutomationsPage /></NestedSuspense>} />
@@ -410,7 +410,7 @@ function App() {
                           <Route path="discuss" element={<NestedSuspense><DiscussPage /></NestedSuspense>} />
 
                           {/* AI Assistant - Admin */}
-                          <Route path="assistant" element={<NestedSuspense><AIAssistantPage /></NestedSuspense>} />
+                          <Route path="chat" element={<NestedSuspense><AIAssistantPage /></NestedSuspense>} />
 
                           {/* Automations - Admin */}
                           <Route path="automations" element={<NestedSuspense><AutomationsPage /></NestedSuspense>} />
@@ -453,6 +453,10 @@ function App() {
                             </AuthenticatedRoute>
                           }
                         />
+
+                        {/* Backward-compatible assistant path redirects */}
+                        <Route path="/assistant" element={<Navigate to="/chat" replace />} />
+                        <Route path="/admin/assistant" element={<Navigate to="/chat" replace />} />
 
                         {/* ===== REDIRECTS ===== */}
                         <Route path="/dashboard" element={<Navigate to="/contacts/lead" replace />} />
