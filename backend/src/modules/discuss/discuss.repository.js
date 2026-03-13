@@ -644,6 +644,22 @@ export const getCallLogsByChannel = async (channelId, limit = 50) => {
   return rows;
 };
 
+/**
+ * Get the most recent active call for a channel.
+ */
+export const getActiveCallByChannel = async (channelId) => {
+  const [rows] = await db.execute(
+    `SELECT call_id, channel_id, caller_emp_id, caller_name, channel_name,
+            status, started_at, company_id
+     FROM discuss_call_logs
+     WHERE channel_id = ? AND status = 'started'
+     ORDER BY call_id DESC
+     LIMIT 1`,
+    [channelId]
+  );
+  return rows.length > 0 ? rows[0] : null;
+};
+
 /* =====================================================
    DISCUSS CALL PARTICIPANT QUERIES (LiveKit webhook-driven)
 ===================================================== */

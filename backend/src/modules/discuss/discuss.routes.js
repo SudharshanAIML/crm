@@ -143,6 +143,9 @@ router.get("/dms/employees", discussController.getDmEmployees);
    LIVEKIT CALL ROUTES
 ===================================================== */
 
+// Check whether a channel currently has an active call
+router.get("/channels/:channelId/call-active", discussController.getActiveCall);
+
 // Get a LiveKit token to join/start a call in this channel
 router.post("/channels/:channelId/call-token", discussController.getCallToken);
 

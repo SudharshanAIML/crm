@@ -158,6 +158,16 @@ export const requestCallToken = async (channelId) => {
 };
 
 /**
+ * Get whether the channel currently has an active call.
+ * @param {number} channelId
+ * @returns {Promise<{ active: boolean, call: object|null }>}
+ */
+export const getActiveCall = async (channelId) => {
+  const { data } = await api.get(`/discuss/channels/${channelId}/call-active`);
+  return data;
+};
+
+/**
  * Notify backend that the call has ended.
  * @param {number} channelId
  */
