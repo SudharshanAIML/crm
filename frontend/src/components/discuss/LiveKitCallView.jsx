@@ -28,7 +28,7 @@ import {
    PARTICIPANT TILE
    Renders video track or avatar for one participant
 ===================================================== */
-const ParticipantTile = memo(({ participant, isLocal, isSpeaking, forceCamOn = null, forceMuted = null }) => {
+const ParticipantTile = memo(({ participant, isLocal, isSpeaking, forceCamOn = null, forceMuted = null, displayNameOverride = null }) => {
   const videoRef = useRef(null);
   const [hasCam, setHasCam] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
@@ -75,7 +75,7 @@ const ParticipantTile = memo(({ participant, isLocal, isSpeaking, forceCamOn = n
     };
   }, [participant, forceCamOn, forceMuted]);
 
-  const displayName = participant?.name || participant?.identity || 'Unknown';
+  const displayName = displayNameOverride || participant?.name || participant?.identity || 'Unknown';
   const initial = displayName.charAt(0).toUpperCase();
 
   return (
@@ -248,6 +248,7 @@ const LiveKitCallView = ({
   token,
   roomName,
   channelName,
+  participantNameMap = {},
   onLeave,
 }) => {
   const roomRef = useRef(null);
@@ -422,6 +423,20 @@ const LiveKitCallView = ({
     ? [localParticipant, ...remoteParticipants]
     : remoteParticipants;
 
+  const resolveParticipantName = useCallback((participant) => {
+    const rawName = (participant?.name || '').trim();
+    const identity = String(participant?.identity || '');
+    const match = identity.match(/^emp-(\d+)$/);
+    const empId = match?.[1];
+    const mappedName = empId ? participantNameMap[empId] : null;
+    const isFallbackEmployeeLabel = /^Employee\s+\d+$/i.test(rawName);
+
+    if (mappedName && (!rawName || isFallbackEmployeeLabel)) {
+      return mappedName;
+    }
+    return rawName || mappedName || identity || 'Unknown';
+  }, [participantNameMap]);
+
   const n = allParticipants.length;
   const gridCols =
     n <= 1 ? 'grid-cols-1' :
@@ -577,6 +592,7 @@ const LiveKitCallView = ({
                     isSpeaking={speakingIds.has(p.identity)}
                     forceCamOn={isLocal ? camEnabled : null}
                     forceMuted={isLocal ? !micEnabled : null}
+                    displayNameOverride={resolveParticipantName(p)}
                   />
                 );
               })}
