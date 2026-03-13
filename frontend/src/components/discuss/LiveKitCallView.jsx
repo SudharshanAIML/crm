@@ -399,8 +399,9 @@ const LiveKitCallView = ({
   }, [screenSharing, syncLocalMediaState]);
 
   const leaveCall = useCallback(() => {
+    const isLast = (roomRef.current?.remoteParticipants?.size ?? 0) === 0;
     roomRef.current?.disconnect();
-    onLeave?.();
+    onLeave?.(isLast);
   }, [onLeave]);
 
   const enableAudioPlayback = useCallback(async () => {
