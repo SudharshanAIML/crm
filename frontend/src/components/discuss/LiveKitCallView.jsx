@@ -28,7 +28,7 @@ import {
    PARTICIPANT TILE
    Renders video track or avatar for one participant
 ===================================================== */
-const ParticipantTile = memo(({ participant, isLocal, isSpeaking }) => {
+const ParticipantTile = memo(({ participant, isLocal, isSpeaking, forceCamOn = null, forceMuted = null }) => {
   const videoRef = useRef(null);
   const [hasCam, setHasCam] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
@@ -39,9 +39,14 @@ const ParticipantTile = memo(({ participant, isLocal, isSpeaking }) => {
     const updateState = () => {
       const camPub = participant.getTrackPublication(Track.Source.Camera);
       const micPub = participant.getTrackPublication(Track.Source.Microphone);
-      const camOn = !!(camPub && camPub.track && !camPub.isMuted);
+      const camOn = forceCamOn !== null
+        ? forceCamOn
+        : !!(camPub && camPub.track && !camPub.isMuted);
+      const muted = forceMuted !== null
+        ? forceMuted
+        : (!micPub || micPub.isMuted);
       setHasCam(camOn);
-      setIsMuted(!micPub || micPub.isMuted);
+      setIsMuted(muted);
 
       // Attach/detach video
       if (videoRef.current) {
@@ -68,7 +73,7 @@ const ParticipantTile = memo(({ participant, isLocal, isSpeaking }) => {
       participant.off('trackUnmuted', updateState);
       participant.off('trackSubscribed', updateState);
     };
-  }, [participant]);
+  }, [participant, forceCamOn, forceMuted]);
 
   const displayName = participant?.name || participant?.identity || 'Unknown';
   const initial = displayName.charAt(0).toUpperCase();
@@ -145,17 +150,36 @@ const RemoteAudio = memo(({ participant }) => {
 
     const attach = () => {
       const micPub = participant.getTrackPublication(Track.Source.Microphone);
-      if (micPub?.track && audioRef.current) {
-        micPub.track.attach(audioRef.current);
+      const audioEl = audioRef.current;
+      if (!audioEl) return;
+
+      if (micPub?.track) {
+        micPub.track.attach(audioEl);
+
+        // Browsers can block autoplay for remote audio until play() is called
+        // from a user-gesture flow. Try immediately; if blocked, the parent
+        // room-level audio enable flow handles the fallback.
+        const playPromise = audioEl.play?.();
+        if (playPromise?.catch) {
+          playPromise.catch(() => {});
+        }
+      } else {
+        audioEl.srcObject = null;
       }
     };
 
     attach();
+    participant.on('trackPublished', attach);
     participant.on('trackSubscribed', attach);
+    participant.on('trackMuted', attach);
+    participant.on('trackUnmuted', attach);
     participant.on('trackUnpublished', attach);
 
     return () => {
+      participant.off('trackPublished', attach);
       participant.off('trackSubscribed', attach);
+      participant.off('trackMuted', attach);
+      participant.off('trackUnmuted', attach);
       participant.off('trackUnpublished', attach);
     };
   }, [participant]);
@@ -231,6 +255,7 @@ const LiveKitCallView = ({
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(true);
   const [error, setError] = useState(null);
+  const [audioPlaybackAllowed, setAudioPlaybackAllowed] = useState(true);
 
   // Controls
   const [micEnabled, setMicEnabled] = useState(true);
@@ -244,6 +269,19 @@ const LiveKitCallView = ({
 
   // UI
   const [minimized, setMinimized] = useState(false);
+
+  const syncLocalMediaState = useCallback((room) => {
+    const lp = room?.localParticipant;
+    if (!lp) return;
+
+    const micPub = lp.getTrackPublication(Track.Source.Microphone);
+    const camPub = lp.getTrackPublication(Track.Source.Camera);
+    const screenPub = lp.getTrackPublication(Track.Source.ScreenShare);
+
+    setMicEnabled(!!(micPub && !micPub.isMuted));
+    setCamEnabled(!!(camPub && !camPub.isMuted));
+    setScreenSharing(!!(screenPub && !screenPub.isMuted));
+  }, []);
 
   /* --------------------------------------------------
      CONNECT TO ROOM
@@ -264,6 +302,7 @@ const LiveKitCallView = ({
       if (isCancelled) return;
       setRemoteParticipants([...room.remoteParticipants.values()]);
       setLocalParticipant(room.localParticipant);
+      syncLocalMediaState(room);
     };
 
     room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
@@ -277,8 +316,14 @@ const LiveKitCallView = ({
     room.on(RoomEvent.TrackUnpublished, refresh);
     room.on(RoomEvent.TrackSubscribed, refresh);
     room.on(RoomEvent.TrackUnsubscribed, refresh);
+    room.on(RoomEvent.TrackMuted, refresh);
+    room.on(RoomEvent.TrackUnmuted, refresh);
     room.on(RoomEvent.LocalTrackPublished, refresh);
     room.on(RoomEvent.LocalTrackUnpublished, refresh);
+    room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+      if (isCancelled) return;
+      setAudioPlaybackAllowed(room.canPlaybackAudio);
+    });
     room.on(RoomEvent.Disconnected, () => {
       if (!isCancelled) setConnected(false);
     });
@@ -289,10 +334,21 @@ const LiveKitCallView = ({
         setError(null);
         await room.connect(livekitUrl, token, { autoSubscribe: true });
         if (isCancelled) return;
+
+        // Ensure browser audio playback is unlocked for remote participants.
+        // If blocked, we surface an explicit "Enable Audio" action in the UI.
+        if (typeof room.startAudio === 'function') {
+          try {
+            await room.startAudio();
+          } catch {
+            // Ignore here; UI fallback below handles manual enable.
+          }
+        }
+
         await room.localParticipant.setMicrophoneEnabled(true);
         if (isCancelled) return;
-        setMicEnabled(true);
         refresh();
+        setAudioPlaybackAllowed(room.canPlaybackAudio);
         setConnected(true);
       } catch (err) {
         if (isCancelled) return;
@@ -310,7 +366,7 @@ const LiveKitCallView = ({
       room.disconnect();
       roomRef.current = null;
     };
-  }, [token, livekitUrl, roomName]);
+  }, [token, livekitUrl, roomName, syncLocalMediaState]);
 
   /* --------------------------------------------------
      CONTROLS
@@ -320,32 +376,43 @@ const LiveKitCallView = ({
     if (!room?.localParticipant) return;
     const next = !micEnabled;
     await room.localParticipant.setMicrophoneEnabled(next);
-    setMicEnabled(next);
-  }, [micEnabled]);
+    syncLocalMediaState(room);
+  }, [micEnabled, syncLocalMediaState]);
 
   const toggleCam = useCallback(async () => {
     const room = roomRef.current;
     if (!room?.localParticipant) return;
     const next = !camEnabled;
     await room.localParticipant.setCameraEnabled(next);
-    setCamEnabled(next);
-  }, [camEnabled]);
+    syncLocalMediaState(room);
+  }, [camEnabled, syncLocalMediaState]);
 
   const toggleScreen = useCallback(async () => {
     const room = roomRef.current;
     if (!room?.localParticipant) return;
     try {
       await room.localParticipant.setScreenShareEnabled(!screenSharing);
-      setScreenSharing((v) => !v);
+      syncLocalMediaState(room);
     } catch (err) {
       console.error('Screen share error:', err);
     }
-  }, [screenSharing]);
+  }, [screenSharing, syncLocalMediaState]);
 
   const leaveCall = useCallback(() => {
     roomRef.current?.disconnect();
     onLeave?.();
   }, [onLeave]);
+
+  const enableAudioPlayback = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room || typeof room.startAudio !== 'function') return;
+    try {
+      await room.startAudio();
+      setAudioPlaybackAllowed(room.canPlaybackAudio);
+    } catch (err) {
+      console.error('Audio playback enable failed:', err);
+    }
+  }, []);
 
   /* --------------------------------------------------
      PARTICIPANT LIST
@@ -472,6 +539,18 @@ const LiveKitCallView = ({
       {/* Participant grid */}
       {!error && connected && (
         <div className="flex-1 overflow-y-auto p-3">
+          {!audioPlaybackAllowed && (
+            <div className="mb-3 rounded-lg border border-amber-400/40 bg-amber-500/10 p-3 flex items-center justify-between gap-3">
+              <p className="text-amber-200 text-xs">Browser blocked call audio. Click Enable Audio.</p>
+              <button
+                onClick={enableAudioPlayback}
+                className="px-2.5 py-1.5 rounded-md text-xs font-semibold bg-amber-400 text-black hover:bg-amber-300 transition-colors"
+              >
+                Enable Audio
+              </button>
+            </div>
+          )}
+
           {/* Audio elements for remote participants */}
           {remoteParticipants.map((p) => (
             <RemoteAudio key={p.identity} participant={p} />
@@ -495,6 +574,8 @@ const LiveKitCallView = ({
                     participant={p}
                     isLocal={!!isLocal}
                     isSpeaking={speakingIds.has(p.identity)}
+                    forceCamOn={isLocal ? camEnabled : null}
+                    forceMuted={isLocal ? !micEnabled : null}
                   />
                 );
               })}
