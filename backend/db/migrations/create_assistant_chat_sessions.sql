@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS assistant_chat_sessions (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  company_id INT NOT NULL,
+  emp_id INT NOT NULL,
+  support_chat_session_id VARCHAR(191) NOT NULL,
+  title VARCHAR(120) NOT NULL DEFAULT 'New chat',
+  query_type VARCHAR(32) NOT NULL DEFAULT 'mysql',
+  has_db_connection TINYINT(1) NOT NULL DEFAULT 1,
+  fallback_mode VARCHAR(64) DEFAULT NULL,
+  fallback_reason TEXT,
+  last_message_preview VARCHAR(240) DEFAULT NULL,
+  last_message_at DATETIME DEFAULT NULL,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_support_chat_session_id (support_chat_session_id),
+  KEY idx_assistant_chat_sessions_owner (company_id, emp_id, deleted_at),
+  KEY idx_assistant_chat_sessions_last_message (last_message_at),
+  CONSTRAINT fk_assistant_chat_sessions_company FOREIGN KEY (company_id) REFERENCES companies (company_id) ON DELETE CASCADE,
+  CONSTRAINT fk_assistant_chat_sessions_employee FOREIGN KEY (emp_id) REFERENCES employees (emp_id) ON DELETE CASCADE
+);

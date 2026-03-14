@@ -1,7 +1,7 @@
 import { db } from "../../config/db.js";
 
-const SUPPORT_CHAT_BASE_URL = (process.env.SUPPORT_CHAT_BASE_URL || "https://support-chat-6ajp.onrender.com").replace(/\/$/, "");
-const SUPPORT_CHAT_API_KEY = process.env.SUPPORT_CHAT_API_KEY || "crm-api-key";
+const SUPPORT_CHAT_BASE_URL = (process.env.SUPPORT_CHAT_BASE_URL).replace(/\/$/, "");
+const SUPPORT_CHAT_API_KEY = process.env.SUPPORT_CHAT_API_KEY;
 
 const CRM_TABLE_DESCRIPTIONS = {
   companies: "Company accounts and organization metadata",
@@ -34,6 +34,8 @@ const CRM_TABLE_DESCRIPTIONS = {
 const PRIORITY_SCHEMA_TABLES = Object.keys(CRM_TABLE_DESCRIPTIONS);
 const MAX_TABLES_IN_SCHEMA_CONTEXT = 40;
 const MAX_FIELDS_PER_TABLE = 120;
+const SUPPORT_CHAT_FETCH_RETRIES = 2;
+const SUPPORT_CHAT_FETCH_RETRY_BASE_MS = 300;
 
 const mapDbTypeToSupportType = (dbType = "") => {
   const normalized = String(dbType).toLowerCase();
@@ -111,35 +113,76 @@ const normalizeErrorDetail = (detail) => {
   return String(detail);
 };
 
-const supportChatFetch = async (path, options = {}) => {
-  const response = await fetch(`${SUPPORT_CHAT_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-Key": SUPPORT_CHAT_API_KEY,
-      ...(options.headers || {}),
-    },
-  });
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const text = await response.text();
-  let payload = null;
-  if (text) {
+const isRetriableNetworkError = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+  return ["fetch failed", "econnreset", "etimedout", "enotfound", "eai_again", "socket hang up"].some((needle) =>
+    message.includes(needle)
+  );
+};
+
+const isRetriableStatus = (statusCode) => {
+  return [408, 429, 502, 503, 504].includes(Number(statusCode || 0));
+};
+
+const supportChatFetch = async (path, options = {}) => {
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= SUPPORT_CHAT_FETCH_RETRIES; attempt += 1) {
     try {
-      payload = JSON.parse(text);
-    } catch {
-      payload = { detail: text };
+      const response = await fetch(`${SUPPORT_CHAT_BASE_URL}${path}`, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": SUPPORT_CHAT_API_KEY,
+          ...(options.headers || {}),
+        },
+      });
+
+      const text = await response.text();
+      let payload = null;
+      if (text) {
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          payload = { detail: text };
+        }
+      }
+
+      if (!response.ok) {
+        const prettyDetail = normalizeErrorDetail(payload?.detail);
+        const err = new Error(prettyDetail || payload?.message || "Support Chat API request failed");
+        err.statusCode = response.status;
+        err.raw = payload;
+
+        if (attempt < SUPPORT_CHAT_FETCH_RETRIES && isRetriableStatus(response.status)) {
+          await sleep(SUPPORT_CHAT_FETCH_RETRY_BASE_MS * (attempt + 1));
+          continue;
+        }
+
+        throw err;
+      }
+
+      return payload;
+    } catch (error) {
+      lastError = error;
+      if (attempt < SUPPORT_CHAT_FETCH_RETRIES && isRetriableNetworkError(error)) {
+        await sleep(SUPPORT_CHAT_FETCH_RETRY_BASE_MS * (attempt + 1));
+        continue;
+      }
+      break;
     }
   }
 
-  if (!response.ok) {
-    const prettyDetail = normalizeErrorDetail(payload?.detail);
-    const err = new Error(prettyDetail || payload?.message || "Support Chat API request failed");
-    err.statusCode = response.status;
-    err.raw = payload;
-    throw err;
+  if (lastError?.statusCode) {
+    throw lastError;
   }
 
-  return payload;
+  const unavailableError = new Error("Support Chat service is temporarily unavailable. Please retry.");
+  unavailableError.statusCode = 503;
+  unavailableError.cause = lastError;
+  throw unavailableError;
 };
 
 const shouldFallbackToSchemaContext = (error) => {
@@ -265,6 +308,7 @@ const getDefaultInstructions = () => {
     "When dealing with employee-specific requests, scope by company_id first.",
     "When counting conversions, preserve stage semantics and avoid double-counting contacts.",
     "Schema truth: there is NO customers table. Customer means contacts rows with status = 'CUSTOMER'.",
+    "Schema truth: contacts pipeline column is status (NOT stage). Never reference contacts.stage.",
     "Schema truth: deals has deal_value and opportunity_id; opportunities has opportunity_id and contact_id; contacts has contact_id and company_id.",
     "For tenant-scoped deal analytics, join deals -> opportunities -> contacts and filter contacts.company_id = tenant.",
     "Do not reference non-existent columns like customers.company_id or tables like customers unless they exist in schema_context.",
