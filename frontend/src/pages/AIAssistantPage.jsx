@@ -12,6 +12,7 @@ import {
   PenLine,
   Check,
   X,
+  MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -100,58 +101,107 @@ const SessionRow = ({
   onBeginRename,
   onCancelRename,
   onSaveRename,
+  onDelete,
   isAdmin,
 }) => {
   const isRenaming = renamingToken === session.sessionToken;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [menuOpen]);
+
+  const activeClass = isAdmin
+    ? "border-orange-200 bg-orange-50"
+    : "border-sky-200 bg-sky-50";
 
   return (
     <div
-      className={`rounded-lg border px-2 py-1 transition ${
-        isActive
-          ? isAdmin
-            ? "border-orange-200 bg-orange-50"
-            : "border-sky-200 bg-sky-50"
-          : "border-slate-200 bg-white hover:border-slate-300"
+      className={`group relative rounded-xl border transition-colors ${
+        isActive ? activeClass : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80"
       }`}
     >
       {isRenaming ? (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 px-2.5 py-2">
           <input
             value={renameValue}
             onChange={(e) => setRenameValue(e.target.value)}
-            className="h-8 flex-1 rounded-lg border border-slate-300 px-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onSaveRename(session.sessionToken);
+              if (e.key === "Escape") onCancelRename();
+            }}
+            autoFocus
+            className="h-7 flex-1 rounded-lg border border-slate-300 px-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-300"
             maxLength={120}
           />
           <button
             onClick={() => onSaveRename(session.sessionToken)}
-            className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
-            title="Save name"
+            className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100"
+            title="Save (Enter)"
           >
             <Check className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={onCancelRename}
-            className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
-            title="Cancel"
+            className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100"
+            title="Cancel (Escape)"
           >
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
       ) : (
-        <>
-          <button onClick={() => onSelect(session.sessionToken)} className="w-full text-left">
-            <p className="text-sm font-medium text-slate-800 truncate">{session.title || "New chat"}</p>
-          </button>
-          <div className="mt-1 flex justify-end">
-            <button
-              onClick={() => onBeginRename(session)}
-              className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-white"
-              title="Rename chat"
+        <div className="flex items-center gap-1 px-2.5 py-2.5">
+          <button
+            onClick={() => onSelect(session.sessionToken)}
+            className="flex-1 min-w-0 text-left"
+          >
+            <p
+              className={`text-sm truncate ${
+                isActive ? "font-semibold text-slate-900" : "font-medium text-slate-700"
+              }`}
             >
-              <PenLine className="w-3.5 h-3.5" />
+              {session.title || "New chat"}
+            </p>
+          </button>
+
+          <div ref={menuRef} className="relative shrink-0">
+            <button
+              onClick={(e) => { e.stopPropagation(); setMenuOpen((p) => !p); }}
+              className={`h-6 w-6 inline-flex items-center justify-center rounded-md transition-opacity ${
+                isActive ? "text-slate-500 hover:text-slate-700 hover:bg-slate-200/60" : "text-slate-400 hover:text-slate-600 hover:bg-slate-200/60"
+              } ${
+                menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus:opacity-100"
+              }`}
+              title="Options"
+            >
+              <MoreHorizontal className="w-4 h-4" />
             </button>
+
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-1 z-50 w-40 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+                <button
+                  onClick={() => { setMenuOpen(false); onBeginRename(session); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <PenLine className="w-3.5 h-3.5" /> Rename
+                </button>
+                <div className="border-t border-slate-100 mx-2" />
+                <button
+                  onClick={() => { setMenuOpen(false); onDelete(session.sessionToken); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                </button>
+              </div>
+            )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
@@ -434,11 +484,11 @@ const AIAssistantPage = () => {
 
         <div className="flex-1 min-h-0 flex">
           <aside
-            className={`border-r border-slate-100 bg-slate-50/70 w-full md:w-60 shrink-0 flex-col ${
+            className={`border-r border-slate-100 bg-slate-50/70 w-full md:w-64 shrink-0 flex-col ${
               sidebarOpenMobile ? "flex" : "hidden"
             } md:flex`}
           >
-            <div className="p-3 border-b border-slate-100">
+            <div className="px-3 pt-3 pb-2">
               <button
                 onClick={handleCreateSession}
                 disabled={creatingSession}
@@ -446,11 +496,11 @@ const AIAssistantPage = () => {
                   isAdmin ? "bg-orange-600 hover:bg-orange-700" : "bg-sky-600 hover:bg-sky-700"
                 }`}
               >
-                <Plus className="w-4 h-4" /> New chat
+                {creatingSession ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} New chat
               </button>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
+            <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 space-y-1.5">
               {loadingSessions && (
                 <div className="text-xs text-slate-500 inline-flex items-center gap-1.5">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading chats...
@@ -477,20 +527,13 @@ const AIAssistantPage = () => {
                   onBeginRename={beginRename}
                   onCancelRename={cancelRename}
                   onSaveRename={saveRename}
+                  onDelete={handleDeleteSession}
                   isAdmin={isAdmin}
                 />
               ))}
             </div>
 
-            <div className="p-3 border-t border-slate-100">
-              <button
-                onClick={() => handleDeleteSession(activeToken)}
-                disabled={!activeToken}
-                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-xl border border-slate-300 text-slate-600 hover:bg-white disabled:opacity-40"
-              >
-                <Trash2 className="w-4 h-4" /> End selected chat
-              </button>
-            </div>
+
           </aside>
 
           <section className="flex-1 min-h-0 flex flex-col bg-white">
