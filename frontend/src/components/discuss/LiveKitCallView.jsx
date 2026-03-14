@@ -189,6 +189,63 @@ const RemoteAudio = memo(({ participant }) => {
 RemoteAudio.displayName = 'RemoteAudio';
 
 /* =====================================================
+   SCREEN SHARE TILE
+   Renders the ScreenShare track for a participant
+===================================================== */
+const ScreenShareTile = memo(({ participant, isLocal, displayName }) => {
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    if (!participant) return;
+
+    const attach = () => {
+      const screenPub = participant.getTrackPublication(Track.Source.ScreenShare);
+      const videoEl = videoRef.current;
+      if (!videoEl) return;
+      if (screenPub?.track) {
+        screenPub.track.attach(videoEl);
+      } else {
+        videoEl.srcObject = null;
+      }
+    };
+
+    attach();
+    participant.on('trackPublished', attach);
+    participant.on('trackSubscribed', attach);
+    participant.on('trackUnpublished', attach);
+    participant.on('trackUnsubscribed', attach);
+    participant.on('trackMuted', attach);
+    participant.on('trackUnmuted', attach);
+
+    return () => {
+      participant.off('trackPublished', attach);
+      participant.off('trackSubscribed', attach);
+      participant.off('trackUnpublished', attach);
+      participant.off('trackUnsubscribed', attach);
+      participant.off('trackMuted', attach);
+      participant.off('trackUnmuted', attach);
+    };
+  }, [participant]);
+
+  return (
+    <div className="relative rounded-2xl overflow-hidden bg-black border-2 border-blue-500/60 w-full">
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted={isLocal}
+        className="w-full h-full object-contain max-h-[60vh]"
+      />
+      <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/70 backdrop-blur-sm px-2.5 py-1 rounded-full">
+        <Monitor className="w-3 h-3 text-blue-400" />
+        <span className="text-white text-xs font-semibold">{displayName}'s screen</span>
+      </div>
+    </div>
+  );
+});
+ScreenShareTile.displayName = 'ScreenShareTile';
+
+/* =====================================================
    INCOMING CALL BANNER
    Toast shown to non-callers when a call is started
 ===================================================== */
@@ -288,9 +345,15 @@ const LiveKitCallView = ({
      CONNECT TO ROOM
   -------------------------------------------------- */
   useEffect(() => {
-    if (!token || !livekitUrl || !roomName) return;
+    if (!token || !livekitUrl || !roomName) {
+      setConnecting(false);
+      setConnected(false);
+      setError('Call setup missing (token / room / LiveKit URL). Check local env configuration.');
+      return;
+    }
 
     let isCancelled = false;
+    let connectTimeout = null;
 
     const room = new Room({
       adaptiveStream: true,
@@ -309,6 +372,18 @@ const LiveKitCallView = ({
     room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
       if (isCancelled) return;
       setSpeakingIds(new Set(speakers.map((s) => s.identity)));
+    });
+
+    room.on(RoomEvent.Connected, () => {
+      if (isCancelled) return;
+      if (connectTimeout) {
+        clearTimeout(connectTimeout);
+        connectTimeout = null;
+      }
+      refresh();
+      setAudioPlaybackAllowed(room.canPlaybackAudio);
+      setConnected(true);
+      setConnecting(false);
     });
 
     room.on(RoomEvent.ParticipantConnected, refresh);
@@ -333,8 +408,25 @@ const LiveKitCallView = ({
       try {
         setConnecting(true);
         setError(null);
+
+        // Guard against an endless spinner when network/ICE handshake stalls.
+        connectTimeout = setTimeout(() => {
+          if (isCancelled) return;
+          if (!connected) {
+            setConnecting(false);
+            setError('Connection timed out. Please try again.');
+          }
+        }, 15000);
+
         await room.connect(livekitUrl, token, { autoSubscribe: true });
         if (isCancelled) return;
+
+        // Mark connection as ready immediately after LiveKit connects.
+        // Do not block this on device permission prompts.
+        refresh();
+        setAudioPlaybackAllowed(room.canPlaybackAudio);
+        setConnected(true);
+        setConnecting(false);
 
         // Ensure browser audio playback is unlocked for remote participants.
         // If blocked, we surface an explicit "Enable Audio" action in the UI.
@@ -346,16 +438,28 @@ const LiveKitCallView = ({
           }
         }
 
-        await room.localParticipant.setMicrophoneEnabled(true);
-        if (isCancelled) return;
-        refresh();
-        setAudioPlaybackAllowed(room.canPlaybackAudio);
-        setConnected(true);
+        // Attempt mic enable in the background. If denied or delayed,
+        // keep the user in the call and let them manually unmute later.
+        room.localParticipant
+          .setMicrophoneEnabled(true)
+          .then(() => {
+            if (isCancelled) return;
+            syncLocalMediaState(room);
+          })
+          .catch((err) => {
+            console.warn('Microphone enable skipped:', err?.message || err);
+            if (isCancelled) return;
+            syncLocalMediaState(room);
+          });
       } catch (err) {
         if (isCancelled) return;
         console.error('LiveKit connect failed:', err);
         setError(err.message || 'Failed to connect');
       } finally {
+        if (connectTimeout) {
+          clearTimeout(connectTimeout);
+          connectTimeout = null;
+        }
         if (!isCancelled) setConnecting(false);
       }
     };
@@ -364,6 +468,10 @@ const LiveKitCallView = ({
 
     return () => {
       isCancelled = true;
+      if (connectTimeout) {
+        clearTimeout(connectTimeout);
+        connectTimeout = null;
+      }
       room.disconnect();
       roomRef.current = null;
     };
@@ -393,9 +501,11 @@ const LiveKitCallView = ({
     if (!room?.localParticipant) return;
     try {
       await room.localParticipant.setScreenShareEnabled(!screenSharing);
-      syncLocalMediaState(room);
     } catch (err) {
-      console.error('Screen share error:', err);
+      // User likely dismissed the browser's screen picker — not a fatal error
+      console.warn('Screen share toggle:', err.message);
+    } finally {
+      syncLocalMediaState(room);
     }
   }, [screenSharing, syncLocalMediaState]);
 
@@ -436,6 +546,14 @@ const LiveKitCallView = ({
     }
     return rawName || mappedName || identity || 'Unknown';
   }, [participantNameMap]);
+
+  // Participants with an active screen share track
+  const screenSharers = allParticipants.filter((p) => {
+    const isLocal = localParticipant && p.identity === localParticipant.identity;
+    if (isLocal) return screenSharing;
+    const screenPub = p.getTrackPublication?.(Track.Source.ScreenShare);
+    return !!(screenPub?.track && !screenPub.isMuted);
+  });
 
   const n = allParticipants.length;
   const gridCols =
@@ -578,7 +696,43 @@ const LiveKitCallView = ({
               <p className="font-medium text-sm">Waiting for others to join…</p>
               <p className="text-xs opacity-60">Invite teammates to this channel</p>
             </div>
+          ) : screenSharers.length > 0 ? (
+            /* ── Screen-share layout: big screen on top, participant strip below ── */
+            <div className="flex flex-col gap-3">
+              {screenSharers.map((p) => {
+                const isLocal = localParticipant && p.identity === localParticipant.identity;
+                return (
+                  <ScreenShareTile
+                    key={`screen-${p.identity}`}
+                    participant={p}
+                    isLocal={!!isLocal}
+                    displayName={resolveParticipantName(p)}
+                  />
+                );
+              })}
+              {/* Participant strip */}
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {allParticipants.map((p) => {
+                  const isLocal =
+                    p instanceof LocalParticipant ||
+                    (localParticipant && p.identity === localParticipant.identity);
+                  return (
+                    <div key={p.identity} className="flex-shrink-0 w-36">
+                      <ParticipantTile
+                        participant={p}
+                        isLocal={!!isLocal}
+                        isSpeaking={speakingIds.has(p.identity)}
+                        forceCamOn={isLocal ? camEnabled : null}
+                        forceMuted={isLocal ? !micEnabled : null}
+                        displayNameOverride={resolveParticipantName(p)}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           ) : (
+            /* ── Normal grid layout ── */
             <div className={`grid ${gridCols} gap-2`}>
               {allParticipants.map((p) => {
                 const isLocal =

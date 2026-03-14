@@ -146,6 +146,9 @@ router.get("/dms/employees", discussController.getDmEmployees);
 // Check whether a channel currently has an active call
 router.get("/channels/:channelId/call-active", discussController.getActiveCall);
 
+// Fetch recent call logs for timeline display in the chat area
+router.get("/channels/:channelId/call-logs", discussController.getCallLogs);
+
 // Get a LiveKit token to join/start a call in this channel
 router.post("/channels/:channelId/call-token", discussController.getCallToken);
 

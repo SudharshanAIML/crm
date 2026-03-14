@@ -1493,7 +1493,7 @@ MessageComposer.displayName = 'MessageComposer';
    MESSAGE LIST (with infinite scroll)
 ===================================================== */
 
-const MessageList = memo(({ messages, currentEmpId, channelId, channelName, onEdit, onDelete, onReply, onPin, onReact, onLoadMore, hasMore, loading, highlightedMessageId = null, pinnedIds = null }) => {
+const MessageList = memo(({ messages, callLogs = [], currentEmpId, channelId, channelName, onEdit, onDelete, onReply, onPin, onReact, onLoadMore, hasMore, loading, highlightedMessageId = null, pinnedIds = null }) => {
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
   const prevScrollHeightRef = useRef(0);
@@ -1578,20 +1578,25 @@ const MessageList = memo(({ messages, currentEmpId, channelId, channelName, onEd
   }, [messages]);
 
   const grouped = useMemo(() => {
+    const timeline = [
+      ...messages.map((msg) => ({ kind: 'message', created_at: msg.created_at, data: msg })),
+      ...callLogs.map((log) => ({ kind: 'call', created_at: log.started_at || log.ended_at, data: log })),
+    ].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
     const groups = [];
     let lastDate = '';
-    for (const msg of messages) {
-      const date = new Date(msg.created_at).toLocaleDateString(undefined, {
+    for (const item of timeline) {
+      const date = new Date(item.created_at).toLocaleDateString(undefined, {
         weekday: 'long', month: 'short', day: 'numeric',
       });
       if (date !== lastDate) {
         groups.push({ type: 'date', date });
         lastDate = date;
       }
-      groups.push({ type: 'message', data: msg });
+      groups.push({ type: item.kind, data: item.data });
     }
     return groups;
-  }, [messages]);
+  }, [messages, callLogs]);
 
   return (
     <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
@@ -1615,6 +1620,44 @@ const MessageList = memo(({ messages, currentEmpId, channelId, channelName, onEd
             </div>
           );
         }
+
+        if (item.type === 'call') {
+          const log = item.data;
+          const durationSecs = Number(log.duration || 0);
+          const mins = Math.floor(durationSecs / 60);
+          const secs = durationSecs % 60;
+          const eventAt = log.status === 'completed'
+            ? (log.ended_at || log.started_at)
+            : (log.started_at || log.ended_at);
+          const eventTime = eventAt
+            ? new Date(eventAt).toLocaleTimeString('en-IN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              })
+            : null;
+          const durationLabel = durationSecs > 0
+            ? `${mins > 0 ? `${mins}m ` : ''}${secs}s`
+            : null;
+
+          const statusLabel = log.status === 'completed'
+            ? (durationLabel ? `Call ended · ${durationLabel}` : 'Call ended')
+            : log.status === 'missed'
+            ? 'Missed call'
+            : 'Started a call';
+
+          return (
+            <div key={`call-log-${log.call_id}`} className="flex items-center justify-center px-4 py-2">
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs text-emerald-800">
+                <Phone className="w-3.5 h-3.5" />
+                <span className="font-semibold">{log.caller_name || 'Teammate'}</span>
+                <span>{statusLabel}</span>
+                {eventTime && <span className="text-emerald-700/80">at {eventTime}</span>}
+              </div>
+            </div>
+          );
+        }
+
         const msg = item.data;
         return (
           <MessageBubble
@@ -2230,6 +2273,7 @@ const DiscussView = ({ initialIncomingCall = null, autoJoinIncoming = false }) =
   const [activeChannelId, setActiveChannelId] = useState(null);
   const [activeChannel, setActiveChannel] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [callLogs, setCallLogs] = useState([]);
   const [members, setMembers] = useState([]);
   const [deals, setDeals] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -2318,6 +2362,7 @@ const DiscussView = ({ initialIncomingCall = null, autoJoinIncoming = false }) =
 
     setActiveChannelId(channelId);
     setMessages([]);
+    setCallLogs([]);
     setHasMore(true);
     setEditingMessage(null);
     setOpenThread(null);
@@ -2330,16 +2375,18 @@ const DiscussView = ({ initialIncomingCall = null, autoJoinIncoming = false }) =
 
     try {
       setLoading(true);
-      const [channelData, messagesData, membersData, pinsData] = await Promise.all([
+      const [channelData, messagesData, membersData, pinsData, callLogsData] = await Promise.all([
         discussService.getChannel(channelId),
         discussService.getMessages(channelId),
         discussService.getChannelMembers(channelId),
         discussService.getPins(channelId).catch(() => []),
+        discussService.getCallLogs(channelId).catch(() => []),
       ]);
 
       setActiveChannel(channelData);
 
       setMessages(messagesData);
+      setCallLogs(callLogsData || []);
       setMembers(membersData);
       setPinnedMessages(pinsData || []);
       setHasMore(messagesData.length >= 50);
@@ -2668,6 +2715,7 @@ const DiscussView = ({ initialIncomingCall = null, autoJoinIncoming = false }) =
     if (data?.channelId === activeChannelId) {
       setChannelHasActiveCall(false);
       setHasLeftCallChannelId(prev => prev === data.channelId ? null : prev);
+      discussService.getCallLogs(activeChannelId).then(setCallLogs).catch(() => {});
     }
   }, [callChannelId, callActive, activeChannelId]));
 
@@ -2675,6 +2723,7 @@ const DiscussView = ({ initialIncomingCall = null, autoJoinIncoming = false }) =
   useSocketEvent('call:started', useCallback((data) => {
     if (data?.channelId === activeChannelId) {
       setChannelHasActiveCall(true);
+      discussService.getCallLogs(activeChannelId).then(setCallLogs).catch(() => {});
     }
   }, [activeChannelId]));
 
@@ -2685,9 +2734,15 @@ const DiscussView = ({ initialIncomingCall = null, autoJoinIncoming = false }) =
     setCallLoading(true);
     try {
       const { token, roomName, livekitUrl } = await discussService.requestCallToken(channelId);
+      const resolvedLivekitUrl = livekitUrl || import.meta.env.VITE_LIVEKIT_URL;
+
+      if (!token || !roomName || !resolvedLivekitUrl) {
+        throw new Error('Call setup is incomplete. Missing token, room, or LiveKit URL.');
+      }
+
       setCallToken(token);
       setCallRoomName(roomName);
-      setCallLivekitUrl(livekitUrl);
+      setCallLivekitUrl(resolvedLivekitUrl);
       setCallChannelId(channelId);
       setCallActive(true);
       setChannelHasActiveCall(true);
@@ -2821,6 +2876,7 @@ const DiscussView = ({ initialIncomingCall = null, autoJoinIncoming = false }) =
 
               <MessageList
                 messages={messages}
+                callLogs={callLogs}
                 currentEmpId={user?.emp_id}
                 channelId={activeChannelId}
                 channelName={activeChannel?.name}
